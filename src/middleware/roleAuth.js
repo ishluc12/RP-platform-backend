@@ -38,17 +38,17 @@ const requireRole = (allowedRoles) => {
 
 // Check if user is admin
 const requireAdmin = (req, res, next) => {
-    return requireRole('admin')(req, res, next);
+    return requireRole(['administrator', 'sys_admin', 'admin'])(req, res, next);
 };
 
 // Check if user is lecturer or admin
 const requireLecturerOrAdmin = (req, res, next) => {
-    return requireRole(['lecturer', 'admin'])(req, res, next);
+    return requireRole(['lecturer', 'administrator', 'sys_admin', 'admin'])(req, res, next);
 };
 
 // Check if user is student or admin
 const requireStudentOrAdmin = (req, res, next) => {
-    return requireRole(['student', 'admin'])(req, res, next);
+    return requireRole(['student', 'administrator', 'sys_admin', 'admin'])(req, res, next);
 };
 
 // Check if user can access their own resource or is admin
@@ -65,7 +65,7 @@ const requireOwnershipOrAdmin = (resourceIdParam = 'id') => {
             const resourceId = req.params[resourceIdParam];
 
             // Admin can access any resource
-            if (req.user.role === 'admin') {
+            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
                 return next();
             }
 
@@ -102,7 +102,7 @@ const requireDepartmentAccess = (departmentParam = 'department') => {
             }
 
             // Admin can access any department
-            if (req.user.role === 'admin') {
+            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
                 return next();
             }
 
@@ -184,7 +184,7 @@ const requireDeletePermission = (resourceIdParam = 'id') => {
             const resourceId = req.params[resourceIdParam];
 
             // Only admin can delete resources
-            if (req.user.role === 'admin') {
+            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
                 return next();
             }
 
@@ -219,7 +219,7 @@ const requireViewPermission = (resourceIdParam = 'id') => {
             const resourceId = req.params[resourceIdParam];
 
             // Admin can view everything
-            if (req.user.role === 'admin') {
+            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
                 return next();
             }
 
@@ -247,57 +247,57 @@ const requireViewPermission = (resourceIdParam = 'id') => {
 };
 
 // Check if user can create resources
-const requireCreatePermission = (allowedRoles = ['admin', 'lecturer']) => {
+const requireCreatePermission = (allowedRoles = ['administrator', 'sys_admin', 'admin', 'lecturer']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can approve/reject resources
-const requireApprovalPermission = (allowedRoles = ['admin', 'lecturer']) => {
+const requireApprovalPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin', 'lecturer']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can access analytics
-const requireAnalyticsPermission = (allowedRoles = ['admin']) => {
+const requireAnalyticsPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can manage other users
-const requireUserManagementPermission = (allowedRoles = ['admin']) => {
+const requireUserManagementPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can access system settings
-const requireSystemAccessPermission = (allowedRoles = ['admin']) => {
+const requireSystemAccessPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can access audit logs
-const requireAuditPermission = (allowedRoles = ['admin']) => {
+const requireAuditPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can perform bulk operations
-const requireBulkOperationPermission = (allowedRoles = ['admin']) => {
+const requireBulkOperationPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can export data
-const requireExportPermission = (allowedRoles = ['admin']) => {
+const requireExportPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can import data
-const requireImportPermission = (allowedRoles = ['admin']) => {
+const requireImportPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can access API documentation
-const requireApiDocPermission = (allowedRoles = ['admin', 'lecturer']) => {
+const requireApiDocPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin', 'lecturer']) => {
     return requireRole(allowedRoles);
 };
 
 // Check if user can access testing endpoints
-const requireTestingPermission = (allowedRoles = ['admin']) => {
+const requireTestingPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
     return requireRole(allowedRoles);
 };
 

@@ -16,7 +16,7 @@ const io = socketIo(server, {
 });
 
 // Import middleware
-const errorHandler = require('./src/middleware/errorHandler');
+const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const { setupSocketHandlers } = require('./src/sockets/socketService');
 
 // Import routes
@@ -65,12 +65,7 @@ app.use('/api/lecturer', lecturerRoutes);
 app.use('/api/admin', adminRoutes);
 
 // 404 handler
-app.use('*', (req, res) => {
-    res.status(404).json({
-        error: 'Route not found',
-        message: `Cannot ${req.method} ${req.originalUrl}`
-    });
-});
+app.use('*', notFound);
 
 // Error handling middleware
 app.use(errorHandler);
