@@ -7,8 +7,7 @@ const { authenticateToken } = require('../../middleware/auth');
 // All routes require authentication
 router.use(authenticateToken);
 
-// Get user by ID (public profile)
-router.get('/:id', UserController.getUserById);
+// ---- Static routes first ----
 
 // Search users
 router.get('/search', UserController.searchUsers);
@@ -25,13 +24,19 @@ router.get('/stats/overview', UserController.getUserStats);
 // Get current user's connections
 router.get('/connections', UserController.getConnections);
 
-// Follow/Unfollow user (if implementing social features)
-router.post('/:targetUserId/follow', UserController.toggleFollow);
+// Update current user's status
+router.put('/status', UserController.updateStatus);
+
+// ---- Dynamic routes last ----
+
+// Get user by ID (public profile)
+router.get('/:id', UserController.getUserById);
 
 // Get user activity
 router.get('/:id/activity', UserController.getUserActivity);
 
-// Update user status
-router.put('/status', UserController.updateStatus);
+// Follow/Unfollow another user
+router.post('/:targetUserId/follow', UserController.toggleFollow);
 
 module.exports = router;
+    

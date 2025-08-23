@@ -1,305 +1,127 @@
 // Role-based access control middleware
 
-// Check if user has required role
-const requireRole = (allowedRoles) => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
-            }
+const ADMIN_ROLES = ['administrator', 'sys_admin', 'admin'];
+const LECTURER_ROLES = [...ADMIN_ROLES, 'lecturer'];
+const STUDENT_ROLES = [...ADMIN_ROLES, 'student'];
 
-            // Convert single role to array for consistency
-            const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+// Generic role checker
+const requireRole = (allowedRoles) => (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({
+            success: false,
+            message: 'Authentication required',
+            error: 'AUTH_REQUIRED'
+        });
+    }
 
-            if (!roles.includes(req.user.role)) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Insufficient permissions',
-                    error: 'ACCESS_DENIED',
-                    requiredRoles: roles,
-                    userRole: req.user.role
-                });
-            }
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+    if (!roles.includes(req.user.role)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Insufficient permissions',
+            error: 'ACCESS_DENIED',
+            requiredRoles: roles,
+            userRole: req.user.role
+        });
+    }
 
-            next();
-        } catch (error) {
-            console.error('Role authorization error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Authorization error',
-                error: error.message
-            });
-        }
-    };
+    next();
 };
 
-// Check if user is admin
-const requireAdmin = (req, res, next) => {
-    return requireRole(['administrator', 'sys_admin', 'admin'])(req, res, next);
+// Ownership checker
+const requireOwnershipOrAdmin = (resourceIdParam = 'id') => (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Authentication required', error: 'AUTH_REQUIRED' });
+    }
+
+    const resourceId = Number(req.params[resourceIdParam]);
+    if (ADMIN_ROLES.includes(req.user.role) || req.user.id === resourceId) return next();
+
+    return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only access your own resources.',
+        error: 'ACCESS_DENIED'
+    });
 };
 
-// Check if user is lecturer or admin
-const requireLecturerOrAdmin = (req, res, next) => {
-    return requireRole(['lecturer', 'administrator', 'sys_admin', 'admin'])(req, res, next);
+// Department access checker
+const requireDepartmentAccess = (departmentParam = 'department') => (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Authentication required', error: 'AUTH_REQUIRED' });
+    }
+
+    if (ADMIN_ROLES.includes(req.user.role)) return next();
+
+    const targetDepartment = req.params[departmentParam];
+    if (req.user.department === targetDepartment) return next();
+
+    return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only access resources from your department.',
+        error: 'DEPARTMENT_ACCESS_DENIED'
+    });
 };
 
-// Check if user is student or admin
-const requireStudentOrAdmin = (req, res, next) => {
-    return requireRole(['student', 'administrator', 'sys_admin', 'admin'])(req, res, next);
+// Resource modification checker
+const requireModifyPermission = (allowedRoles = ADMIN_ROLES, resourceIdParam = 'id') => (req, res, next) => {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Authentication required', error: 'AUTH_REQUIRED' });
+
+    const resourceId = Number(req.params[resourceIdParam]);
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+
+    if (roles.includes(req.user.role) || req.user.id === resourceId) return next();
+
+    return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to modify this resource',
+        error: 'MODIFY_PERMISSION_DENIED'
+    });
 };
 
-// Check if user can access their own resource or is admin
-const requireOwnershipOrAdmin = (resourceIdParam = 'id') => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
-            }
+// Resource deletion checker
+const requireDeletePermission = (resourceIdParam = 'id') => (req, res, next) => {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Authentication required', error: 'AUTH_REQUIRED' });
 
-            const resourceId = req.params[resourceIdParam];
+    if (ADMIN_ROLES.includes(req.user.role)) return next();
 
-            // Admin can access any resource
-            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
-                return next();
-            }
-
-            // User can access their own resource
-            if (req.user.id === parseInt(resourceId)) {
-                return next();
-            }
-
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied. You can only access your own resources.',
-                error: 'ACCESS_DENIED'
-            });
-        } catch (error) {
-            console.error('Ownership authorization error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Authorization error',
-                error: error.message
-            });
-        }
-    };
+    return res.status(403).json({
+        success: false,
+        message: 'Only administrators can delete resources',
+        error: 'DELETE_PERMISSION_DENIED'
+    });
 };
 
-// Check if user can access department resources
-const requireDepartmentAccess = (departmentParam = 'department') => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
-            }
+// View permission checker
+const requireViewPermission = (resourceIdParam = 'id') => (req, res, next) => {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Authentication required', error: 'AUTH_REQUIRED' });
 
-            // Admin can access any department
-            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
-                return next();
-            }
+    const resourceId = Number(req.params[resourceIdParam]);
+    if (ADMIN_ROLES.includes(req.user.role) || req.user.id === resourceId) return next();
 
-            const targetDepartment = req.params[departmentParam];
-            const userDepartment = req.user.department;
-
-            // User can access their own department
-            if (userDepartment === targetDepartment) {
-                return next();
-            }
-
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied. You can only access resources from your department.',
-                error: 'DEPARTMENT_ACCESS_DENIED'
-            });
-        } catch (error) {
-            console.error('Department authorization error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Authorization error',
-                error: error.message
-            });
-        }
-    };
+    return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own information.',
+        error: 'VIEW_PERMISSION_DENIED'
+    });
 };
 
-// Check if user can modify resource (owner, admin, or specific roles)
-const requireModifyPermission = (allowedRoles = ['admin'], resourceIdParam = 'id') => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
-            }
+// Convenience wrappers for common role checks
+const requireAdmin = () => requireRole(ADMIN_ROLES);
+const requireLecturerOrAdmin = () => requireRole(LECTURER_ROLES);
+const requireStudentOrAdmin = () => requireRole(STUDENT_ROLES);
 
-            const resourceId = req.params[resourceIdParam];
-
-            // Check if user has required role
-            const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-            if (roles.includes(req.user.role)) {
-                return next();
-            }
-
-            // Check if user owns the resource
-            if (req.user.id === parseInt(resourceId)) {
-                return next();
-            }
-
-            return res.status(403).json({
-                success: false,
-                message: 'Insufficient permissions to modify this resource',
-                error: 'MODIFY_PERMISSION_DENIED'
-            });
-        } catch (error) {
-            console.error('Modify permission error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Authorization error',
-                error: error.message
-            });
-        }
-    };
-};
-
-// Check if user can delete resource
-const requireDeletePermission = (resourceIdParam = 'id') => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
-            }
-
-            const resourceId = req.params[resourceIdParam];
-
-            // Only admin can delete resources
-            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
-                return next();
-            }
-
-            // Users cannot delete resources (even their own)
-            return res.status(403).json({
-                success: false,
-                message: 'Only administrators can delete resources',
-                error: 'DELETE_PERMISSION_DENIED'
-            });
-        } catch (error) {
-            console.error('Delete permission error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Authorization error',
-                error: error.message
-            });
-        }
-    };
-};
-
-// Check if user can view sensitive information
-const requireViewPermission = (resourceIdParam = 'id') => {
-    return (req, res, next) => {
-        try {
-            if (!req.user) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Authentication required'
-                });
-            }
-
-            const resourceId = req.params[resourceIdParam];
-
-            // Admin can view everything
-            if (['administrator', 'sys_admin', 'admin'].includes(req.user.role)) {
-                return next();
-            }
-
-            // User can view their own information
-            if (req.user.id === parseInt(resourceId)) {
-                return next();
-            }
-
-            // For other users, check if they have permission to view
-            // This could be expanded based on business logic
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied. You can only view your own information.',
-                error: 'VIEW_PERMISSION_DENIED'
-            });
-        } catch (error) {
-            console.error('View permission error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Authorization error',
-                error: error.message
-            });
-        }
-    };
-};
-
-// Check if user can create resources
-const requireCreatePermission = (allowedRoles = ['administrator', 'sys_admin', 'admin', 'lecturer']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can approve/reject resources
-const requireApprovalPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin', 'lecturer']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can access analytics
-const requireAnalyticsPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can manage other users
-const requireUserManagementPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can access system settings
-const requireSystemAccessPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can access audit logs
-const requireAuditPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can perform bulk operations
-const requireBulkOperationPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can export data
-const requireExportPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can import data
-const requireImportPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can access API documentation
-const requireApiDocPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin', 'lecturer']) => {
-    return requireRole(allowedRoles);
-};
-
-// Check if user can access testing endpoints
-const requireTestingPermission = (allowedRoles = ['administrator', 'sys_admin', 'admin']) => {
-    return requireRole(allowedRoles);
-};
+// Permissions for specific actions
+const requireCreatePermission = () => requireRole([...ADMIN_ROLES, 'lecturer']);
+const requireApprovalPermission = () => requireRole([...ADMIN_ROLES, 'lecturer']);
+const requireAnalyticsPermission = () => requireRole(ADMIN_ROLES);
+const requireUserManagementPermission = () => requireRole(ADMIN_ROLES);
+const requireSystemAccessPermission = () => requireRole(ADMIN_ROLES);
+const requireAuditPermission = () => requireRole(ADMIN_ROLES);
+const requireBulkOperationPermission = () => requireRole(ADMIN_ROLES);
+const requireExportPermission = () => requireRole(ADMIN_ROLES);
+const requireImportPermission = () => requireRole(ADMIN_ROLES);
+const requireApiDocPermission = () => requireRole([...ADMIN_ROLES, 'lecturer']);
+const requireTestingPermission = () => requireRole(ADMIN_ROLES);
 
 module.exports = {
     requireRole,

@@ -1,19 +1,27 @@
+// utils/email.js
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+
 dotenv.config();
 
+const transporter = nodemailer.createTransport({
+  host: process.env.MAIL_HOST,
+  port: parseInt(process.env.MAIL_PORT) || 587,
+  secure: false, // set to true if using port 465
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+});
+
+/**
+ * Send an email
+ * @param {string} to - Recipient email address
+ * @param {string} subject - Email subject
+ * @param {string} html - HTML content of the email
+ */
 export const sendEmail = async (to, subject, html) => {
   try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.MAIL_HOST,
-      port: process.env.MAIL_PORT,
-      secure: false, // use TLS
-      auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASS,
-      },
-    });
-
     const info = await transporter.sendMail({
       from: `"Student Registration Team" <${process.env.MAIL_USER}>`,
       to,
@@ -21,9 +29,10 @@ export const sendEmail = async (to, subject, html) => {
       html,
     });
 
-    console.log("Email sent: %s", info.messageId);
-  } catch (err) {
-    console.error("Email sending failed:", err.message);
-    throw err;
+    console.log(`✅ Email sent to ${to}: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ Failed to send email to ${to}:`, error.message);
+    throw error;
   }
 };

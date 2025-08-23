@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateToken } = require('../../middleware/auth');
 
-// Placeholder for student dashboard routes
+router.use(authenticateToken);
+
 router.get('/', (req, res) => {
     res.json({
         success: true,
-        message: 'Student dashboard functionality coming soon'
+        message: 'Student dashboard functionality coming soon',
+        user: {
+            id: req.user.id,
+            role: req.user.role
+        }
     });
 });
 

@@ -1,10 +1,10 @@
-const { verifyToken } = require('../config/auth');
+const { verifyToken, verifyRefreshToken } = require('../config/auth');
 
-// JWT Authentication middleware
+// JWT authentication middleware
 const authenticateToken = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+        const token = authHeader?.split(' ')[1]; // Bearer TOKEN
 
         if (!token) {
             return res.status(401).json({
@@ -13,71 +13,47 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
-        // Verify token
         const decoded = verifyToken(token);
-
-        // Add user info to request
-        req.user = {
-            id: decoded.id,
-            email: decoded.email,
-            role: decoded.role
-        };
-
+        req.user = { id: decoded.id, email: decoded.email, role: decoded.role };
         next();
     } catch (error) {
         console.error('Authentication error:', error);
+        let message = 'Invalid or expired token';
+        let code = 'AUTHENTICATION_FAILED';
 
         if (error.message === 'jwt expired') {
-            return res.status(401).json({
-                success: false,
-                message: 'Token has expired',
-                error: 'TOKEN_EXPIRED'
-            });
+            message = 'Token has expired';
+            code = 'TOKEN_EXPIRED';
+        } else if (error.message === 'invalid signature') {
+            message = 'Invalid token';
+            code = 'INVALID_TOKEN';
         }
 
-        if (error.message === 'invalid signature') {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid token',
-                error: 'INVALID_TOKEN'
-            });
-        }
-
-        return res.status(401).json({
-            success: false,
-            message: 'Invalid or expired token',
-            error: 'AUTHENTICATION_FAILED'
-        });
+        return res.status(401).json({ success: false, message, error: code });
     }
 };
 
-// Optional authentication middleware (doesn't fail if no token)
+// Optional authentication (token not required)
 const optionalAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        const token = authHeader && authHeader.split(' ')[1];
+        const token = authHeader?.split(' ')[1];
 
         if (token) {
             const decoded = verifyToken(token);
-            req.user = {
-                id: decoded.id,
-                email: decoded.email,
-                role: decoded.role
-            };
+            req.user = { id: decoded.id, email: decoded.email, role: decoded.role };
         }
 
         next();
-    } catch (error) {
-        // Continue without authentication
-        next();
+    } catch {
+        next(); // ignore errors, continue as unauthenticated
     }
 };
 
-// Refresh token authentication middleware
+// Refresh token middleware
 const authenticateRefreshToken = async (req, res, next) => {
     try {
         const { refreshToken } = req.body;
-
         if (!refreshToken) {
             return res.status(401).json({
                 success: false,
@@ -85,21 +61,11 @@ const authenticateRefreshToken = async (req, res, next) => {
             });
         }
 
-        // Verify refresh token
-        const { verifyRefreshToken } = require('../config/auth');
         const decoded = verifyRefreshToken(refreshToken);
-
-        // Add user info to request
-        req.user = {
-            id: decoded.id,
-            email: decoded.email,
-            role: decoded.role
-        };
-
+        req.user = { id: decoded.id, email: decoded.email, role: decoded.role };
         next();
     } catch (error) {
         console.error('Refresh token authentication error:', error);
-
         return res.status(401).json({
             success: false,
             message: 'Invalid or expired refresh token',
@@ -108,19 +74,14 @@ const authenticateRefreshToken = async (req, res, next) => {
     }
 };
 
-// Rate limiting for authentication endpoints
+// Simple rate limiting for auth endpoints
 const authRateLimit = (req, res, next) => {
-    // Simple in-memory rate limiting
-    // In production, use Redis or a proper rate limiting library
-
     const clientIP = req.ip || req.connection.remoteAddress;
     const now = Date.now();
-    const windowMs = 15 * 60 * 1000; // 15 minutes
+    const windowMs = 15 * 60 * 1000; // 15 min
     const maxAttempts = 5;
 
-    if (!req.app.locals.authAttempts) {
-        req.app.locals.authAttempts = new Map();
-    }
+    if (!req.app.locals.authAttempts) req.app.locals.authAttempts = new Map();
 
     const attempts = req.app.locals.authAttempts.get(clientIP) || { count: 0, resetTime: now + windowMs };
 
@@ -136,7 +97,7 @@ const authRateLimit = (req, res, next) => {
     if (attempts.count > maxAttempts) {
         return res.status(429).json({
             success: false,
-            message: 'Too many authentication attempts. Please try again later.',
+            message: 'Too many authentication attempts. Try again later.',
             retryAfter: Math.ceil((attempts.resetTime - now) / 1000)
         });
     }
@@ -144,94 +105,40 @@ const authRateLimit = (req, res, next) => {
     next();
 };
 
-// Password strength validation middleware
+// Password validation
 const validatePasswordStrength = (req, res, next) => {
     const { password } = req.body;
-
-    if (!password) {
-        return res.status(400).json({
-            success: false,
-            message: 'Password is required'
-        });
-    }
-
-    // Password strength requirements
-    const minLength = 8;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumbers = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    if (!password) return res.status(400).json({ success: false, message: 'Password is required' });
 
     const errors = [];
+    if (password.length < 8) errors.push('Password must be at least 8 characters');
+    if (!/[A-Z]/.test(password)) errors.push('Must contain an uppercase letter');
+    if (!/[a-z]/.test(password)) errors.push('Must contain a lowercase letter');
+    if (!/\d/.test(password)) errors.push('Must contain a number');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Must contain a special character');
 
-    if (password.length < minLength) {
-        errors.push(`Password must be at least ${minLength} characters long`);
-    }
-    if (!hasUpperCase) {
-        errors.push('Password must contain at least one uppercase letter');
-    }
-    if (!hasLowerCase) {
-        errors.push('Password must contain at least one lowercase letter');
-    }
-    if (!hasNumbers) {
-        errors.push('Password must contain at least one number');
-    }
-    if (!hasSpecialChar) {
-        errors.push('Password must contain at least one special character');
-    }
-
-    if (errors.length > 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Password does not meet requirements',
-            errors
-        });
-    }
-
+    if (errors.length) return res.status(400).json({ success: false, message: 'Password does not meet requirements', errors });
     next();
 };
 
-// Email validation middleware
+// Email validation
 const validateEmail = (req, res, next) => {
     const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
-    if (!email) {
-        return res.status(400).json({
-            success: false,
-            message: 'Email is required'
-        });
-    }
-
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        return res.status(400).json({
-            success: false,
-            message: 'Invalid email format'
-        });
-    }
+    if (!emailRegex.test(email)) return res.status(400).json({ success: false, message: 'Invalid email format' });
 
     next();
 };
 
-// Role validation middleware
+// Role validation
 const validateRole = (req, res, next) => {
     const { role } = req.body;
-
-    if (!role) {
-        return res.status(400).json({
-            success: false,
-            message: 'Role is required'
-        });
-    }
+    if (!role) return res.status(400).json({ success: false, message: 'Role is required' });
 
     const validRoles = ['student', 'lecturer', 'admin'];
-    if (!validRoles.includes(role)) {
-        return res.status(400).json({
-            success: false,
-            message: 'Invalid role. Must be student, lecturer, or admin'
-        });
-    }
+    if (!validRoles.includes(role)) return res.status(400).json({ success: false, message: 'Invalid role. Must be student, lecturer, or admin' });
 
     next();
 };

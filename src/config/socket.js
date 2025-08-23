@@ -2,7 +2,6 @@ const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
 if (!JWT_SECRET) {
     throw new Error('Missing JWT_SECRET environment variable');
 }
@@ -10,15 +9,17 @@ if (!JWT_SECRET) {
 // Socket authentication middleware
 const authenticateSocket = (socket, next) => {
     try {
-        const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
+        // Token can come from handshake.auth or Authorization header
+        const token =
+            socket.handshake.auth?.token ||
+            socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
-        if (!token) {
-            return next(new Error('Authentication error: No token provided'));
-        }
+        if (!token) return next(new Error('Authentication error: No token provided'));
 
         const decoded = jwt.verify(token, JWT_SECRET);
         socket.userId = decoded.id;
         socket.userRole = decoded.role;
+
         next();
     } catch (error) {
         next(new Error('Authentication error: Invalid token'));
@@ -29,8 +30,8 @@ const authenticateSocket = (socket, next) => {
 const createSocketServer = (httpServer) => {
     const io = socketIo(httpServer, {
         cors: {
-            origin: process.env.FRONTEND_URL || "http://localhost:3000",
-            methods: ["GET", "POST"],
+            origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+            methods: ['GET', 'POST'],
             credentials: true
         },
         transports: ['websocket', 'polling']
@@ -54,26 +55,26 @@ const createSocketServer = (httpServer) => {
             console.log(`🔌 User ${socket.userId} disconnected`);
         });
 
-        // Handle errors
-        socket.on('error', (error) => {
-            console.error('Socket error:', error);
+        // Handle socket errors
+        socket.on('error', (err) => {
+            console.error('Socket error:', err);
         });
     });
 
     return io;
 };
 
-// Emit to specific user
+// Emit event to a specific user
 const emitToUser = (io, userId, event, data) => {
     io.to(`user_${userId}`).emit(event, data);
 };
 
-// Emit to role-specific users
+// Emit event to a role-specific room
 const emitToRole = (io, role, event, data) => {
     io.to(role).emit(event, data);
 };
 
-// Emit to all connected users
+// Emit event to all connected clients
 const emitToAll = (io, event, data) => {
     io.emit(event, data);
 };

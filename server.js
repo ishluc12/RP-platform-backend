@@ -64,8 +64,8 @@ app.use('/api/student', studentRoutes);
 app.use('/api/lecturer', lecturerRoutes);
 app.use('/api/admin', adminRoutes);
 
-// 404 handler
-app.use('*', notFound);
+// 404 handler (fixed, proper catch-all for unmatched routes)
+app.use(notFound);
 
 // Error handling middleware
 app.use(errorHandler);
