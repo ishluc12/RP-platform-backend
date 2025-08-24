@@ -1,102 +1,143 @@
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
-// Validate that all required JWT environment variables are set
-const validateJwtEnvVars = () => {
-    const requiredVars = ['JWT_SECRET', 'JWT_REFRESH_SECRET'];
-    const missingVars = requiredVars.filter(varName => !process.env[varName]);
+/**
+ * Middleware to authenticate JWT tokens
+ */
+const authenticate = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-    if (missingVars.length > 0) {
-        console.error(`Missing JWT environment variables: ${missingVars.join(', ')}`);
-        throw new Error(`Missing JWT environment variables: ${missingVars.join(', ')}`);
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Access token is missing' });
     }
-};
 
-// Immediately validate environment variables
-validateJwtEnvVars();
-
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
-const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS) || 12;
-
-/**
- * Generate a JWT token
- * @param {object} payload - The data to encode in the token
- * @returns {string} - JWT token
- */
-const generateToken = (payload) => {
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-};
-
-/**
- * Generate a JWT refresh token
- * @param {object} payload - The data to encode in the refresh token
- * @returns {string} - JWT refresh token
- */
-const generateRefreshToken = (payload) => {
-    return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN });
-};
-
-/**
- * Verify a JWT token
- * @param {string} token
- * @returns {object} - Decoded token payload
- * @throws {Error} - If token is invalid or expired
- */
-const verifyToken = (token) => {
     try {
-        return jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
     } catch (error) {
-        throw new Error('Invalid or expired token');
+        console.error('JWT verification error:', error);
+        return res.status(403).json({ success: false, message: 'Invalid or expired token' });
     }
 };
 
 /**
- * Verify a JWT refresh token
- * @param {string} token
- * @returns {object} - Decoded token payload
- * @throws {Error} - If refresh token is invalid or expired
+ * Middleware to authorize based on role
  */
-const verifyRefreshToken = (token) => {
-    try {
-        return jwt.verify(token, JWT_REFRESH_SECRET);
-    } catch (error) {
-        throw new Error('Invalid or expired refresh token');
+const authorize = (roles = []) => {
+    if (typeof roles === 'string') {
+        roles = [roles];
     }
+
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        if (roles.length && !roles.includes(req.user.role)) {
+            return res.status(403).json({ success: false, message: 'Forbidden: insufficient permissions' });
+        }
+
+        next();
+    };
 };
 
 /**
- * Hash a plain password
- * @param {string} password
- * @returns {Promise<string>} - Hashed password
+ * Rate limiter for auth-related endpoints
+ */
+const authRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // limit each IP to 10 requests per windowMs
+    message: { success: false, message: 'Too many requests, please try again later.' },
+});
+
+/**
+ * Validate email in request body
+ */
+const validateEmail = (req, res, next) => {
+    if (!req.body || !req.body.email) {
+        return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    const { email } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ success: false, message: 'Invalid email format' });
+    }
+
+    next();
+};
+
+/**
+ * Validate password in request body
+ */
+const validatePassword = (req, res, next) => {
+    if (!req.body || !req.body.password) {
+        return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const { password } = req.body;
+    if (password.length < 6) {
+        return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
+    next();
+};
+
+/**
+ * Hash password utility
  */
 const hashPassword = async (password) => {
-    return await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
+    return await bcrypt.hash(password, saltRounds);
 };
 
 /**
- * Compare a plain password with a hashed password
- * @param {string} password - Plain text password
- * @param {string} hashedPassword - Stored hashed password
- * @returns {Promise<boolean>} - True if match, false otherwise
+ * Compare password utility
  */
-const comparePassword = async (password, hashedPassword) => {
-    return await bcrypt.compare(password, hashedPassword);
+const comparePassword = async (password, hash) => {
+    return await bcrypt.compare(password, hash);
+};
+
+/**
+ * JWT token generator
+ */
+const generateToken = (payload) => {
+    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "15m" });
+};
+
+/**
+ * JWT refresh token generator
+ */
+const generateRefreshToken = (payload) => {
+    return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" });
+};
+
+/**
+ * JWT token verifiers (fix)
+ */
+const verifyToken = (token) => {
+    return jwt.verify(token, process.env.JWT_SECRET);
+};
+
+const verifyRefreshToken = (token) => {
+    return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
 };
 
 module.exports = {
-    generateToken,
-    generateRefreshToken,
-    verifyToken,
-    verifyRefreshToken,
+    authenticate,
+    authorize,
+    authRateLimit,
+    validateEmail,
+    validatePassword,
     hashPassword,
     comparePassword,
-    JWT_SECRET,
-    JWT_EXPIRES_IN,
-    JWT_REFRESH_SECRET,
-    JWT_REFRESH_EXPIRES_IN
+    generateToken,
+    generateRefreshToken,
+    verifyToken,          
+    verifyRefreshToken    
 };

@@ -5,29 +5,24 @@ const {
     hashPassword,
     comparePassword
 } = require('../../config/auth');
-const crypto = require('crypto'); // for random password generation
+
+
+const crypto = require('crypto');
 
 class AuthController {
     // User registration (no student_id/staff_id checks, only DB fields)
     static async register(req, res) {
         try {
-            const {
-                name,
-                email,
-                role,
-                profile_picture,
-                bio
-            } = req.body;
+            const { name, email, password, role, profile_picture, bio } = req.body;
 
-            // Generate random password for development
-            const randomPassword = crypto.randomBytes(6).toString('hex'); // 12 chars
-            const hashedPassword = await hashPassword(randomPassword);
+            // HASH the user-supplied password
+            const hashedPassword = await hashPassword(password);
 
             const userData = {
                 name,
                 email: email.toLowerCase(),
                 password_hash: hashedPassword,
-                role,
+                role: role || 'student',
                 profile_picture,
                 bio,
                 created_at: new Date().toISOString(),
@@ -35,38 +30,44 @@ class AuthController {
             };
 
             const result = await User.create(userData);
+
             if (!result.success) {
                 console.error('User.create error:', result.error);
                 return res.status(500).json({
                     success: false,
                     message: 'Failed to create user',
-                    error: result.error
+                    error: result.error.message || result.error
                 });
             }
 
-            const userWithoutPassword = result.data;
-
-            // Generate tokens
             const token = generateToken({
                 id: result.data.id,
                 email: result.data.email,
                 role: result.data.role
             });
+
             const refreshToken = generateRefreshToken({
                 id: result.data.id,
                 email: result.data.email,
                 role: result.data.role
             });
 
-            // Return random password in response (for dev)
             res.status(201).json({
                 success: true,
                 message: 'User registered successfully',
-                data: { user: userWithoutPassword, token, refreshToken, password: randomPassword }
+                data: {
+                    user: result.data,
+                    token,
+                    refreshToken
+                }
             });
         } catch (error) {
             console.error('Registration error:', error);
-            res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
         }
     }
 
