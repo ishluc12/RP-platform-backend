@@ -106,9 +106,12 @@ const authRateLimit = (req, res, next) => {
 };
 
 // Password validation
-const validatePasswordStrength = (req, res, next) => {
-    const { password } = req.body;
-    if (!password) return res.status(400).json({ success: false, message: 'Password is required' });
+const validateRegistrationPassword = (req, res, next) => {
+    const password = req.body.password;
+
+    if (!password) {
+        return res.status(400).json({ success: false, message: 'Password is required' });
+    }
 
     const errors = [];
     if (password.length < 8) errors.push('Password must be at least 8 characters');
@@ -117,10 +120,32 @@ const validatePasswordStrength = (req, res, next) => {
     if (!/\d/.test(password)) errors.push('Must contain a number');
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Must contain a special character');
 
-    if (errors.length) return res.status(400).json({ success: false, message: 'Password does not meet requirements', errors });
+    if (errors.length) {
+        return res.status(400).json({ success: false, message: 'Password does not meet requirements', errors });
+    }
+
     next();
 };
+const validateNewPassword = (req, res, next) => {
+    const password = req.body.newPassword;
 
+    if (!password) {
+        return res.status(400).json({ success: false, message: 'New password is required' });
+    }
+
+    const errors = [];
+    if (password.length < 8) errors.push('Password must be at least 8 characters');
+    if (!/[A-Z]/.test(password)) errors.push('Must contain an uppercase letter');
+    if (!/[a-z]/.test(password)) errors.push('Must contain a lowercase letter');
+    if (!/\d/.test(password)) errors.push('Must contain a number');
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('Must contain a special character');
+
+    if (errors.length) {
+        return res.status(400).json({ success: false, message: 'New password does not meet requirements', errors });
+    }
+
+    next();
+};
 // Email validation
 const validateEmail = (req, res, next) => {
     const { email } = req.body;
@@ -148,7 +173,8 @@ module.exports = {
     optionalAuth,
     authenticateRefreshToken,
     authRateLimit,
-    validatePasswordStrength,
+    validateRegistrationPassword,
+    validateNewPassword,
     validateEmail,
     validateRole
 };

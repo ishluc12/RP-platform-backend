@@ -5,10 +5,12 @@ const path = require('path');
 const fs = require('fs');
 
 const AuthController = require('../controllers/auth/authController');
+
 const {
     authenticateToken,
     authRateLimit,
-    validatePasswordStrength,
+    validateRegistrationPassword,
+    validateNewPassword,
     validateEmail,
     validateRole
 } = require('../middleware/auth');
@@ -46,12 +48,19 @@ const upload = multer({
 });
 
 // Public routes (no authentication required)
+// Registration route
 router.post('/register', [
     authRateLimit,
     validateEmail,
-    validatePasswordStrength,
+    validateRegistrationPassword,
     validateRole
 ], AuthController.register);
+
+// Change password route
+router.post('/change-password', [
+    authenticateToken,
+    validateNewPassword
+], AuthController.changePassword);
 
 router.post('/login', [
     authRateLimit,
@@ -69,7 +78,7 @@ router.post('/forgot-password', [
 
 router.post('/reset-password', [
     authRateLimit,
-    validatePasswordStrength
+    validateNewPassword
 ], AuthController.resetPassword);
 
 // Protected routes (authentication required)
@@ -86,10 +95,7 @@ router.post('/profile/picture',
     AuthController.uploadProfilePicture
 );
 
-router.put('/change-password', [
-    validatePasswordStrength
-], AuthController.changePassword);
-
+router.put('/change-password', [validateNewPassword], AuthController.changePassword);
 // Health check for authenticated users
 router.get('/health', (req, res) => {
     res.json({

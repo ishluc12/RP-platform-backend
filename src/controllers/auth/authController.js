@@ -1,4 +1,9 @@
 const User = require('../../models/User');
+const emailService = require('../../services/emailService');
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+
 const {
     generateToken,
     generateRefreshToken,
@@ -13,7 +18,18 @@ class AuthController {
     // User registration (no student_id/staff_id checks, only DB fields)
     static async register(req, res) {
         try {
-            const { name, email, password, role, profile_picture, bio } = req.body;
+            const {
+                name,
+                email,
+                password,
+                role,
+                profile_picture,
+                bio,
+                phone,
+                department,
+                student_id,
+                staff_id
+            } = req.body;
 
             // HASH the user-supplied password
             const hashedPassword = await hashPassword(password);
@@ -25,6 +41,10 @@ class AuthController {
                 role: role || 'student',
                 profile_picture,
                 bio,
+                phone: phone || null,
+                department: department || null,
+                student_id: student_id || null,
+                staff_id: staff_id || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
@@ -141,43 +161,76 @@ class AuthController {
     static async changePassword(req, res) {
         try {
             const { currentPassword, newPassword } = req.body;
-            const userId = req.user.id;
+            const userId = req.user?.id;
+            console.log('Authenticated user:', req.user);
+
+            // Validate input
+            if (!currentPassword || !newPassword) {
+                return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+            }
+
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Unauthorized: user ID missing' });
+            }
+
+            // Fetch user
             const result = await User.findById(userId);
-            if (!result.success) {
-                console.error('User.findById error (change password):', result.error);
+            console.log('findById result:', result); // 👈 helpful debug log
+
+            if (!result.success || !result.data) {
+                console.error('User.findById error (change password):', result.error || 'User not found');
                 return res.status(404).json({ success: false, message: 'User not found' });
             }
 
             const user = result.data;
+
+            // Validate current password
             const isCurrentPasswordValid = await comparePassword(currentPassword, user.password_hash);
             if (!isCurrentPasswordValid) {
-                console.error('comparePassword error (change password): Incorrect current password for user', userId);
+                console.error('Incorrect current password for user', userId);
                 return res.status(400).json({ success: false, message: 'Current password is incorrect' });
             }
 
+            // Hash new password
             const newHashedPassword = await hashPassword(newPassword);
+
+            // Update password
             const updateResult = await User.changePassword(userId, newHashedPassword);
             if (!updateResult.success) {
                 console.error('User.changePassword error:', updateResult.error);
                 return res.status(500).json({ success: false, message: 'Failed to update password', error: updateResult.error });
             }
 
-            res.json({ success: true, message: 'Password changed successfully' });
+            return res.json({ success: true, message: 'Password changed successfully' });
         } catch (error) {
             console.error('Change password error:', error);
-            res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+            return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
         }
     }
+
 
     // Forgot password
     static async forgotPassword(req, res) {
         try {
             const { email } = req.body;
-            const result = await User.findByEmail(email.toLowerCase());
-            if (!result.success) {
-                console.error('User.findByEmail error (forgot password):', result.error);
-                // Don't expose existence, just log
+            if (!email) {
+                return res.status(400).json({ success: false, message: 'Email is required' });
             }
+
+            const result = await User.findByEmail(email.toLowerCase());
+            if (!result.success || !result.data) {
+                console.error('User.findByEmail error (forgot password):', result.error);
+                return res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent' });
+            }
+
+            const user = result.data;
+            const token = crypto.randomBytes(32).toString('hex');
+            const expiresAt = Date.now() + 15 * 60 * 1000;
+
+            await User.saveResetToken(user.id, token, expiresAt);
+
+            await emailService.sendPasswordResetEmail(user, token);
+
             res.json({ success: true, message: 'If an account with that email exists, a password reset link has been sent' });
         } catch (error) {
             console.error('Forgot password error:', error);
@@ -185,9 +238,41 @@ class AuthController {
         }
     }
 
+
     // Reset password
     static async resetPassword(req, res) {
-        res.json({ success: true, message: 'Password reset successfully' });
+        try {
+            const { token, newPassword } = req.body;
+
+            if (!token || !newPassword) {
+                return res.status(400).json({ success: false, message: 'Token and new password are required' });
+            }
+
+            const tokenResult = await User.findByResetToken(token);
+            if (!tokenResult.success || !tokenResult.data) {
+                return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+            }
+
+            const { id, reset_token_expiry } = tokenResult.data;
+
+            if (Date.now() > reset_token_expiry) {
+                return res.status(400).json({ success: false, message: 'Token has expired' });
+            }
+
+            const hashedPassword = await hashPassword(newPassword);
+            const updateResult = await User.changePassword(id, hashedPassword);
+
+            if (!updateResult.success) {
+                return res.status(500).json({ success: false, message: 'Failed to reset password' });
+            }
+
+            await User.clearResetToken(id); // Remove token after use
+
+            res.json({ success: true, message: 'Password reset successfully' });
+        } catch (error) {
+            console.error('Reset password error:', error);
+            res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+        }
     }
 
     // Get profile
@@ -213,17 +298,20 @@ class AuthController {
         try {
             const userId = req.user.id;
             const updateData = req.body;
+
+            // Remove sensitive or restricted fields
             delete updateData.password_hash;
-            delete updateData.role;
+            delete updateData.role; // explicitly blocked
             delete updateData.email;
             delete updateData.created_at;
 
-            // Only update allowed fields: name, role, profile_picture, bio
-            const allowedFields = ['name', 'role', 'profile_picture', 'bio'];
+            // Only allow updates to these fields
+            const allowedFields = ['name', 'profile_picture', 'bio'];
             const filteredUpdate = {};
             allowedFields.forEach(field => {
                 if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];
             });
+
             filteredUpdate.updated_at = new Date().toISOString();
 
             const result = await User.update(userId, filteredUpdate);
@@ -239,7 +327,6 @@ class AuthController {
             res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
         }
     }
-
     // Upload profile picture (local storage)
     static async uploadProfilePicture(req, res) {
         try {
@@ -251,6 +338,14 @@ class AuthController {
             }
 
             const localPath = `/uploads/${req.file.filename}`;
+            const fullUrl = `${req.protocol}://${req.get('host')}${localPath}`;
+
+            // Optional: delete old profile picture from disk
+            // const oldProfile = await User.findById(userId);
+            // if (oldProfile?.data?.profile_picture) {
+            //     const oldPath = path.join(__dirname, '..', '..', oldProfile.data.profile_picture);
+            //     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            // }
 
             // Update user profile picture in DB
             const updateResult = await User.updateProfilePicture(userId, localPath);
@@ -259,7 +354,13 @@ class AuthController {
                 return res.status(500).json({ success: false, message: 'Failed to update profile picture', error: updateResult.error });
             }
 
-            res.json({ success: true, message: 'Profile picture uploaded successfully', data: { profile_picture: localPath } });
+            console.log(`✅ User ${userId} updated profile picture to ${localPath}`);
+
+            res.json({
+                success: true,
+                message: 'Profile picture uploaded successfully',
+                data: { profile_picture: fullUrl }
+            });
         } catch (error) {
             console.error('Upload profile picture error:', error);
             res.status(500).json({ success: false, message: 'Internal server error', error: error.message });

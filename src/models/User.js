@@ -4,14 +4,18 @@ class User {
     /** Create a new user */
     static async create(userData) {
         try {
-            // Only insert fields that match your DB schema
+            // Extract all relevant fields from userData
             const {
                 name,
                 email,
                 password_hash,
                 role = 'student',
                 profile_picture,
-                bio
+                bio,
+                phone,
+                department,
+                student_id,
+                staff_id
             } = userData;
 
             const insertData = {
@@ -21,6 +25,10 @@ class User {
                 role,
                 profile_picture,
                 bio,
+                phone: phone || null,
+                department: department || null,
+                student_id: student_id || null,
+                staff_id: staff_id || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
