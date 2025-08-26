@@ -1,11 +1,13 @@
 const { supabase } = require('../config/database');
 
 class Appointment {
-    static async create({ student_id, lecturer_id, appointment_time, reason, location, meeting_type = 'in_person', meeting_link }) {
+    static async create({ student_id, lecturer_id, appointment_time, reason, status }) {
         try {
+            const insertData = { student_id, lecturer_id, appointment_time, reason };
+            if (status) insertData.status = status;
             const { data, error } = await supabase
                 .from('appointments')
-                .insert([{ student_id, lecturer_id, appointment_time, reason, location, meeting_type, meeting_link }])
+                .insert([insertData])
                 .select('*')
                 .single();
             if (error) throw error;
