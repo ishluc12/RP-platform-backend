@@ -162,8 +162,8 @@ const validateRole = (req, res, next) => {
     const { role } = req.body;
     if (!role) return res.status(400).json({ success: false, message: 'Role is required' });
 
-    const validRoles = ['student', 'lecturer', 'admin'];
-    if (!validRoles.includes(role)) return res.status(400).json({ success: false, message: 'Invalid role. Must be student, lecturer, or admin' });
+    const validRoles = ['student', 'lecturer', 'admin', 'administrator', 'sys_admin'];
+    if (!validRoles.includes(role)) return res.status(400).json({ success: false, message: 'Invalid role. Must be one of: student, lecturer, admin, administrator, sys_admin' });
 
     next();
 };

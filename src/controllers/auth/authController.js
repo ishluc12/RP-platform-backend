@@ -34,11 +34,30 @@ class AuthController {
             // HASH the user-supplied password
             const hashedPassword = await hashPassword(password);
 
+            // Prevent public registration of elevated roles, except allow up to 2 sys_admins total
+            const requestedRole = (role || 'student');
+            const elevatedRoles = ['admin', 'administrator', 'sys_admin'];
+            if (elevatedRoles.includes(requestedRole)) {
+                if (requestedRole === 'sys_admin') {
+                    // Count existing sys_admins
+                    const listResult = await User.findAll(1, 1, { role: 'sys_admin' });
+                    if (!listResult.success) {
+                        return res.status(500).json({ success: false, message: 'Unable to verify admin capacity' });
+                    }
+                    const existingCount = listResult.pagination?.total || 0;
+                    if (existingCount >= 2) {
+                        return res.status(403).json({ success: false, message: 'Maximum number of sys_admin accounts reached' });
+                    }
+                } else {
+                    return res.status(403).json({ success: false, message: 'Registration for admin roles is not allowed' });
+                }
+            }
+
             const userData = {
                 name,
                 email: email.toLowerCase(),
                 password_hash: hashedPassword,
-                role: role || 'student',
+                role: requestedRole,
                 profile_picture,
                 bio,
                 phone: phone || null,

@@ -1,4 +1,7 @@
-const { supabase } = require('../config/database');
+const { supabase, supabaseAdmin } = require('../config/database');
+
+// Prefer service-role client to bypass RLS on server-side trusted operations
+const db = supabaseAdmin || supabase;
 
 class User {
     /** Create a new user */
@@ -33,7 +36,7 @@ class User {
                 updated_at: new Date().toISOString()
             };
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .insert([insertData])
                 .select()
@@ -49,7 +52,7 @@ class User {
     /** Get user by ID */
     static async findById(id) {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .select('*')
                 .eq('id', id)
@@ -64,7 +67,7 @@ class User {
     /** Get user by email */
     static async findByEmail(email) {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .select('*')
                 .eq('email', email)
@@ -79,7 +82,7 @@ class User {
     /** Get users with pagination and optional filters */
     static async findAll(page = 1, limit = 10, filters = {}) {
         try {
-            let query = supabase.from('users').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+            let query = db.from('users').select('*', { count: 'exact' }).order('created_at', { ascending: false });
 
             if (filters.role) query = query.eq('role', filters.role);
             if (filters.department) query = query.eq('department', filters.department);
@@ -117,7 +120,7 @@ class User {
         filteredUpdate.updated_at = new Date().toISOString();
 
         try {
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .update(filteredUpdate)
                 .eq('id', id)
@@ -133,7 +136,7 @@ class User {
     /** Delete user by ID */
     static async delete(id) {
         try {
-            const { error } = await supabase.from('users').delete().eq('id', id);
+            const { error } = await db.from('users').delete().eq('id', id);
             if (error) throw error;
             return { success: true, message: 'User deleted successfully' };
         } catch (error) {
@@ -144,7 +147,7 @@ class User {
     /** Update profile picture */
     static async updateProfilePicture(id, profilePictureUrl) {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .update({ profile_picture: profilePictureUrl, updated_at: new Date().toISOString() })
                 .eq('id', id)
@@ -160,7 +163,7 @@ class User {
     /** Change password */
     static async changePassword(id, newPasswordHash) {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .update({ password_hash: newPasswordHash, updated_at: new Date().toISOString() })
                 .eq('id', id)
@@ -176,7 +179,7 @@ class User {
     /** Get user statistics grouped by role and department */
     static async getStats() {
         try {
-            const { data, error } = await supabase.from('users').select('role, department');
+            const { data, error } = await db.from('users').select('role, department');
             if (error) throw error;
 
             const stats = { total: data.length, byRole: {}, byDepartment: {} };
@@ -191,5 +194,20 @@ class User {
         }
     }
 }
+
+// Additional helpers
+User.listStudentsByDepartment = async (department) => {
+    try {
+        const { supabase, supabaseAdmin } = require('../config/database');
+        const db = supabaseAdmin || supabase;
+        let query = db.from('users').select('id').eq('role', 'student');
+        if (department) query = query.eq('department', department);
+        const { data, error } = await query;
+        if (error) throw error;
+        return { success: true, data };
+    } catch (error) {
+        return { success: false, error: error.message || 'Unknown error' };
+    }
+};
 
 module.exports = User;

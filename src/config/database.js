@@ -3,6 +3,13 @@ const { createClient } = require('@supabase/supabase-js');
 // Load Supabase credentials from environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
+// Try multiple common env var names for the service role key
+const supabaseServiceKey =
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_SECRET ||
+    process.env.SUPABASE_ADMIN_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase environment variables');
@@ -10,6 +17,8 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Create Supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
+// Create admin client if service key is provided
+const supabaseAdmin = supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
 // Optional: Test database connection
 const testConnection = async () => {
@@ -34,5 +43,6 @@ const testConnection = async () => {
 
 module.exports = {
     supabase,
+    supabaseAdmin,
     testConnection
 };
