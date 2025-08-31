@@ -1,18 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const AdminEventController = require('../../controllers/admin/adminEventController');
 const { authenticateToken } = require('../../middleware/auth');
-const { requireAdmin } = require('../../middleware/roleAuth');
-const Event = require('../../models/Event');
+const { requireRole } = require('../../middleware/roleAuth');
+const { validateEventUpdate } = require('../../middleware/validation');
 
+// Apply authentication and role middleware to all routes
 router.use(authenticateToken);
-router.use(requireAdmin);
+router.use(requireRole(['admin', 'sys_admin']));
 
-// List all events
-router.get('/', async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
-  const result = await Event.listAll({ page: parseInt(page), limit: parseInt(limit) });
-  if (!result.success) return res.status(400).json({ success: false, message: result.error });
-  res.json({ success: true, data: result.data });
-});
+// Admin event management routes
+router.get('/', AdminEventController.getAllEvents);
+router.get('/stats', AdminEventController.getEventStats);
+router.get('/advanced-filters', AdminEventController.getEventsWithAdvancedFilters);
+router.get('/user/:userId', AdminEventController.getEventsByUser);
+router.put('/:id', validateEventUpdate, AdminEventController.updateEvent);
+router.delete('/:id', AdminEventController.deleteEvent);
+router.delete('/bulk', AdminEventController.bulkDeleteEvents);
 
 module.exports = router;

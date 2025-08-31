@@ -1,45 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const StudentEventController = require('../../controllers/student/studentEventController');
 const { authenticateToken } = require('../../middleware/auth');
-const Event = require('../../models/Event');
+const { requireRole } = require('../../middleware/roleAuth');
 
+// Apply authentication and role middleware to all routes
 router.use(authenticateToken);
+router.use(requireRole(['student', 'lecturer', 'admin', 'sys_admin']));
 
-// List events
-router.get('/', async (req, res) => {
-    try {
-        const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.max(1, parseInt(req.query.limit) || 10);
-        const result = await Event.listAll({ page, limit });
+// Student event routes (read-only access)
+router.get('/', StudentEventController.getAllEvents);
+router.get('/upcoming', StudentEventController.getUpcomingEvents);
+router.get('/past', StudentEventController.getPastEvents);
+router.get('/search', StudentEventController.searchEvents);
+router.get('/creator/:userId', StudentEventController.getEventsByCreator);
+router.get('/department/:department', StudentEventController.getEventsByDepartment);
+router.get('/today', StudentEventController.getTodayEvents);
+router.get('/this-week', StudentEventController.getThisWeekEvents);
+router.get('/this-month', StudentEventController.getThisMonthEvents);
+router.get('/:id', StudentEventController.getEventById);
+router.get('/with-participant-counts', StudentEventController.getEventsWithParticipantCounts);
 
-        if (!result.success)
-            return res.status(400).json({ success: false, message: result.error });
-
-        res.json({ success: true, data: result.data });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error', error: error.message });
-    }
-});
-
-// RSVP to event
-router.post('/:event_id/rsvp', async (req, res) => {
-    try {
-        const event_id = parseInt(req.params.event_id);
-        const user_id = req.user.id;
-        const status = req.body.status || 'interested';
-
-        if (!['interested', 'going', 'not going'].includes(status)) {
-            return res.status(400).json({ success: false, message: 'Invalid RSVP status' });
-        }
-
-        const result = await Event.rsvp({ event_id, user_id, status });
-        if (!result.success)
-            return res.status(400).json({ success: false, message: result.error });
-
-        res.json({ success: true, data: result.data });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server error', error: error.message });
-    }
-});
+// RSVP functionality for students
+router.post('/:id/rsvp', StudentEventController.rsvpToEvent);
+router.delete('/:id/rsvp', StudentEventController.removeRsvp);
+router.get('/:id/participants', StudentEventController.getEventParticipants);
+router.get('/:id/rsvp-status', StudentEventController.getUserRsvpStatus);
+router.get('/:id/stats', StudentEventController.getEventStats);
+router.get('/rsvp/events', StudentEventController.getUserRsvpEvents);
 
 module.exports = router;

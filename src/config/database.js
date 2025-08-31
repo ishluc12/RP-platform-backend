@@ -11,6 +11,12 @@ const supabaseServiceKey =
     process.env.SUPABASE_SECRET ||
     process.env.SUPABASE_ADMIN_KEY;
 
+// ADD THESE LINES FOR DEBUGGING
+console.log('SUPABASE_URL status:', supabaseUrl ? 'Set' : 'Not Set');
+console.log('SUPABASE_ANON_KEY status:', supabaseKey ? 'Set' : 'Not Set');
+console.log('SUPABASE_SERVICE_KEY (or variant) status:', supabaseServiceKey ? 'Set' : 'Not Set');
+
+
 if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase environment variables');
 }

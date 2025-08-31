@@ -10,7 +10,7 @@ const {
     hashPassword,
     comparePassword
 } = require('../../config/auth');
-
+const { supabaseAdmin } = require('../../config/database'); // ADD THIS LINE
 
 const crypto = require('crypto');
 
@@ -36,22 +36,27 @@ class AuthController {
 
             // Prevent public registration of elevated roles, except allow up to 2 sys_admins total
             const requestedRole = (role || 'student');
-            const elevatedRoles = ['admin', 'administrator', 'sys_admin'];
+            const elevatedRoles = ['administrator', 'sys_admin'];
+
             if (elevatedRoles.includes(requestedRole)) {
-                if (requestedRole === 'sys_admin') {
+                if (requestedRole === 'administrator') {
+                    // Allowed: 'administrator' role can be registered
+                } else if (requestedRole === 'sys_admin') {
                     // Count existing sys_admins
                     const listResult = await User.findAll(1, 1, { role: 'sys_admin' });
                     if (!listResult.success) {
-                        return res.status(500).json({ success: false, message: 'Unable to verify admin capacity' });
+                        return res.status(500).json({ success: false, message: 'Unable to verify sys_admin capacity' });
                     }
                     const existingCount = listResult.pagination?.total || 0;
                     if (existingCount >= 2) {
                         return res.status(403).json({ success: false, message: 'Maximum number of sys_admin accounts reached' });
                     }
                 } else {
-                    return res.status(403).json({ success: false, message: 'Registration for admin roles is not allowed' });
+                    // This block should ideally not be reached if elevatedRoles only contains administrator and sys_admin
+                    return res.status(403).json({ success: false, message: 'Registration for unknown elevated roles is not allowed' });
                 }
             }
+
 
             const userData = {
                 name,
@@ -67,6 +72,32 @@ class AuthController {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
+
+            // Create user in Supabase Auth first
+            const { data: supabaseAuthData, error: supabaseAuthError } = await supabaseAdmin.auth.admin.createUser({
+                email: email.toLowerCase(),
+                password: password,
+                email_confirm: true, // Auto-confirm email for backend-created users
+                user_metadata: {
+                    name: name,
+                    role: requestedRole // Pass the role to Supabase user metadata if needed for Supabase's internal user management
+                }
+            });
+
+            console.log('Supabase Auth User Creation Data:', supabaseAuthData); // Debug log
+            console.log('Supabase Auth User ID:', supabaseAuthData?.user?.id); // Debug log
+
+            if (supabaseAuthError) {
+                console.error('Supabase Auth user creation error:', supabaseAuthError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to register user with authentication service',
+                    error: supabaseAuthError.message
+                });
+            }
+
+            // Store the Supabase Auth UUID
+            userData.supabase_auth_id = supabaseAuthData.user.id; // This line is crucial for RLS
 
             const result = await User.create(userData);
 
@@ -325,7 +356,15 @@ class AuthController {
             delete updateData.created_at;
 
             // Only allow updates to these fields
-            const allowedFields = ['name', 'profile_picture', 'bio'];
+            const allowedFields = [
+                'name',
+                'profile_picture',
+                'bio',
+                'phone',        // Added
+                'department',   // Added
+                'student_id',   // Added
+                'staff_id'      // Added
+            ];
             const filteredUpdate = {};
             allowedFields.forEach(field => {
                 if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];

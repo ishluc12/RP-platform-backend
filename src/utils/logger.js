@@ -1,22 +1,21 @@
-
 /**
  * This file sets up the logging functionality using Winston.
  * It configures the logger format and transports.
  *
  * Use this logger throughout the application to log messages and errors.
  */
-import winston from "winston";
+const winston = require("winston");
 
 const { combine, timestamp, json, printf } = winston.format;
 const timestampFormat = "MMM-DD-YYYY HH:mm:ss";
 
 // logger
-export const logger = winston.createLogger({
+const logger = winston.createLogger({
     format: combine(
         timestamp({ format: timestampFormat }),
         json(),
         printf(({ timestamp, level, message, ...data }) => {
-            return `${level.toLocaleUpperCase()}::${timestamp}: ${message}`;
+            return `${level.toUpperCase()}::${timestamp}: ${message}`;
         })
     ),
     transports: [
@@ -27,3 +26,5 @@ export const logger = winston.createLogger({
         new winston.transports.File({ filename: "info.log", level: "info" }),
     ],
 });
+
+module.exports = { logger };

@@ -18,7 +18,8 @@ class User {
                 phone,
                 department,
                 student_id,
-                staff_id
+                staff_id,
+                supabase_auth_id
             } = userData;
 
             const insertData = {
@@ -33,7 +34,8 @@ class User {
                 student_id: student_id || null,
                 staff_id: staff_id || null,
                 created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                supabase_auth_id: supabase_auth_id || null
             };
 
             const { data, error } = await db
