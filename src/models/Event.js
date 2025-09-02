@@ -4,9 +4,11 @@ const { logger } = require('../utils/logger');
 class Event {
     static async create(eventData) {
         try {
+            const { title, description, event_date, location, created_by, max_participants = null, registration_required = false } = eventData;
+            const insertData = { title, description, event_date, location, created_by, max_participants, registration_required };
             const { data, error } = await supabase
                 .from('events')
-                .insert(eventData)
+                .insert([insertData])
                 .select()
                 .single();
 
@@ -109,9 +111,22 @@ class Event {
 
     static async update(id, updateData) {
         try {
+            const allowedFields = [
+                'title',
+                'description',
+                'event_date',
+                'location',
+                'max_participants',
+                'registration_required'
+            ];
+            const filteredUpdate = {};
+            allowedFields.forEach(field => {
+                if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];
+            });
+
             const { data, error } = await supabase
                 .from('events')
-                .update(updateData)
+                .update(filteredUpdate)
                 .eq('id', id)
                 .select()
                 .single();
@@ -445,19 +460,25 @@ class Event {
         }
     }
 
-    static async getEventStats(eventId) {
+    static async getEventStats(eventId = null) {
         try {
-            // Using an RPC (Stored Procedure) is the best way to do this in Supabase
-            // as it allows for aggregation. Assuming you have a function named 'get_event_stats'
-            // defined in your Supabase database.
-            const { data, error } = await supabase.rpc('get_event_stats', { event_id: eventId });
+            let query;
+            if (eventId) {
+                // Fetch stats for a specific event using the RPC
+                query = supabase.rpc('get_event_stats', { event_id_param: eventId });
+            } else {
+                // Fetch overall stats using the view
+                query = supabase.from('events_with_stats_view').select('*');
+            }
+
+            const { data, error } = await query;
 
             if (error) {
-                logger.error('Supabase RPC error in getEventStats:', error.message);
+                logger.error('Supabase RPC/View error in getEventStats:', error.message);
                 return { success: false, error: error.message };
             }
 
-            return { success: true, data: data[0] };
+            return { success: true, data: data[0] }; // data[0] if it's a single result (RPC) or the first row of view
         } catch (error) {
             logger.error('Error in getEventStats:', error.message);
             return { success: false, error: error.message };

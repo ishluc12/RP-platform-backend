@@ -1,6 +1,6 @@
 const Event = require('../../models/Event');
 const { logger } = require('../../utils/logger');
-const { sendSuccessResponse, sendErrorResponse } = require('../../utils/responseHandlers');
+const { response, errorResponse } = require('../../utils/responseHandlers');
 
 class AdminEventController {
     // Get all events with admin privileges (no restrictions)
@@ -22,77 +22,32 @@ class AdminEventController {
 
             if (!result.success) {
                 logger.error('Failed to fetch events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch events', result.error);
+                return errorResponse(res, 500, 'Failed to fetch events', result.error);
             }
 
-            return sendSuccessResponse(res, 200, 'Events retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination
-            });
+            return response(res, 200, 'Events retrieved successfully', result.data, result.pagination);
         } catch (error) {
             logger.error('Error in admin getAllEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
     // Get event statistics for admin dashboard
     static async getEventStats(req, res) {
         try {
-            const db = require('../../config/database');
-            
-            // Get total events count
-            const totalEventsQuery = 'SELECT COUNT(*) as total FROM events';
-            const totalEventsResult = await db.query(totalEventsQuery);
-            const totalEvents = parseInt(totalEventsResult.rows[0].total);
+            const { id } = req.params; // Optional event ID for specific stats
 
-            // Get upcoming events count
-            const upcomingEventsQuery = 'SELECT COUNT(*) as upcoming FROM events WHERE event_date >= NOW()';
-            const upcomingEventsResult = await db.query(upcomingEventsQuery);
-            const upcomingEvents = parseInt(upcomingEventsResult.rows[0].upcoming);
+            const result = await Event.getEventStats(id ? parseInt(id) : null);
 
-            // Get past events count
-            const pastEventsQuery = 'SELECT COUNT(*) as past FROM events WHERE event_date < NOW()';
-            const pastEventsResult = await db.query(pastEventsQuery);
-            const pastEvents = parseInt(pastEventsResult.rows[0].past);
+            if (!result.success) {
+                logger.error('Failed to fetch event statistics:', result.error);
+                return errorResponse(res, 500, 'Failed to fetch event statistics', result.error);
+            }
 
-            // Get events by month (last 6 months)
-            const monthlyEventsQuery = `
-                SELECT 
-                    DATE_TRUNC('month', event_date) as month,
-                    COUNT(*) as count
-                FROM events 
-                WHERE event_date >= NOW() - INTERVAL '6 months'
-                GROUP BY DATE_TRUNC('month', event_date)
-                ORDER BY month DESC
-            `;
-            const monthlyEventsResult = await db.query(monthlyEventsQuery);
-
-            // Get top event creators
-            const topCreatorsQuery = `
-                SELECT 
-                    u.name as creator_name,
-                    u.email as creator_email,
-                    COUNT(e.id) as event_count
-                FROM events e
-                JOIN users u ON e.created_by = u.id
-                GROUP BY u.id, u.name, u.email
-                ORDER BY event_count DESC
-                LIMIT 10
-            `;
-            const topCreatorsResult = await db.query(topCreatorsQuery);
-
-            const stats = {
-                totalEvents,
-                upcomingEvents,
-                pastEvents,
-                monthlyEvents: monthlyEventsResult.rows,
-                topCreators: topCreatorsResult.rows
-            };
-
-            return sendSuccessResponse(res, 200, 'Event statistics retrieved successfully', stats);
+            return response(res, 200, 'Event statistics retrieved successfully', result.data);
         } catch (error) {
-            logger.error('Error in getEventStats:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            logger.error('Error in admin getEventStats:', error);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -101,47 +56,24 @@ class AdminEventController {
         try {
             const { id } = req.params;
             const eventId = parseInt(id);
-            const { title, description, event_date, location } = req.body;
+            const updates = req.body; // Pass all updates directly
 
             if (isNaN(eventId)) {
-                return sendErrorResponse(res, 400, 'Invalid event ID');
+                return errorResponse(res, 400, 'Invalid event ID');
             }
 
-            // Check if event exists
-            const existingEvent = await Event.findById(eventId);
-            if (!existingEvent.success) {
-                return sendErrorResponse(res, 404, 'Event not found');
-            }
-
-            // Validate event date if provided
-            if (event_date) {
-                const eventDate = new Date(event_date);
-                if (eventDate <= new Date()) {
-                    return sendErrorResponse(res, 400, 'Event date must be in the future');
-                }
-            }
-
-            const updateData = {};
-            if (title !== undefined) updateData.title = title.trim();
-            if (description !== undefined) updateData.description = description?.trim() || null;
-            if (event_date !== undefined) updateData.event_date = new Date(event_date).toISOString();
-            if (location !== undefined) updateData.location = location?.trim() || null;
-
-            if (Object.keys(updateData).length === 0) {
-                return sendErrorResponse(res, 400, 'No valid fields to update');
-            }
-
-            const result = await Event.update(eventId, updateData);
+            // Admin is allowed to update any event, authorization will be handled by RLS if configured
+            const result = await Event.update(eventId, updates);
 
             if (!result.success) {
                 logger.error('Failed to update event:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to update event', result.error);
+                return errorResponse(res, 500, 'Failed to update event', result.error);
             }
 
-            return sendSuccessResponse(res, 200, 'Event updated successfully', result.data);
+            return response(res, 200, 'Event updated successfully', result.data);
         } catch (error) {
             logger.error('Error in admin updateEvent:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -152,26 +84,21 @@ class AdminEventController {
             const eventId = parseInt(id);
 
             if (isNaN(eventId)) {
-                return sendErrorResponse(res, 400, 'Invalid event ID');
+                return errorResponse(res, 400, 'Invalid event ID');
             }
 
-            // Check if event exists
-            const existingEvent = await Event.findById(eventId);
-            if (!existingEvent.success) {
-                return sendErrorResponse(res, 404, 'Event not found');
-            }
-
+            // Admin is allowed to delete any event, authorization will be handled by RLS if configured
             const result = await Event.delete(eventId);
 
             if (!result.success) {
                 logger.error('Failed to delete event:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to delete event', result.error);
+                return errorResponse(res, 500, 'Failed to delete event', result.error);
             }
 
-            return sendSuccessResponse(res, 200, 'Event deleted successfully', result.data);
+            return response(res, 200, 'Event deleted successfully', result.data);
         } catch (error) {
             logger.error('Error in admin deleteEvent:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -184,23 +111,23 @@ class AdminEventController {
             const creatorId = parseInt(userId);
 
             if (isNaN(creatorId)) {
-                return sendErrorResponse(res, 400, 'Invalid user ID');
+                return errorResponse(res, 400, 'Invalid user ID');
             }
 
             const result = await Event.findByCreator(creatorId, page, limit);
 
             if (!result.success) {
                 logger.error('Failed to fetch events by user:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch events by user', result.error);
+                return errorResponse(res, 500, 'Failed to fetch events by user', result.error);
             }
 
-            return sendSuccessResponse(res, 200, 'User events retrieved successfully', {
+            return response(res, 200, 'User events retrieved successfully', {
                 events: result.data,
                 pagination: result.pagination
             });
         } catch (error) {
             logger.error('Error in getEventsByUser:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -210,10 +137,9 @@ class AdminEventController {
             const { eventIds } = req.body;
 
             if (!Array.isArray(eventIds) || eventIds.length === 0) {
-                return sendErrorResponse(res, 400, 'Event IDs array is required');
+                return errorResponse(res, 400, 'Event IDs array is required');
             }
 
-            const db = require('../../config/database');
             const results = [];
             let successCount = 0;
             let errorCount = 0;
@@ -234,7 +160,7 @@ class AdminEventController {
                 }
             }
 
-            return sendSuccessResponse(res, 200, 'Bulk delete operation completed', {
+            return response(res, 200, 'Bulk delete operation completed', {
                 results,
                 summary: {
                     total: eventIds.length,
@@ -244,7 +170,7 @@ class AdminEventController {
             });
         } catch (error) {
             logger.error('Error in bulkDeleteEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -267,17 +193,17 @@ class AdminEventController {
 
             if (!result.success) {
                 logger.error('Failed to fetch events with advanced filters:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch events', result.error);
+                return errorResponse(res, 500, 'Failed to fetch events', result.error);
             }
 
-            return sendSuccessResponse(res, 200, 'Events retrieved successfully', {
+            return response(res, 200, 'Events retrieved successfully', {
                 events: result.data,
                 pagination: result.pagination,
                 filters: filters
             });
         } catch (error) {
             logger.error('Error in getEventsWithAdvancedFilters:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+            return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 }

@@ -1,5 +1,7 @@
 const User = require('../../models/User');
 const { emitToUser } = require('../../config/socket');
+const { response, errorResponse } = require('../../utils/responseHandlers');
+const { logger } = require('../../utils/logger');
 
 class AdminUserController {
     // Get all users with advanced filtering and pagination
@@ -24,25 +26,14 @@ class AdminUserController {
 
             const result = await User.findAll(parseInt(page), parseInt(limit), filters);
             if (!result.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to fetch users',
-                    error: result.error
-                });
+                logger.error('Failed to fetch users:', result.error);
+                return errorResponse(res, 500, 'Failed to fetch users', result.error);
             }
 
-            res.json({
-                success: true,
-                data: result.data,
-                pagination: result.pagination
-            });
+            response(res, 200, 'Users retrieved successfully', result.data, result.pagination);
         } catch (error) {
-            console.error('Get all users error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Get all users error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -53,23 +44,13 @@ class AdminUserController {
 
             const result = await User.findById(id);
             if (!result.success) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
+                return errorResponse(res, 404, 'User not found');
             }
 
-            res.json({
-                success: true,
-                data: result.data
-            });
+            response(res, 200, 'User retrieved successfully', result.data);
         } catch (error) {
-            console.error('Get user by ID error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Get user by ID error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -86,44 +67,32 @@ class AdminUserController {
                 staff_id,
                 phone,
                 bio,
-                isActive = true
+                is_active = true
             } = req.body;
 
             // Validate required fields
             if (!name || !email || !password || !role) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Name, email, password, and role are required'
-                });
+                return errorResponse(res, 400, 'Name, email, password, and role are required');
             }
 
-            // Check if user already exists
+            // Check if user already exists by email
             const existingUser = await User.findByEmail(email);
             if (existingUser.success) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'User with this email already exists'
-                });
+                return errorResponse(res, 400, 'User with this email already exists');
             }
 
             // Check if student_id or staff_id already exists
             if (student_id) {
                 const existingStudent = await User.findByStudentId(student_id);
                 if (existingStudent.success) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Student ID already exists'
-                    });
+                    return errorResponse(res, 400, 'Student ID already exists');
                 }
             }
 
             if (staff_id) {
                 const existingStaff = await User.findByStaffId(staff_id);
                 if (existingStaff.success) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Staff ID already exists'
-                    });
+                    return errorResponse(res, 400, 'Staff ID already exists');
                 }
             }
 
@@ -142,7 +111,7 @@ class AdminUserController {
                 staff_id,
                 phone,
                 bio,
-                is_active: isActive,
+                is_active: is_active,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
@@ -150,28 +119,17 @@ class AdminUserController {
             // Create user
             const result = await User.create(userData);
             if (!result.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to create user',
-                    error: result.error
-                });
+                logger.error('Failed to create user:', result.error);
+                return errorResponse(res, 500, 'Failed to create user', result.error);
             }
 
             // Remove password from response
             const { password_hash, ...userWithoutPassword } = result.data;
 
-            res.status(201).json({
-                success: true,
-                message: 'User created successfully',
-                data: userWithoutPassword
-            });
+            response(res, 201, 'User created successfully', userWithoutPassword);
         } catch (error) {
-            console.error('Create user error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Create user error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -184,38 +142,25 @@ class AdminUserController {
             // Check if user exists
             const existingUser = await User.findById(id);
             if (!existingUser.success) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
+                return errorResponse(res, 404, 'User not found');
             }
 
-            // Remove fields that shouldn't be updated
+            // Remove fields that shouldn't be updated via this endpoint (e.g., password, sensitive audit fields)
             delete updateData.password_hash;
             delete updateData.created_at;
+            delete updateData.email; // Email should ideally be updated via a separate flow
 
             // Update user
             const result = await User.update(id, updateData);
             if (!result.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to update user',
-                    error: result.error
-                });
+                logger.error('Failed to update user:', result.error);
+                return errorResponse(res, 500, 'Failed to update user', result.error);
             }
 
-            res.json({
-                success: true,
-                message: 'User updated successfully',
-                data: result.data
-            });
+            response(res, 200, 'User updated successfully', result.data);
         } catch (error) {
-            console.error('Update user error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Update user error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -227,41 +172,25 @@ class AdminUserController {
             // Check if user exists
             const existingUser = await User.findById(id);
             if (!existingUser.success) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
+                return errorResponse(res, 404, 'User not found');
             }
 
             // Prevent admin from deleting themselves
             if (req.user.id === parseInt(id)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Cannot delete your own account'
-                });
+                return errorResponse(res, 400, 'Cannot delete your own account');
             }
 
             // Delete user
             const result = await User.delete(id);
             if (!result.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to delete user',
-                    error: result.error
-                });
+                logger.error('Failed to delete user:', result.error);
+                return errorResponse(res, 500, 'Failed to delete user', result.error);
             }
 
-            res.json({
-                success: true,
-                message: 'User deleted successfully'
-            });
+            response(res, 200, 'User deleted successfully');
         } catch (error) {
-            console.error('Delete user error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Delete user error:', error);
+            errorResponse(res, 500, error.message);
         }
     }
 
@@ -271,22 +200,17 @@ class AdminUserController {
             const { userIds, updateData } = req.body;
 
             if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'User IDs array is required'
-                });
+                return errorResponse(res, 400, 'User IDs array is required');
             }
 
             if (!updateData || Object.keys(updateData).length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Update data is required'
-                });
+                return errorResponse(res, 400, 'Update data is required');
             }
 
             // Remove fields that shouldn't be updated
             delete updateData.password_hash;
             delete updateData.created_at;
+            delete updateData.email; // Email should ideally be updated via a separate flow
 
             const results = [];
             const errors = [];
@@ -305,24 +229,16 @@ class AdminUserController {
                 }
             }
 
-            res.json({
-                success: true,
-                message: 'Bulk update completed',
-                data: {
-                    successful: results,
-                    failed: errors,
-                    total: userIds.length,
-                    successfulCount: results.length,
-                    failedCount: errors.length
-                }
+            response(res, 200, 'Bulk update completed', {
+                successful: results,
+                failed: errors,
+                total: userIds.length,
+                successfulCount: results.length,
+                failedCount: errors.length
             });
         } catch (error) {
-            console.error('Bulk update users error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Bulk update users error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -332,18 +248,12 @@ class AdminUserController {
             const { userIds } = req.body;
 
             if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'User IDs array is required'
-                });
+                return errorResponse(res, 400, 'User IDs array is required');
             }
 
             // Prevent admin from deleting themselves
             if (userIds.includes(req.user.id)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Cannot delete your own account'
-                });
+                return errorResponse(res, 400, 'Cannot delete your own account');
             }
 
             const results = [];
@@ -363,24 +273,16 @@ class AdminUserController {
                 }
             }
 
-            res.json({
-                success: true,
-                message: 'Bulk delete completed',
-                data: {
-                    successful: results,
-                    failed: errors,
-                    total: userIds.length,
-                    successfulCount: results.length,
-                    failedCount: errors.length
-                }
+            response(res, 200, 'Bulk delete completed', {
+                successful: results,
+                failed: errors,
+                total: userIds.length,
+                successfulCount: results.length,
+                failedCount: errors.length
             });
         } catch (error) {
-            console.error('Bulk delete users error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Bulk delete users error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -392,11 +294,7 @@ class AdminUserController {
             // Get basic user stats
             const statsResult = await User.getStats();
             if (!statsResult.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to get user statistics',
-                    error: statsResult.error
-                });
+                return errorResponse(res, 500, 'Failed to get user statistics', statsResult.error);
             }
 
             // In a real application, you'd calculate more analytics
@@ -409,17 +307,10 @@ class AdminUserController {
                 generatedAt: new Date().toISOString()
             };
 
-            res.json({
-                success: true,
-                data: analytics
-            });
+            response(res, 200, 'User analytics retrieved successfully', analytics);
         } catch (error) {
-            console.error('Get user analytics error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Get user analytics error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -435,11 +326,7 @@ class AdminUserController {
             // Get all users (no pagination for export)
             const result = await User.findAll(1, 10000, filters);
             if (!result.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to fetch users for export',
-                    error: result.error
-                });
+                return errorResponse(res, 500, 'Failed to fetch users for export', result.error);
             }
 
             // Remove sensitive information
@@ -460,14 +347,11 @@ class AdminUserController {
 
             if (format === 'csv') {
                 // Convert to CSV format
-                const csv = require('csv-stringify');
-                csv.stringify(exportData, { header: true }, (err, csvString) => {
+                const { stringify } = require('csv-stringify'); // Destructure for direct use
+                stringify(exportData, { header: true }, (err, csvString) => {
                     if (err) {
-                        return res.status(500).json({
-                            success: false,
-                            message: 'Failed to generate CSV',
-                            error: err.message
-                        });
+                        logger.error('Failed to generate CSV:', err);
+                        return errorResponse(res, 500, 'Failed to generate CSV', err.message);
                     }
 
                     res.setHeader('Content-Type', 'text/csv');
@@ -476,20 +360,15 @@ class AdminUserController {
                 });
             } else {
                 // Return JSON
-                res.json({
-                    success: true,
+                response(res, 200, 'Users exported successfully', {
                     data: exportData,
                     total: exportData.length,
                     exportedAt: new Date().toISOString()
                 });
             }
         } catch (error) {
-            console.error('Export users error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Export users error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -502,49 +381,32 @@ class AdminUserController {
             // Check if user exists
             const existingUser = await User.findById(id);
             if (!existingUser.success) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
+                return errorResponse(res, 404, 'User not found');
             }
 
             // Prevent admin from suspending themselves
             if (req.user.id === parseInt(id)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Cannot change your own status'
-                });
+                return errorResponse(res, 400, 'Cannot change your own status');
             }
 
             const updateData = { is_active: isActive };
-            if (reason) updateData.suspension_reason = reason;
+            if (reason !== undefined) updateData.suspension_reason = reason; // Allow null to clear reason
 
             // Update user status
             const result = await User.update(id, updateData);
             if (!result.success) {
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to update user status',
-                    error: result.error
-                });
+                logger.error('Failed to update user status:', result.error);
+                return errorResponse(res, 500, 'Failed to update user status', result.error);
             }
 
-            res.json({
-                success: true,
-                message: `User ${isActive ? 'activated' : 'suspended'} successfully`,
-                data: {
-                    id: parseInt(id),
-                    is_active: isActive,
-                    reason: reason || null
-                }
+            response(res, 200, `User ${isActive ? 'activated' : 'suspended'} successfully`, {
+                id: parseInt(id),
+                is_active: isActive,
+                reason: reason || null
             });
         } catch (error) {
-            console.error('Toggle user status error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Toggle user status error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 
@@ -557,35 +419,24 @@ class AdminUserController {
             // Check if user exists
             const existingUser = await User.findById(id);
             if (!existingUser.success) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found'
-                });
+                return errorResponse(res, 404, 'User not found');
             }
 
             // In a real application, you'd fetch activity logs from a logs table
             // For now, we'll return a placeholder response
-            res.json({
-                success: true,
-                message: 'User activity logs functionality not implemented yet',
-                data: {
-                    userId: parseInt(id),
-                    logs: [],
-                    pagination: {
-                        page: parseInt(page),
-                        limit: parseInt(limit),
-                        total: 0,
-                        totalPages: 0
-                    }
+            response(res, 200, 'User activity logs functionality not implemented yet', {
+                userId: parseInt(id),
+                logs: [],
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: 0,
+                    totalPages: 0
                 }
             });
         } catch (error) {
-            console.error('Get user activity logs error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Get user activity logs error:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 }

@@ -24,4 +24,4 @@ const sendErrorResponse = (res, statusCode, message, details = null) => {
   });
 };
 
-module.exports = { sendSuccessResponse, sendErrorResponse };
+module.exports = { response: sendSuccessResponse, errorResponse: sendErrorResponse };

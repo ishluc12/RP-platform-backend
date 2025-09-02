@@ -1,287 +1,226 @@
-const {
-    createSurvey,
-    addRatings,
-    upsertComments,
-    getSurveyWithDetails,
-    listSurveysByStudent,
-    updateSurvey,
-    replaceRatings,
-    deleteSurveyCascade,
-    adminListSurveys,
-    adminAggregateRatings
-} = require('../../models/Survey');
-const path = require('path');
-const fs = require('fs');
+const Survey = require('../../models/Survey');
+const { response, errorResponse } = require('../../utils/responseHandlers');
+const User = require('../../models/User'); // Needed to get student's department
 
-// Create a survey with ratings and optional comments (restricted to sys_admin)
-const studentCreateSurvey = async (req, res) => {
-    try {
-        if (req.user.role !== 'sys_admin') {
-            return res.status(403).json({ success: false, message: 'Only sys_admin can create surveys' });
-        }
+// --- Survey Management ---
 
-        const { target_student_id, target_department, target_all_students, module_code, module_name, academic_year, semester, department, program, class: className, module_leader_name, ratings, comments } = req.body;
+/**
+ * Create a new survey.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const createSurvey = async (req, res) => {
+    const { module_code, module_name, academic_year, semester, department, program, class_name, module_leader_name } = req.body;
+    const student_id = req.user.id; // Assuming the creator is the student filling it out initially, or admin creates without student_id
 
-        const User = require('../../models/User');
-
-        let targetStudentIds = [];
-        if (target_all_students === true) {
-            // University-wide survey: all students
-            const listRes = await User.listStudentsByDepartment(undefined);
-            if (!listRes.success) {
-                return res.status(500).json({ success: false, message: 'Failed to fetch students for university' });
-            }
-            targetStudentIds = (listRes.data || []).map(u => u.id);
-            if (targetStudentIds.length === 0) {
-                return res.status(400).json({ success: false, message: 'No students found in the university' });
-            }
-        } else if (target_department) {
-            // Department-wide survey: collect all student IDs in department
-            const listRes = await User.listStudentsByDepartment(target_department);
-            if (!listRes.success) {
-                return res.status(500).json({ success: false, message: 'Failed to fetch students for department' });
-            }
-            targetStudentIds = (listRes.data || []).map(u => u.id);
-            if (targetStudentIds.length === 0) {
-                return res.status(400).json({ success: false, message: 'No students found in specified department' });
-            }
-        } else {
-            const studentId = Number(target_student_id);
-            if (!studentId || Number.isNaN(studentId)) {
-                return res.status(400).json({ success: false, message: 'target_student_id is required and must be a number (or provide target_department)' });
-            }
-            const studentResult = await User.findById(studentId);
-            if (!studentResult.success || !studentResult.data) {
-                return res.status(400).json({ success: false, message: 'Target student not found' });
-            }
-            if (studentResult.data.role !== 'student') {
-                return res.status(400).json({ success: false, message: 'target_student_id must belong to a student' });
-            }
-            targetStudentIds = [studentId];
-        }
-
-        if (!module_code || !module_name) {
-            return res.status(400).json({ success: false, message: 'module_code and module_name are required' });
-        }
-        if (!Array.isArray(ratings) || ratings.length === 0) {
-            return res.status(400).json({ success: false, message: 'ratings array is required' });
-        }
-
-        if (targetStudentIds.length === 0) {
-            // Broadcast mode: create a single survey with student_id = NULL
-            const survey = await createSurvey({
-                module_code,
-                module_name,
-                academic_year: academic_year || null,
-                semester: semester || null,
-                department: target_department || null, // null means all-university broadcast
-                program: program || null,
-                class: className || null,
-                module_leader_name: module_leader_name || null,
-                student_id: null
-            });
-            await addRatings(ratings.map(r => ({ survey_id: survey.id, description: r.description, rating: r.rating, comment: r.comment || null })));
-            if (comments) await upsertComments(survey.id, comments);
-            return res.status(201).json({ success: true, data: { created_count: 1, survey_ids: [survey.id], broadcast: true } });
-        } else {
-            // Create one survey per target student
-            const created = [];
-            for (const sid of targetStudentIds) {
-                const survey = await createSurvey({
-                    module_code,
-                    module_name,
-                    academic_year: academic_year || null,
-                    semester: semester || null,
-                    department: department || null,
-                    program: program || null,
-                    class: className || null,
-                    module_leader_name: module_leader_name || null,
-                    student_id: sid
-                });
-
-                await addRatings(ratings.map(r => ({ survey_id: survey.id, description: r.description, rating: r.rating, comment: r.comment || null })));
-                if (comments) {
-                    await upsertComments(survey.id, comments);
-                }
-                created.push(survey.id);
-            }
-
-            return res.status(201).json({ success: true, data: { created_count: created.length, survey_ids: created, broadcast: false } });
-        }
-    } catch (error) {
-        console.error('Error creating survey:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    if (!module_code || !module_name) {
+        return errorResponse(res, 400, 'Module code and name are required.');
     }
-};
 
-// Student: list own surveys with optional filters
-const studentListSurveys = async (req, res) => {
     try {
-        const filters = {
-            module_code: req.query.module_code,
-            academic_year: req.query.academic_year,
-            semester: req.query.semester
+        const surveyData = {
+            module_code,
+            module_name,
+            academic_year,
+            semester,
+            department,
+            program,
+            class: class_name, // 'class' is a reserved keyword, use class_name
+            module_leader_name,
+            student_id
         };
-        // Fetch user's department to include department/all-student broadcast surveys
-        const User = require('../../models/User');
-        const me = await User.findById(req.user.id);
-        const myDept = me.success && me.data ? me.data.department : null;
-        const data = await listSurveysByStudent(req.user.id, myDept, filters);
-        return res.json({ success: true, data });
+        const result = await Survey.createSurvey(surveyData);
+        response(res, 201, 'Survey created successfully', result);
     } catch (error) {
-        console.error('Error listing surveys:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        errorResponse(res, 500, error.message);
     }
 };
 
-// Student: get one own survey with details
-const studentGetSurvey = async (req, res) => {
-    try {
-        const studentId = req.user.id;
-        const surveyId = Number(req.params.id);
-        if (Number.isNaN(surveyId)) return res.status(400).json({ success: false, message: 'Invalid survey ID' });
+/**
+ * Get a survey with its ratings and comments.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getSurveyDetails = async (req, res) => {
+    const { id } = req.params;
 
-        const details = await getSurveyWithDetails(surveyId);
-        if (!details.survey || details.survey.student_id !== studentId) {
-            return res.status(404).json({ success: false, message: 'Survey not found' });
-        }
-        return res.json({ success: true, data: details });
+    try {
+        const result = await Survey.getSurveyWithDetails(parseInt(id));
+        if (!result.survey) return errorResponse(res, 404, 'Survey not found');
+        response(res, 200, 'Survey details fetched successfully', result);
     } catch (error) {
-        console.error('Error fetching survey:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        errorResponse(res, 500, error.message);
     }
 };
 
-// Update base fields/ratings/comments (restricted to sys_admin)
-const studentUpdateSurvey = async (req, res) => {
+/**
+ * List surveys for the authenticated student.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const listStudentSurveys = async (req, res) => {
+    const studentId = req.user.id;
+    const { module_code, academic_year, semester } = req.query;
+
     try {
-        if (req.user.role !== 'sys_admin') {
-            return res.status(403).json({ success: false, message: 'Only sys_admin can update surveys' });
+        // Get student's department for broadcast surveys
+        const userResult = await User.findById(studentId);
+        if (!userResult.success) return errorResponse(res, 404, 'User not found');
+        const studentDepartment = userResult.data.department;
+
+        const filters = { module_code, academic_year, semester };
+        const result = await Survey.listSurveysByStudent(studentId, studentDepartment, filters);
+        response(res, 200, 'Student surveys fetched successfully', result);
+    } catch (error) {
+        errorResponse(res, 500, error.message);
+    }
+};
+
+/**
+ * Update a survey's base fields.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const updateSurvey = async (req, res) => {
+    const { id } = req.params;
+    const studentId = req.user.id;
+    const updates = req.body;
+
+    try {
+        // Ensure only the original creator (student_id) or an admin can update basic survey info
+        const survey = await Survey.getSurveyWithDetails(parseInt(id));
+        if (!survey.survey) return errorResponse(res, 404, 'Survey not found');
+
+        if (survey.survey.student_id !== studentId && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
+            return errorResponse(res, 403, 'Unauthorized to update this survey');
         }
-        const surveyId = Number(req.params.id);
-        if (Number.isNaN(surveyId)) return res.status(400).json({ success: false, message: 'Invalid survey ID' });
 
-        const { module_code, module_name, academic_year, semester, department, program, class: className, module_leader_name, ratings, comments } = req.body;
+        const result = await Survey.updateSurvey(parseInt(id), studentId, updates);
+        response(res, 200, 'Survey updated successfully', result);
+    } catch (error) {
+        errorResponse(res, 500, error.message);
+    }
+};
 
-        const updates = {};
-        if (module_code !== undefined) updates.module_code = module_code;
-        if (module_name !== undefined) updates.module_name = module_name;
-        if (academic_year !== undefined) updates.academic_year = academic_year;
-        if (semester !== undefined) updates.semester = semester;
-        if (department !== undefined) updates.department = department;
-        if (program !== undefined) updates.program = program;
-        if (className !== undefined) updates.class = className;
-        if (module_leader_name !== undefined) updates.module_leader_name = module_leader_name;
+/**
+ * Delete a survey and its associated data.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const deleteSurvey = async (req, res) => {
+    const { id } = req.params;
+    const studentId = req.user.id;
 
-        if (Object.keys(updates).length) {
-            // sys_admin can update regardless of student ownership; pass null to skip ownership constraint
-            await updateSurvey(surveyId, null, updates);
+    try {
+        // Ensure only the original creator (student_id) or an admin can delete a survey
+        const survey = await Survey.getSurveyWithDetails(parseInt(id));
+        if (!survey.survey) return errorResponse(res, 404, 'Survey not found');
+
+        if (survey.survey.student_id !== studentId && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
+            return errorResponse(res, 403, 'Unauthorized to delete this survey');
         }
 
-        if (Array.isArray(ratings)) {
-            await replaceRatings(surveyId, ratings.map(r => ({ description: r.description, rating: r.rating, comment: r.comment || null })));
+        await Survey.deleteSurveyCascade(parseInt(id), studentId);
+        response(res, 200, 'Survey and associated data deleted successfully');
+    } catch (error) {
+        errorResponse(res, 500, error.message);
+    }
+};
+
+// --- Survey Ratings and Comments ---
+
+/**
+ * Submit or update survey ratings and comments.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const submitSurveyResponse = async (req, res) => {
+    const { id } = req.params; // Survey ID
+    const { ratings, comments } = req.body;
+    const studentId = req.user.id; // User submitting the response
+
+    try {
+        // Ensure survey exists and is either for this student or a broadcast survey
+        const surveyDetails = await Survey.getSurveyWithDetails(parseInt(id));
+        if (!surveyDetails.survey) return errorResponse(res, 404, 'Survey not found');
+
+        // If survey is specific to a student, ensure it's for this student
+        if (surveyDetails.survey.student_id && surveyDetails.survey.student_id !== studentId) {
+            return errorResponse(res, 403, 'Unauthorized to respond to this survey');
         }
 
+        // If survey is a broadcast, ensure this student hasn't already filled it
+        if (!surveyDetails.survey.student_id) {
+            const existingResponse = await Survey.listSurveysByStudent(studentId, null, { id: parseInt(id) });
+            if (existingResponse && existingResponse.length > 0) {
+                return errorResponse(res, 400, 'You have already responded to this survey.');
+            }
+        }
+
+        // Add/replace ratings
+        if (ratings && Array.isArray(ratings)) {
+            await Survey.replaceRatings(parseInt(id), ratings);
+        }
+
+        // Upsert comments
         if (comments) {
-            await upsertComments(surveyId, comments);
+            await Survey.upsertComments(parseInt(id), comments);
         }
 
-        const details = await getSurveyWithDetails(surveyId);
-        if (!details.survey) return res.status(404).json({ success: false, message: 'Survey not found' });
-        return res.json({ success: true, data: details });
-    } catch (error) {
-        console.error('Error updating survey:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
-    }
-};
-
-// Delete survey (restricted to sys_admin)
-const studentDeleteSurvey = async (req, res) => {
-    try {
-        if (req.user.role !== 'sys_admin') {
-            return res.status(403).json({ success: false, message: 'Only sys_admin can delete surveys' });
+        // Mark survey as filled by this student if it was a broadcast survey
+        if (!surveyDetails.survey.student_id) {
+            await Survey.updateSurvey(parseInt(id), null, { student_id: studentId, filled_at: new Date().toISOString() });
         }
-        const surveyId = Number(req.params.id);
-        if (Number.isNaN(surveyId)) return res.status(400).json({ success: false, message: 'Invalid survey ID' });
-        const deleted = await deleteSurveyCascade(surveyId, null);
-        return res.json({ success: true, data: deleted });
+
+        response(res, 200, 'Survey response submitted successfully');
     } catch (error) {
-        console.error('Error deleting survey:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        errorResponse(res, 500, error.message);
     }
 };
 
-// Admin: list surveys
-const adminGetSurveys = async (req, res) => {
+// --- Admin Survey Operations ---
+
+/**
+ * Admin: List surveys with filters.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const adminListSurveys = async (req, res) => {
+    const filters = req.query; // Filters can be module_code, academic_year, etc.
+
     try {
-        const filters = { ...req.query };
-        const data = await adminListSurveys(filters);
-        return res.json({ success: true, data });
+        const result = await Survey.adminListSurveys(filters);
+        response(res, 200, 'Admin surveys fetched successfully', result);
     } catch (error) {
-        console.error('Error fetching surveys (admin):', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        errorResponse(res, 500, error.message);
     }
 };
 
-// Admin: get survey details
-const adminGetSurveyDetails = async (req, res) => {
-    try {
-        const surveyId = Number(req.params.id);
-        if (Number.isNaN(surveyId)) return res.status(400).json({ success: false, message: 'Invalid survey ID' });
-        const details = await getSurveyWithDetails(surveyId);
-        if (!details.survey) return res.status(404).json({ success: false, message: 'Survey not found' });
-        return res.json({ success: true, data: details });
-    } catch (error) {
-        console.error('Error fetching survey details (admin):', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
-    }
-};
+/**
+ * Admin: Aggregate ratings for surveys based on filters.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const adminAggregateRatings = async (req, res) => {
+    const filters = req.query; // Filters can be module_code, academic_year, etc.
 
-// Admin: aggregate ratings for filters
-const adminGetAggregates = async (req, res) => {
     try {
-        const filters = { ...req.query };
-        const data = await adminAggregateRatings(filters);
-        return res.json({ success: true, data });
+        const result = await Survey.adminAggregateRatings(filters);
+        response(res, 200, 'Survey ratings aggregated successfully', result);
     } catch (error) {
-        console.error('Error aggregating ratings (admin):', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        errorResponse(res, 500, error.message);
     }
 };
 
 module.exports = {
-    studentCreateSurvey,
-    studentListSurveys,
-    studentGetSurvey,
-    studentUpdateSurvey,
-    studentDeleteSurvey,
-    adminGetSurveys,
-    adminGetSurveyDetails,
-    adminGetAggregates,
-    // Upload survey attachments (sys_admin only)
-    uploadSurveyAttachment: async (req, res) => {
-        try {
-            if (req.user.role !== 'sys_admin') {
-                return res.status(403).json({ success: false, message: 'Only sys_admin can upload survey files' });
-            }
-            const surveyId = Number(req.params.id);
-            if (Number.isNaN(surveyId)) return res.status(400).json({ success: false, message: 'Invalid survey ID' });
-            if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
-
-            const fileUrl = `/uploads/surveys/${req.file.filename}`;
-            const attachment = await require('../../models/Survey').addAttachmentForSurvey(
-                surveyId,
-                req.user.id,
-                fileUrl,
-                req.file.originalname,
-                req.file.mimetype
-            );
-            return res.status(201).json({ success: true, data: attachment });
-        } catch (error) {
-            console.error('Error uploading survey file:', error);
-            return res.status(500).json({ success: false, message: 'Server error', error: error.message });
-        }
-    }
+    createSurvey,
+    getSurveyDetails,
+    listStudentSurveys,
+    updateSurvey,
+    deleteSurvey,
+    submitSurveyResponse,
+    adminListSurveys,
+    adminAggregateRatings
 };
 
 

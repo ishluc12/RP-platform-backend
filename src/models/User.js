@@ -114,7 +114,7 @@ class User {
     /** Update user by ID */
     static async update(id, updateData) {
         // Only update allowed fields!
-        const allowedFields = ['name', 'role', 'profile_picture', 'bio'];
+        const allowedFields = ['name', 'role', 'profile_picture', 'bio', 'phone', 'department', 'student_id', 'staff_id'];
         const filteredUpdate = {};
         allowedFields.forEach(field => {
             if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];
@@ -191,6 +191,38 @@ class User {
             });
 
             return { success: true, data: stats };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /** Get user by student_id */
+    static async findByStudentId(studentId) {
+        try {
+            const { data, error } = await db
+                .from('users')
+                .select('*')
+                .eq('student_id', studentId)
+                .single();
+            if (error && error.code === 'PGRST116') return { success: false, error: 'User not found' };
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /** Get user by staff_id */
+    static async findByStaffId(staffId) {
+        try {
+            const { data, error } = await db
+                .from('users')
+                .select('*')
+                .eq('staff_id', staffId)
+                .single();
+            if (error && error.code === 'PGRST116') return { success: false, error: 'User not found' };
+            if (error) throw error;
+            return { success: true, data };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }

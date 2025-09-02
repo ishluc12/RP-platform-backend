@@ -1,4 +1,7 @@
 const { supabase } = require('../../config/database');
+const LecturerAvailability = require('../../models/LecturerAvailability');
+const { response, errorResponse } = require('../../utils/responseHandlers');
+const { logger } = require('../../utils/logger');
 
 // Create or bulk insert availability slots for the authenticated lecturer
 const createAvailability = async (req, res) => {
@@ -7,33 +10,23 @@ const createAvailability = async (req, res) => {
         const { slots } = req.body; // [{ available_from, available_to, recurring }]
 
         if (!Array.isArray(slots) || slots.length === 0) {
-            return res.status(400).json({ success: false, message: 'slots array is required' });
+            return errorResponse(res, 400, 'Slots array is required');
         }
 
+        const createdSlots = [];
         for (const slot of slots) {
             if (!slot.available_from || !slot.available_to) {
-                return res.status(400).json({ success: false, message: 'Each slot must include available_from and available_to' });
+                return errorResponse(res, 400, 'Each slot must include available_from and available_to');
             }
+            const result = await LecturerAvailability.create({ ...slot, lecturer_id: lecturerId });
+            if (!result.success) throw new Error(result.error);
+            createdSlots.push(result.data);
         }
 
-        const rows = slots.map((slot) => ({
-            lecturer_id: lecturerId,
-            available_from: slot.available_from,
-            available_to: slot.available_to,
-            recurring: !!slot.recurring
-        }));
-
-        const { data, error } = await supabase
-            .from('lecturer_availability')
-            .insert(rows)
-            .select('*');
-
-        if (error) throw error;
-
-        return res.status(201).json({ success: true, data });
+        response(res, 201, 'Availability slots created successfully', createdSlots);
     } catch (error) {
-        console.error('Error creating availability:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        logger.error('Error creating availability:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 
@@ -41,19 +34,15 @@ const createAvailability = async (req, res) => {
 const getMyAvailability = async (req, res) => {
     try {
         const lecturerId = req.user.id;
+        const { start_date, end_date } = req.query;
 
-        const { data, error } = await supabase
-            .from('lecturer_availability')
-            .select('*')
-            .eq('lecturer_id', lecturerId)
-            .order('available_from', { ascending: true });
+        const result = await LecturerAvailability.getByLecturer(lecturerId, { start_date, end_date });
+        if (!result.success) throw new Error(result.error);
 
-        if (error) throw error;
-
-        return res.json({ success: true, data });
+        response(res, 200, 'Lecturer availability fetched successfully', result.data);
     } catch (error) {
-        console.error('Error fetching availability:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        logger.error('Error fetching availability:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 
@@ -62,37 +51,21 @@ const updateAvailability = async (req, res) => {
     try {
         const lecturerId = req.user.id;
         const slotId = Number(req.params.id);
-        const { available_from, available_to, recurring } = req.body;
+        const updates = req.body;
 
         if (Number.isNaN(slotId)) {
-            return res.status(400).json({ success: false, message: 'Invalid slot ID' });
+            return errorResponse(res, 400, 'Invalid slot ID');
         }
 
-        const updates = {};
-        if (available_from !== undefined) updates.available_from = available_from;
-        if (available_to !== undefined) updates.available_to = available_to;
-        if (recurring !== undefined) updates.recurring = !!recurring;
-
-        if (Object.keys(updates).length === 0) {
-            return res.status(400).json({ success: false, message: 'No fields provided to update' });
+        const result = await LecturerAvailability.update(slotId, lecturerId, updates);
+        if (!result.success) {
+            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }
 
-        const { data, error } = await supabase
-            .from('lecturer_availability')
-            .update(updates)
-            .eq('id', slotId)
-            .eq('lecturer_id', lecturerId)
-            .select('*');
-
-        if (error) throw error;
-        if (!data || data.length === 0) {
-            return res.status(404).json({ success: false, message: 'Slot not found or not authorized' });
-        }
-
-        return res.json({ success: true, data: data[0] });
+        response(res, 200, 'Availability slot updated successfully', result.data);
     } catch (error) {
-        console.error('Error updating availability:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        logger.error('Error updating availability:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 
@@ -103,25 +76,18 @@ const deleteAvailability = async (req, res) => {
         const slotId = Number(req.params.id);
 
         if (Number.isNaN(slotId)) {
-            return res.status(400).json({ success: false, message: 'Invalid slot ID' });
+            return errorResponse(res, 400, 'Invalid slot ID');
         }
 
-        const { data, error } = await supabase
-            .from('lecturer_availability')
-            .delete()
-            .eq('id', slotId)
-            .eq('lecturer_id', lecturerId)
-            .select('*');
-
-        if (error) throw error;
-        if (!data || data.length === 0) {
-            return res.status(404).json({ success: false, message: 'Slot not found or not authorized' });
+        const result = await LecturerAvailability.delete(slotId, lecturerId);
+        if (!result.success) {
+            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }
 
-        return res.json({ success: true, message: 'Slot deleted successfully', data: data[0] });
+        response(res, 200, 'Availability slot deleted successfully', result.data);
     } catch (error) {
-        console.error('Error deleting availability:', error);
-        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+        logger.error('Error deleting availability:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 

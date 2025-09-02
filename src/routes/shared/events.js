@@ -1,30 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const EventController = require('../../controllers/shared/eventController');
 const { authenticateToken } = require('../../middleware/auth');
-const { validateEvent } = require('../../middleware/validation');
+const eventController = require('../../controllers/shared/eventController');
+// const { validateEvent } = require('../../middleware/validation'); // Temporarily remove if not defined
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
 
 // Event CRUD operations
-router.post('/', validateEvent, EventController.createEvent);
-router.get('/', EventController.getAllEvents);
-router.get('/upcoming', EventController.getUpcomingEvents);
-router.get('/past', EventController.getPastEvents);
-router.get('/search', EventController.searchEvents);
-router.get('/my-events', EventController.getMyEvents);
-router.get('/creator/:userId', EventController.getEventsByCreator);
-router.get('/:id', EventController.getEventById);
-router.put('/:id', validateEvent, EventController.updateEvent);
-router.delete('/:id', EventController.deleteEvent);
+router.post('/', eventController.createEvent);
+router.get('/', eventController.getAllEvents); // Covers upcoming, past, search with filters
+router.get('/:id', eventController.getEventById);
+router.put('/:id', eventController.updateEvent);
+router.delete('/:id', eventController.deleteEvent);
 
 // RSVP and participant management
-router.post('/:id/rsvp', EventController.rsvpToEvent);
-router.delete('/:id/rsvp', EventController.removeRsvp);
-router.get('/:id/participants', EventController.getEventParticipants);
-router.get('/:id/rsvp-status', EventController.getUserRsvpStatus);
-router.get('/:id/stats', EventController.getEventStats);
-router.get('/rsvp/events', EventController.getUserRsvpEvents);
+router.post('/:eventId/rsvp', eventController.rsvpToEvent);
+router.delete('/:eventId/rsvp', eventController.removeRsvp);
+router.get('/:eventId/participants', eventController.getEventParticipants);
+router.get('/:eventId/rsvp-status', eventController.getUserRsvpStatus);
+router.get('/user-rsvps', eventController.getUserRsvpEvents);
+
+// Future additions:
+// router.get('/:eventId/stats', eventController.getEventStats); // Requires DB function
 
 module.exports = router;

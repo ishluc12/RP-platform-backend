@@ -1,425 +1,267 @@
 // D:\final-year-project\backend\src\controllers\shared\eventController.js
 const Event = require('../../models/Event');
+const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
-const { sendSuccessResponse, sendErrorResponse } = require('../../utils/responseHandlers');
 
-class EventController {
-    // Create a new event
-    static async createEvent(req, res) {
-        try {
-            const { title, description, event_date, location } = req.body;
-            const userId = req.user.id; // Get user ID from authenticated request
-            const userRole = req.user.role; // Get user role from authenticated request
+// --- Event Management ---
 
-            // Policy: Only administrator and sys_admin roles can create events
-            if (userRole !== 'administrator' && userRole !== 'sys_admin') {
-                return sendErrorResponse(res, 403, 'Forbidden: Only administrators can create events');
-            }
+/**
+ * Create a new event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const createEvent = async (req, res) => {
+    const { title, description, event_date, location, max_participants, registration_required } = req.body;
+    const created_by = req.user.id;
 
-            const eventDate = new Date(event_date);
-            if (eventDate <= new Date()) {
-                return sendErrorResponse(res, 400, 'Event date must be in the future');
-            }
-
-            const eventData = {
-                title: title.trim(),
-                description: description?.trim() || null,
-                event_date: eventDate.toISOString(),
-                location: location?.trim() || null,
-                // Ensure the key matches the database column
-                created_by: userId
-            };
-
-            const result = await Event.create(eventData);
-
-            if (!result.success) {
-                logger.error('Failed to create event:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to create event', result.error.message || result.error);
-            }
-
-            return sendSuccessResponse(res, 201, 'Event created successfully', result.data);
-        } catch (error) {
-            logger.error('Error in createEvent:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
+    if (!title || !event_date || !location) {
+        return errorResponse(res, 400, 'Title, event date, and location are required.');
     }
 
-    // Get all events with pagination and filters
-    static async getAllEvents(req, res) {
-        try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-            const filters = {};
-
-            // Apply filters from query parameters
-            if (req.query.title) filters.title = req.query.title;
-            if (req.query.location) filters.location = req.query.location;
-            if (req.query.created_by) filters.created_by = req.query.created_by;
-            if (req.query.event_date_from) filters.event_date_from = req.query.event_date_from;
-            if (req.query.event_date_to) filters.event_date_to = req.query.event_date_to;
-
-            // Using the new model method name from the provided Event model
-            const result = await Event.getEventsWithParticipantCounts(page, limit, filters);
-
-            if (!result.success) {
-                logger.error('Failed to fetch events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch events', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Events retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination
-            });
-        } catch (error) {
-            logger.error('Error in getAllEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+    try {
+        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required });
+        if (!result.success) {
+            logger.error('Error creating event in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to create event');
         }
+        response(res, 201, 'Event created successfully', result.data);
+    } catch (error) {
+        logger.error('Exception creating event:', error.message);
+        errorResponse(res, 500, error.message);
+    }
+};
+
+/**
+ * Get all events with optional filters and pagination.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getAllEvents = async (req, res) => {
+    const { page, limit, title, location, created_by, event_date_from, event_date_to } = req.query;
+    const filters = {};
+    if (title) filters.title = title;
+    if (location) filters.location = location;
+    if (created_by) filters.created_by = parseInt(created_by);
+    if (event_date_from) filters.event_date_from = event_date_from;
+    if (event_date_to) filters.event_date_to = event_date_to;
+
+    try {
+        const result = await Event.findAll(parseInt(page) || 1, parseInt(limit) || 10, filters);
+        if (!result.success) {
+            logger.error('Error fetching all events in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to fetch events');
+        }
+        response(res, 200, 'Events fetched successfully', result.data, result.pagination);
+    } catch (error) {
+        logger.error('Exception fetching all events:', error.message);
+        errorResponse(res, 500, error.message);
+    }
+};
+
+/**
+ * Get a single event by ID.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getEventById = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await Event.findById(parseInt(id));
+        if (!result.success) {
+            logger.error('Error fetching event by ID in controller:', result.error);
+            return errorResponse(res, result.error === 'Event not found' ? 404 : 400, result.error.message || result.error);
+        }
+        response(res, 200, 'Event fetched successfully', result.data);
+    } catch (error) {
+        logger.error('Exception fetching event by ID:', error.message);
+        errorResponse(res, 500, error.message);
+    }
+};
+
+/**
+ * Update an existing event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const updateEvent = async (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+    const userId = req.user.id;
+
+    try {
+        // First, check if the user is the creator of the event
+        const eventResult = await Event.findById(parseInt(id));
+        if (!eventResult.success || eventResult.data.created_by !== userId) {
+            return errorResponse(res, 403, 'Unauthorized to update this event');
+        }
+
+        const result = await Event.update(parseInt(id), updates);
+        if (!result.success) {
+            logger.error('Error updating event in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to update event');
+        }
+        response(res, 200, 'Event updated successfully', result.data);
+    } catch (error) {
+        logger.error('Exception updating event:', error.message);
+        errorResponse(res, 500, error.message);
+    }
+};
+
+/**
+ * Delete an event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const deleteEvent = async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    try {
+        // First, check if the user is the creator of the event
+        const eventResult = await Event.findById(parseInt(id));
+        if (!eventResult.success || eventResult.data.created_by !== userId) {
+            return errorResponse(res, 403, 'Unauthorized to delete this event');
+        }
+
+        const result = await Event.delete(parseInt(id));
+        if (!result.success) {
+            logger.error('Error deleting event in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to delete event');
+        }
+        response(res, 200, 'Event deleted successfully', result.data);
+    } catch (error) {
+        logger.error('Exception deleting event:', error.message);
+        errorResponse(res, 500, error.message);
+    }
+};
+
+// --- Event Participation (RSVP) ---
+
+/**
+ * RSVP to an event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const rsvpToEvent = async (req, res) => {
+    const { eventId } = req.params;
+    const { status } = req.body; // e.g., 'going', 'interested', 'not going'
+    const userId = req.user.id;
+
+    if (!status || !['interested', 'going', 'not going'].includes(status)) {
+        return errorResponse(res, 400, 'Invalid RSVP status.');
     }
 
-    // Get event by ID
-    static async getEventById(req, res) {
-        try {
-            const { id } = req.params;
-            const result = await Event.findById(id);
-
-            if (!result.success) {
-                return sendErrorResponse(res, 404, 'Event not found');
-            }
-
-            return sendSuccessResponse(res, 200, 'Event retrieved successfully', result.data);
-        } catch (error) {
-            logger.error('Error in getEventById:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+    try {
+        const result = await Event.rsvpToEvent(parseInt(eventId), userId, status);
+        if (!result.success) {
+            logger.error('Error RSVPing to event in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to RSVP to event');
         }
+        response(res, 200, `RSVP ${result.action} successfully`, result.data);
+    } catch (error) {
+        logger.error('Exception RSVPing to event:', error.message);
+        errorResponse(res, 500, error.message);
     }
+};
 
-    // Update event
-    static async updateEvent(req, res) {
-        try {
-            const { id } = req.params;
-            const { title, description, event_date, location } = req.body;
-            const userId = req.user.id;
+/**
+ * Get participants for a specific event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getEventParticipants = async (req, res) => {
+    const { eventId } = req.params;
+    const { page, limit } = req.query;
 
-            // Check if event exists and user has permission to update
-            const existingEvent = await Event.findById(id);
-            if (!existingEvent.success) {
-                return sendErrorResponse(res, 404, 'Event not found');
-            }
-
-            // Only creator or admin can update
-            if (existingEvent.data.created_by !== userId && req.user.role !== 'admin' && req.user.role !== 'sys_admin') {
-                return sendErrorResponse(res, 403, 'You can only update events you created');
-            }
-
-            // Validate event date if provided
-            if (event_date) {
-                const eventDate = new Date(event_date);
-                if (eventDate <= new Date()) {
-                    return sendErrorResponse(res, 400, 'Event date must be in the future');
-                }
-            }
-
-            const updateData = {};
-            if (title !== undefined) updateData.title = title.trim();
-            if (description !== undefined) updateData.description = description?.trim() || null;
-            if (event_date !== undefined) updateData.event_date = new Date(event_date).toISOString();
-            if (location !== undefined) updateData.location = location?.trim() || null;
-
-            if (Object.keys(updateData).length === 0) {
-                return sendErrorResponse(res, 400, 'No valid fields to update');
-            }
-
-            const result = await Event.update(id, updateData);
-
-            if (!result.success) {
-                logger.error('Failed to update event:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to update event', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Event updated successfully', result.data);
-        } catch (error) {
-            logger.error('Error in updateEvent:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+    try {
+        const result = await Event.getEventParticipants(parseInt(eventId), parseInt(page) || 1, parseInt(limit) || 20);
+        if (!result.success) {
+            logger.error('Error fetching event participants in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to fetch participants');
         }
+        response(res, 200, 'Event participants fetched successfully', result.data, result.pagination);
+    } catch (error) {
+        logger.error('Exception fetching event participants:', error.message);
+        errorResponse(res, 500, error.message);
     }
+};
 
-    // Delete event
-    static async deleteEvent(req, res) {
-        try {
-            const { id } = req.params;
-            const userId = req.user.id;
+/**
+ * Get current user's RSVP status for an event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getUserRsvpStatus = async (req, res) => {
+    const { eventId } = req.params;
+    const userId = req.user.id;
 
-            // Check if event exists and user has permission to delete
-            const existingEvent = await Event.findById(id);
-            if (!existingEvent.success) {
-                return sendErrorResponse(res, 404, 'Event not found');
-            }
-
-            // Only creator or admin can delete
-            if (existingEvent.data.created_by !== userId && req.user.role !== 'admin' && req.user.role !== 'sys_admin') {
-                return sendErrorResponse(res, 403, 'You can only delete events you created');
-            }
-
-            const result = await Event.delete(id);
-
-            if (!result.success) {
-                logger.error('Failed to delete event:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to delete event', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Event deleted successfully', result.data);
-        } catch (error) {
-            logger.error('Error in deleteEvent:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+    try {
+        const result = await Event.getUserRsvpStatus(parseInt(eventId), userId);
+        if (!result.success) {
+            logger.error('Error fetching user RSVP status in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to fetch RSVP status');
         }
+        response(res, 200, 'User RSVP status fetched successfully', { status: result.status });
+    } catch (error) {
+        logger.error('Exception fetching user RSVP status:', error.message);
+        errorResponse(res, 500, error.message);
     }
+};
 
-    // Get upcoming events
-    static async getUpcomingEvents(req, res) {
-        try {
-            const limit = parseInt(req.query.limit) || 10;
-            const result = await Event.findUpcoming(limit);
+/**
+ * Get all events the current user has RSVP'd to.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getUserRsvpEvents = async (req, res) => {
+    const userId = req.user.id;
+    const { page, limit } = req.query;
 
-            if (!result.success) {
-                logger.error('Failed to fetch upcoming events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch upcoming events', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Upcoming events retrieved successfully', result.data);
-        } catch (error) {
-            logger.error('Error in getUpcomingEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+    try {
+        const result = await Event.getUserRsvpEvents(userId, parseInt(page) || 1, parseInt(limit) || 10);
+        if (!result.success) {
+            logger.error('Error fetching user RSVP events in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to fetch RSVP\'s');
         }
+        response(res, 200, 'User RSVP events fetched successfully', result.data, result.pagination);
+    } catch (error) {
+        logger.error('Exception fetching user RSVP events:', error.message);
+        errorResponse(res, 500, error.message);
     }
+};
 
-    // Get past events
-    static async getPastEvents(req, res) {
-        try {
-            const limit = parseInt(req.query.limit) || 10;
-            const result = await Event.findPast(limit);
+/**
+ * Remove user's RSVP from an event.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const removeRsvp = async (req, res) => {
+    const { eventId } = req.params;
+    const userId = req.user.id;
 
-            if (!result.success) {
-                logger.error('Failed to fetch past events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch past events', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Past events retrieved successfully', result.data);
-        } catch (error) {
-            logger.error('Error in getPastEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
+    try {
+        const result = await Event.removeRsvp(parseInt(eventId), userId);
+        if (!result.success) {
+            logger.error('Error removing RSVP in controller:', result.error);
+            return errorResponse(res, 400, result.error.message || 'Failed to remove RSVP');
         }
+        response(res, 200, 'RSVP removed successfully', result.data);
+    } catch (error) {
+        logger.error('Exception removing RSVP:', error.message);
+        errorResponse(res, 500, error.message);
     }
+};
 
-    // Get events by creator
-    static async getEventsByCreator(req, res) {
-        try {
-            const { userId } = req.params;
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-
-            const result = await Event.findByCreator(userId, page, limit);
-
-            if (!result.success) {
-                logger.error('Failed to fetch events by creator:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch events by creator', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Events by creator retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination
-            });
-        } catch (error) {
-            logger.error('Error in getEventsByCreator:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Search events
-    static async searchEvents(req, res) {
-        try {
-            const { q } = req.query;
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-
-            if (!q || q.trim().length === 0) {
-                return sendErrorResponse(res, 400, 'Search query is required');
-            }
-
-            const result = await Event.searchEvents(q.trim(), page, limit);
-
-            if (!result.success) {
-                logger.error('Failed to search events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to search events', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Events search completed successfully', {
-                events: result.data,
-                pagination: result.pagination,
-                searchQuery: q.trim()
-            });
-        } catch (error) {
-            logger.error('Error in searchEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get user's own events
-    static async getMyEvents(req, res) {
-        try {
-            const userId = req.user.id;
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-
-            const result = await Event.findByCreator(userId, page, limit);
-
-            if (!result.success) {
-                logger.error('Failed to fetch user events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch your events', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Your events retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination
-            });
-        } catch (error) {
-            logger.error('Error in getMyEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // RSVP to an event
-    static async rsvpToEvent(req, res) {
-        try {
-            const { id } = req.params;
-            const { status } = req.body;
-            const userId = req.user.id;
-
-            if (!status || !['interested', 'going', 'not going'].includes(status)) {
-                return sendErrorResponse(res, 400, 'Valid RSVP status is required (interested, going, or not going)');
-            }
-
-            const result = await Event.rsvpToEvent(id, userId, status);
-
-            if (!result.success) {
-                logger.error('Failed to RSVP to event:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to RSVP to event', result.error);
-            }
-
-            const actionText = result.action === 'created' ? 'RSVP submitted' : 'RSVP updated';
-            return sendSuccessResponse(res, 200, `${actionText} successfully`, result.data);
-        } catch (error) {
-            logger.error('Error in rsvpToEvent:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Remove RSVP from an event
-    static async removeRsvp(req, res) {
-        try {
-            const { id } = req.params;
-            const userId = req.user.id;
-
-            const result = await Event.removeRsvp(id, userId);
-
-            if (!result.success) {
-                return sendErrorResponse(res, 404, 'RSVP not found');
-            }
-
-            return sendSuccessResponse(res, 200, 'RSVP removed successfully', result.data);
-        } catch (error) {
-            logger.error('Error in removeRsvp:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get event participants
-    static async getEventParticipants(req, res) {
-        try {
-            const { id } = req.params;
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 20;
-
-            const result = await Event.getEventParticipants(id, page, limit);
-
-            if (!result.success) {
-                logger.error('Failed to fetch event participants:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch event participants', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Event participants retrieved successfully', {
-                participants: result.data,
-                pagination: result.pagination
-            });
-        } catch (error) {
-            logger.error('Error in getEventParticipants:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get user's RSVP status for an event
-    static async getUserRsvpStatus(req, res) {
-        try {
-            const { id } = req.params;
-            const userId = req.user.id;
-
-            const result = await Event.getUserRsvpStatus(id, userId);
-
-            if (!result.success) {
-                logger.error('Failed to get user RSVP status:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to get RSVP status', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'RSVP status retrieved successfully', {
-                status: result.status,
-                data: result.data
-            });
-        } catch (error) {
-            logger.error('Error in getUserRsvpStatus:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get events user has RSVP'd to
-    static async getUserRsvpEvents(req, res) {
-        try {
-            const userId = req.user.id;
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 20;
-
-            const result = await Event.getUserRsvpEvents(userId, page, limit);
-
-            if (!result.success) {
-                logger.error('Failed to fetch user RSVP events:', result.error);
-                return sendErrorResponse(res, 500, 'Failed to fetch your RSVP events', result.error);
-            }
-
-            return sendSuccessResponse(res, 200, 'Your RSVP events retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination
-            });
-        } catch (error) {
-            logger.error('Error in getUserRsvpEvents:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get event statistics
-    static async getEventStats(req, res) {
-        try {
-            const { id } = req.params;
-
-            const result = await Event.getEventStats(id);
-
-            if (!result.success) {
-                return sendErrorResponse(res, 404, 'Event not found');
-            }
-
-            return sendSuccessResponse(res, 200, 'Event statistics retrieved successfully', result.data);
-        } catch (error) {
-            logger.error('Error in getEventStats:', error);
-            return sendErrorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-}
-
-module.exports = EventController;
+module.exports = {
+    createEvent,
+    getAllEvents,
+    getEventById,
+    updateEvent,
+    deleteEvent,
+    rsvpToEvent,
+    getEventParticipants,
+    getUserRsvpStatus,
+    getUserRsvpEvents,
+    removeRsvp
+};

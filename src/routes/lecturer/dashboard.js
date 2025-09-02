@@ -1,46 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const LecturerDashboardController = require('../../controllers/lecturer/lecturerDashboardController');
 const { authenticateToken } = require('../../middleware/auth');
-const Appointment = require('../../models/Appointment');
-const Event = require('../../models/Event');
+const { requireRole } = require('../../middleware/roleAuth');
 
-// Require authentication for all dashboard routes
 router.use(authenticateToken);
+router.use(requireRole(['lecturer', 'admin', 'sys_admin']));
 
-// GET lecturer dashboard
-router.get('/', async (req, res) => {
-    try {
-        const lecturerId = req.user.id;
+// Get a summary of key metrics for the lecturer dashboard
+router.get('/summary', LecturerDashboardController.getDashboardSummary);
 
-        // Example: fetch upcoming appointments
-        const appointmentsResult = await Appointment.listByLecturer(lecturerId);
-        const appointments = appointmentsResult.success ? appointmentsResult.data : [];
+// Get a list of recent and upcoming appointments for the lecturer
+router.get('/recent-appointments', LecturerDashboardController.getRecentAppointments);
 
-        // Example: fetch upcoming events (replace with actual model logic)
-        const eventsResult = await Event.listByLecturer(lecturerId);
-        const events = eventsResult.success ? eventsResult.data : [];
-
-        // Placeholder statistics
-        const stats = {
-            totalAppointments: appointments.length,
-            totalEvents: events.length,
-            upcomingAppointments: appointments.slice(0, 5), // next 5
-            upcomingEvents: events.slice(0, 5) // next 5
-        };
-
-        res.json({
-            success: true,
-            message: 'Lecturer dashboard data fetched successfully',
-            data: stats
-        });
-    } catch (error) {
-        console.error('Lecturer dashboard error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch dashboard data',
-            error: error.message
-        });
-    }
-});
+// Get a list of students the lecturer has recently interacted with
+router.get('/recent-students', LecturerDashboardController.getRecentStudents);
 
 module.exports = router;

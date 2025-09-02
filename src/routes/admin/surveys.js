@@ -2,19 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/roleAuth');
-const { adminGetSurveys, adminGetSurveyDetails, adminGetAggregates } = require('../../controllers/shared/surveyController');
+const { adminListSurveys, getSurveyDetails, adminAggregateRatings } = require('../../controllers/shared/surveyController');
 
 router.use(authenticateToken);
-router.use(requireAdmin());
+router.use(requireAdmin); // requireAdmin should be passed directly if it's middleware
 
 // GET /api/admin/surveys - list with filters via query
-router.get('/', adminGetSurveys);
+router.get('/', adminListSurveys);
 
 // GET /api/admin/surveys/:id - details
-router.get('/:id', adminGetSurveyDetails);
+router.get('/:id', getSurveyDetails); // Admin can view any survey details
 
-// GET /api/admin/surveys/aggregates/ratings - aggregates per filters
-router.get('/aggregates/ratings', adminGetAggregates);
+// GET /api/admin/surveys/aggregates - aggregates per filters
+router.get('/aggregates', adminAggregateRatings);
 
 module.exports = router;
 

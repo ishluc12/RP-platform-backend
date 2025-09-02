@@ -1,19 +1,19 @@
 const { supabase } = require('../config/database');
 
-class Forum {
+class ForumPost {
     /**
-     * Create a new forum
+     * Create a new post in a forum
      * @param {Object} params
-     * @param {string} params.title
-     * @param {string} [params.description]
-     * @param {number} params.created_by
+     * @param {number} params.forum_id
+     * @param {number} params.user_id
+     * @param {string} params.content
      * @returns {Promise<Object>}
      */
-    static async create({ title, description = null, created_by }) {
+    static async create({ forum_id, user_id, content }) {
         try {
             const { data, error } = await supabase
-                .from('forums')
-                .insert([{ title, description, created_by }])
+                .from('forum_posts')
+                .insert([{ forum_id, user_id, content }])
                 .select('*')
                 .single();
 
@@ -25,94 +25,95 @@ class Forum {
     }
 
     /**
-     * Get all forums
+     * Get posts for a specific forum
+     * @param {number} forumId
      * @param {Object} [options={}]
      * @param {number} [options.page=1]
      * @param {number} [options.limit=10]
      * @returns {Promise<Object>}
      */
-    static async getAll({ page = 1, limit = 10 } = {}) {
+    static async getPostsByForum(forumId, { page = 1, limit = 10 } = {}) {
         try {
             const from = (page - 1) * limit;
             const to = from + limit - 1;
 
             const { data, error } = await supabase
-                .from('forums')
+                .from('forum_posts')
                 .select(`
                     *,
-                    created_by:users(id, name, profile_picture),
-                    posts_count:forum_posts(count)
+                    users (id, name, profile_picture)
                 `)
+                .eq('forum_id', forumId)
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
             if (error) throw error;
 
-            const formattedForums = data.map(forum => ({
-                ...forum,
-                created_by: forum.created_by,
-                posts_count: forum.posts_count[0]?.count || 0
+            const formattedPosts = data.map(post => ({
+                ...post,
+                user: post.users
             }));
 
-            return { success: true, data: formattedForums };
+            return { success: true, data: formattedPosts };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }
     }
 
     /**
-     * Get a forum by ID
-     * @param {number} forumId
+     * Get a single forum post by ID
+     * @param {number} postId
      * @returns {Promise<Object>}
      */
-    static async getById(forumId) {
+    static async getById(postId) {
         try {
-            const { data: forum, error } = await supabase
-                .from('forums')
+            const { data: post, error } = await supabase
+                .from('forum_posts')
                 .select(`
                     *,
-                    created_by:users(id, name, profile_picture),
-                    posts_count:forum_posts(count)
+                    users (id, name, profile_picture),
+                    forums (id, title)
                 `)
-                .eq('id', forumId)
+                .eq('id', postId)
                 .single();
 
             if (error) throw error;
+            if (!post) return { success: false, error: 'Forum post not found' };
 
-            if (!forum) return { success: false, error: 'Forum not found' };
-
-            const formattedForum = {
-                ...forum,
-                created_by: forum.created_by,
-                posts_count: forum.posts_count[0]?.count || 0
+            const formattedPost = {
+                ...post,
+                user: post.users,
+                forum: post.forums
             };
+            delete formattedPost.users;
+            delete formattedPost.forums;
 
-            return { success: true, data: formattedForum };
+            return { success: true, data: formattedPost };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }
     }
 
     /**
-     * Update a forum
-     * @param {number} forumId
+     * Update a forum post
+     * @param {number} postId
      * @param {number} userId - The ID of the user trying to update (for authorization)
-     * @param {Object} updates - Object containing fields to update (e.g., { title: 'new title' })
+     * @param {Object} updates - Object containing fields to update (e.g., { content: 'new content' })
      * @returns {Promise<Object>}
      */
-    static async update(forumId, userId, updates) {
+    static async update(postId, userId, updates) {
         try {
             const { data, error } = await supabase
-                .from('forums')
+                .from('forum_posts')
                 .update(updates)
-                .eq('id', forumId)
-                .eq('created_by', userId) // Ensure only the creator can update
+                .eq('id', postId)
+                .eq('user_id', userId) // Ensure only the owner can update
                 .select('*')
                 .single();
 
             if (error) throw error;
 
-            if (!data) return { success: false, error: 'Forum not found or unauthorized to update' };
+            if (!data) return { success: false, error: 'Forum post not found or unauthorized to update' };
 
             return { success: true, data };
         } catch (error) {
@@ -121,30 +122,30 @@ class Forum {
     }
 
     /**
-     * Delete a forum
-     * @param {number} forumId
+     * Delete a forum post
+     * @param {number} postId
      * @param {number} userId - The ID of the user trying to delete (for authorization)
      * @returns {Promise<Object>}
      */
-    static async delete(forumId, userId) {
+    static async delete(postId, userId) {
         try {
             const { data, error } = await supabase
-                .from('forums')
+                .from('forum_posts')
                 .delete()
-                .eq('id', forumId)
-                .eq('created_by', userId) // Ensure only the creator can delete
+                .eq('id', postId)
+                .eq('user_id', userId) // Ensure only the owner can delete
                 .select('*')
                 .single();
 
             if (error) throw error;
 
-            if (!data) return { success: false, error: 'Forum not found or unauthorized to delete' };
+            if (!data) return { success: false, error: 'Forum post not found or unauthorized to delete' };
 
-            return { success: true, data: { message: 'Forum deleted successfully' } };
+            return { success: true, data: { message: 'Forum post deleted successfully' } };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }
     }
 }
 
-module.exports = Forum;
+module.exports = ForumPost;

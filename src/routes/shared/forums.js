@@ -1,32 +1,42 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
-const { supabase } = require('../../config/database');
+const forumController = require('../../controllers/shared/forumController');
 
 router.use(authenticateToken);
 
-// List forums
-router.get('/', async (req, res) => {
-    const { data, error } = await supabase.from('forums').select('*').order('created_at', { ascending: false });
-    if (error) return res.status(400).json({ success: false, message: error.message });
-    res.json({ success: true, data });
-});
+// --- Forum Routes ---
 
-// Create forum
-router.post('/', async (req, res) => {
-    const { title, description } = req.body;
-    const { data, error } = await supabase.from('forums').insert([{ title, description, created_by: req.user.id }]).select('*').single();
-    if (error) return res.status(400).json({ success: false, message: error.message });
-    res.status(201).json({ success: true, data });
-});
+// Create a new forum
+router.post('/', forumController.createForum);
 
-// Add post to forum
-router.post('/:forum_id/posts', async (req, res) => {
-    const forum_id = parseInt(req.params.forum_id);
-    const { content } = req.body;
-    const { data, error } = await supabase.from('forum_posts').insert([{ forum_id, user_id: req.user.id, content }]).select('*').single();
-    if (error) return res.status(400).json({ success: false, message: error.message });
-    res.status(201).json({ success: true, data });
-});
+// Get all forums
+router.get('/', forumController.getAllForums);
+
+// Get a specific forum by ID
+router.get('/:id', forumController.getForumById);
+
+// Update a forum
+router.put('/:id', forumController.updateForum);
+
+// Delete a forum
+router.delete('/:id', forumController.deleteForum);
+
+// --- Forum Post Routes ---
+
+// Create a new post in a forum
+router.post('/:forumId/posts', forumController.createForumPost);
+
+// Get posts for a specific forum
+router.get('/:forumId/posts', forumController.getForumPostsByForum);
+
+// Get a specific forum post by ID
+router.get('/posts/:postId', forumController.getForumPostById);
+
+// Update a forum post
+router.put('/posts/:postId', forumController.updateForumPost);
+
+// Delete a forum post
+router.delete('/posts/:postId', forumController.deleteForumPost);
 
 module.exports = router;

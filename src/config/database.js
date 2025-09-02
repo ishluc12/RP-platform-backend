@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
 
 // Load Supabase credentials from environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -21,6 +22,14 @@ if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase environment variables');
 }
 
+// PostgreSQL connection details for the `pg` client
+const pgConfig = {
+    connectionString: process.env.DATABASE_URL || supabaseUrl, // Use DATABASE_URL if available, or Supabase URL
+    ssl: { rejectUnauthorized: false } // Required for Supabase connections
+};
+
+const pool = new Pool(pgConfig);
+
 // Create Supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
 // Create admin client if service key is provided
@@ -29,20 +38,14 @@ const supabaseAdmin = supabaseServiceKey ? createClient(supabaseUrl, supabaseSer
 // Optional: Test database connection
 const testConnection = async () => {
     try {
-        const { data, error } = await supabase
-            .from('users') // Adjust table name as needed
-            .select('id')   // Select any column to test
-            .limit(1);
-
-        if (error) {
-            console.error('❌ Database connection failed:', error.message);
-            return false;
-        }
-
-        console.log('✅ Database connected successfully');
+        // Test connection using the pg pool
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        console.log('✅ Database connected successfully via pg pool');
         return true;
     } catch (error) {
-        console.error('❌ Database connection error:', error.message);
+        console.error('❌ Database connection error via pg pool:', error.message);
         return false;
     }
 };
@@ -50,5 +53,6 @@ const testConnection = async () => {
 module.exports = {
     supabase,
     supabaseAdmin,
-    testConnection
+    testConnection,
+    pgPool: pool // Export the pg pool
 };

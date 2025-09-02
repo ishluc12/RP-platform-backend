@@ -1,16 +1,34 @@
 const Appointment = require('../../models/Appointment');
+const { response, errorResponse } = require('../../utils/responseHandlers');
+const { logger } = require('../../utils/logger');
 
 module.exports = {
     async list(req, res) {
         try {
             const result = await Appointment.listByLecturer(req.user.id);
             if (!result.success) {
-                return res.status(400).json({ success: false, message: result.error });
+                logger.error('Failed to fetch lecturer appointments:', result.error);
+                return errorResponse(res, 400, result.error);
             }
-            res.json({ success: true, data: result.data });
+            response(res, 200, 'Lecturer appointments fetched successfully', result.data);
         } catch (err) {
-            console.error('Error fetching appointments:', err);
-            res.status(500).json({ success: false, message: 'Server error', error: err.message });
+            logger.error('Error fetching lecturer appointments:', err.message);
+            errorResponse(res, 500, 'Internal server error', err.message);
+        }
+    },
+
+    async getUpcoming(req, res) {
+        try {
+            const { page, limit } = req.query;
+            const result = await Appointment.findUpcomingAppointments(req.user.id, 'lecturer', { page: parseInt(page), limit: parseInt(limit) });
+            if (!result.success) {
+                logger.error('Failed to fetch upcoming lecturer appointments:', result.error);
+                return errorResponse(res, 400, result.error);
+            }
+            response(res, 200, 'Upcoming lecturer appointments fetched successfully', result.data);
+        } catch (err) {
+            logger.error('Error fetching upcoming lecturer appointments:', err.message);
+            errorResponse(res, 500, 'Internal server error', err.message);
         }
     },
 
@@ -18,23 +36,24 @@ module.exports = {
         try {
             const { status } = req.body; // 'accepted' | 'declined' | 'completed'
             if (!['accepted', 'declined', 'completed'].includes(status)) {
-                return res.status(400).json({ success: false, message: 'Invalid status' });
+                return errorResponse(res, 400, 'Invalid status');
             }
 
             const apptId = parseInt(req.params.id);
             if (isNaN(apptId)) {
-                return res.status(400).json({ success: false, message: 'Invalid appointment ID' });
+                return errorResponse(res, 400, 'Invalid appointment ID');
             }
 
             const result = await Appointment.update(apptId, { status });
             if (!result.success) {
-                return res.status(400).json({ success: false, message: result.error });
+                logger.error('Failed to update appointment status:', result.error);
+                return errorResponse(res, 400, result.error);
             }
 
-            res.json({ success: true, data: result.data });
+            response(res, 200, 'Appointment status updated successfully', result.data);
         } catch (err) {
-            console.error('Error updating appointment status:', err);
-            res.status(500).json({ success: false, message: 'Server error', error: err.message });
+            logger.error('Error updating appointment status:', err.message);
+            errorResponse(res, 500, 'Internal server error', err.message);
         }
     }
 };

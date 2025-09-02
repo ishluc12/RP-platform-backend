@@ -12,6 +12,9 @@ router.use(authenticateToken);
 // Search users
 router.get('/search', UserController.searchUsers);
 
+// Update current user's profile
+router.put('/profile', UserController.updateUserProfile);
+
 // Get users by role
 router.get('/role/:role', UserController.getUsersByRole);
 
@@ -39,4 +42,3 @@ router.get('/:id/activity', UserController.getUserActivity);
 router.post('/:targetUserId/follow', UserController.toggleFollow);
 
 module.exports = router;
-    

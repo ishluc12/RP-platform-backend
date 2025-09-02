@@ -1,24 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
-const Notifications = require('../../models/Notification');
+const notificationController = require('../../controllers/shared/notificationController');
 
 router.use(authenticateToken);
 
-// List notifications
-router.get('/', async (req, res) => {
-    const { page = 1, limit = 20 } = req.query;
-    const result = await Notifications.listForUser(req.user.id, { page: parseInt(page), limit: parseInt(limit) });
-    if (!result.success) return res.status(400).json({ success: false, message: result.error });
-    res.json({ success: true, data: result.data });
-});
+// Get notifications for the authenticated user
+router.get('/', notificationController.getUserNotifications);
 
-// Mark read
-router.put('/:id/read', async (req, res) => {
-    const id = parseInt(req.params.id);
-    const result = await Notifications.markRead(id, req.user.id);
-    if (!result.success) return res.status(400).json({ success: false, message: result.error });
-    res.json({ success: true, data: result.data });
-});
+// Mark a specific notification as read
+router.put('/:id/read', notificationController.markNotificationAsRead);
+
+// Mark all notifications as read for the authenticated user
+router.put('/mark-all-read', notificationController.markAllNotificationsAsRead);
 
 module.exports = router;

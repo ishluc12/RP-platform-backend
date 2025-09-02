@@ -52,6 +52,35 @@ class UserController {
         }
     }
 
+    // Update user profile
+    static async updateUserProfile(req, res) {
+        try {
+            const userId = req.user.id; // Get ID from authenticated user
+            const updates = req.body; // Body contains the fields to update
+
+            const result = await User.update(userId, updates);
+            if (!result.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: result.error
+                });
+            }
+
+            res.json({
+                success: true,
+                message: 'Profile updated successfully',
+                data: result.data
+            });
+        } catch (error) {
+            console.error('Update user profile error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    }
+
     // Search users
     static async searchUsers(req, res) {
         try {
