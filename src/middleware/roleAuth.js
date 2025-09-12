@@ -15,6 +15,7 @@ const requireRole = (allowedRoles) => (req, res, next) => {
     }
 
     const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+    console.log("Checking roles:", { userRole: req.user.role, allowedRoles: roles });
     if (!roles.includes(req.user.role)) {
         return res.status(403).json({
             success: false,

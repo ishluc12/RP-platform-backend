@@ -12,22 +12,22 @@ class StudentDashboardController {
         try {
             const studentId = req.user.id;
 
-            const [upcomingAppointmentsResult, rsvpEventsResult, myPostsResult] = await Promise.all([
+            const [upcomingAppointmentsResult, rsvpEventsResult, myPostsResult] = await Promise.allSettled([
                 Appointment.findUpcomingAppointments(studentId, 'student', { limit: 3 }),
                 Event.getUserRsvpEvents(studentId, 1, 3),
                 Post.findByUser(studentId, 1, 3)
             ]);
 
             const summary = {
-                upcomingAppointmentsCount: upcomingAppointmentsResult.success ? upcomingAppointmentsResult.data.length : 0,
-                upcomingEventsCount: rsvpEventsResult.success ? rsvpEventsResult.data.length : 0,
-                myRecentPostsCount: myPostsResult.success ? myPostsResult.data.length : 0,
+                upcomingAppointmentsCount: upcomingAppointmentsResult.status === 'fulfilled' && upcomingAppointmentsResult.value.success ? upcomingAppointmentsResult.value.data.length : 0,
+                upcomingEventsCount: rsvpEventsResult.status === 'fulfilled' && rsvpEventsResult.value.success ? rsvpEventsResult.value.data.length : 0,
+                myRecentPostsCount: myPostsResult.status === 'fulfilled' && myPostsResult.value.success ? myPostsResult.value.data.length : 0,
                 generatedAt: new Date().toISOString()
             };
 
             response(res, 200, 'Student dashboard summary retrieved successfully', summary);
         } catch (error) {
-            logger.error('Error fetching student dashboard summary:', error.message);
+            logger.error('Error fetching student dashboard summary:', error);
             errorResponse(res, 500, 'Internal server error', error.message);
         }
     }

@@ -50,6 +50,32 @@ class PostModel {
     }
 
     /**
+     * Get recent posts by a specific user (paginated)
+     * @param {number} userId
+     * @param {number} [page=1]
+     * @param {number} [limit=10]
+     * @returns {Promise<Object>}
+     */
+    static async findByUser(userId, page = 1, limit = 10) {
+        try {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error } = await supabase
+                .from('posts')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
      * Like a post (or upsert if already liked)
      * @param {Object} param0
      * @param {number} param0.post_id

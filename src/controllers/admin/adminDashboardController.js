@@ -12,7 +12,7 @@ class AdminDashboardController {
      */
     static async getDashboardSummary(req, res) {
         try {
-            const [totalUsersResult, newUsersLast30DaysResult, totalEventsResult, upcomingEventsResult, totalAppointmentsResult, pendingAppointmentsResult, totalForumsResult, totalPostsResult] = await Promise.all([
+            const [totalUsersResult, newUsersLast30DaysResult, totalEventsResult, upcomingEventsResult, totalAppointmentsResult, pendingAppointmentsResult, totalForumsResult, totalPostsResult, totalStudentsResult, totalLecturersResult] = await Promise.all([
                 User.findAll(1, 1, {}),
                 User.findAll(1, 1, { created_after: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() }),
                 Event.findAll(1, 1, {}),
@@ -20,11 +20,15 @@ class AdminDashboardController {
                 Appointment.findAll(1, 1, {}),
                 Appointment.findAll(1, 1, { status: 'pending' }),
                 Forum.getAll({}),
-                Post.findAll(1, 1, {})
+                Post.findAll(1, 1, {}),
+                User.findAll(1, 1, { role: 'student' }),
+                User.findAll(1, 1, { role: 'lecturer' })
             ]);
 
             const summary = {
                 totalUsers: totalUsersResult.pagination ? totalUsersResult.pagination.total : 0,
+                totalStudents: totalStudentsResult.pagination ? totalStudentsResult.pagination.total : 0,
+                totalLecturers: totalLecturersResult.pagination ? totalLecturersResult.pagination.total : 0,
                 newUsersLast30Days: newUsersLast30DaysResult.pagination ? newUsersLast30DaysResult.pagination.total : 0,
                 totalEvents: totalEventsResult.pagination ? totalEventsResult.pagination.total : 0,
                 upcomingEvents: upcomingEventsResult.pagination ? upcomingEventsResult.pagination.total : 0,
@@ -67,7 +71,39 @@ class AdminDashboardController {
 
             allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-            response(res, 200, 'Recent activity retrieved successfully', allActivities.slice(0, limit));
+            // Transform activity for frontend display
+            const transformedActivities = allActivities.slice(0, limit).map(activity => {
+                let description = '';
+                let userContext = '';
+
+                switch (activity.type) {
+                    case 'user_registered':
+                        description = `New user registered: ${activity.details.name || activity.details.email}`;
+                        userContext = activity.details.email;
+                        break;
+                    case 'event_created':
+                        description = `New event created: ${activity.details.title}`;
+                        userContext = activity.details.creator || 'Admin'; // Assuming e.users?.name is the creator
+                        break;
+                    case 'post_created':
+                        description = `New post created: ${activity.details.content_snippet}...`;
+                        userContext = activity.details.creator || 'Admin'; // Assuming p.users?.name is the creator
+                        break;
+                    default:
+                        description = 'Unknown activity';
+                        userContext = 'System';
+                }
+
+                return {
+                    id: activity.details.id,
+                    description: description,
+                    user: { name: userContext }, // Standardize user info for frontend
+                    timestamp: activity.date,
+                    context: userContext // Provide context for fallback display
+                };
+            });
+
+            response(res, 200, 'Recent activity retrieved successfully', transformedActivities);
         } catch (error) {
             logger.error('Error fetching recent activity:', error.message);
             errorResponse(res, 500, 'Internal server error', error.message);
