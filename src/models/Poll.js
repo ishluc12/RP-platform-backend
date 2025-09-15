@@ -122,8 +122,7 @@ class Poll {
                 .select(`
                     *,
                     poll_options (id, option_text, poll_votes(count))
-                `)
-                .order('created_at', { ascending: false });
+                `);
 
             if (created_by) {
                 query = query.eq('created_by', created_by);

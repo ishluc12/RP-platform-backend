@@ -1,0 +1,4 @@
+- [x] Change auth route mount point in src/app.js from '/api/auth' to '/auth'
+- [x] Change auth route mount point in server.js from '/api/auth' to '/auth'
+- [x] Update test URLs in tests/user.test.js from '/api/auth' to '/auth'
+- [x] Run tests to verify changes (auth routes working, other tests have issues with server already running and missing routes)

@@ -6,9 +6,19 @@ describe('User API Tests', () => {
     let adminToken;
 
     beforeAll(async () => {
+        // Register admin user first
+        const adminRegisterResponse = await request(app)
+            .post('/auth/register')
+            .send({
+                name: 'Admin User',
+                email: 'admin@p-community.com',
+                password: 'Admin123!',
+                role: 'administrator'
+            });
+
         // Login as admin to get token
         const adminResponse = await request(app)
-            .post('/api/auth/login')
+            .post('/auth/login')
             .send({
                 email: 'admin@p-community.com',
                 password: 'Admin123!'
@@ -18,7 +28,7 @@ describe('User API Tests', () => {
     });
 
     describe('Authentication', () => {
-        test('POST /api/auth/register - should register a new user', async () => {
+        test('POST /auth/register - should register a new user', async () => {
             const newUser = {
                 name: 'Test User',
                 email: 'testuser@example.com',
@@ -29,7 +39,7 @@ describe('User API Tests', () => {
             };
 
             const response = await request(app)
-                .post('/api/auth/register')
+                .post('/auth/register')
                 .send(newUser);
 
             expect(response.status).toBe(201);
@@ -38,9 +48,9 @@ describe('User API Tests', () => {
             expect(response.body.data.token).toBeDefined();
         });
 
-        test('POST /api/auth/login - should login with valid credentials', async () => {
+        test('POST /auth/login - should login with valid credentials', async () => {
             const response = await request(app)
-                .post('/api/auth/login')
+                .post('/auth/login')
                 .send({
                     email: 'testuser@example.com',
                     password: 'TestPass123!'
@@ -53,9 +63,9 @@ describe('User API Tests', () => {
             authToken = response.body.data.token;
         });
 
-        test('POST /api/auth/login - should reject invalid credentials', async () => {
+        test('POST /auth/login - should reject invalid credentials', async () => {
             const response = await request(app)
-                .post('/api/auth/login')
+                .post('/auth/login')
                 .send({
                     email: 'testuser@example.com',
                     password: 'WrongPassword'
@@ -67,9 +77,9 @@ describe('User API Tests', () => {
     });
 
     describe('User Profile', () => {
-        test('GET /api/auth/profile - should get current user profile', async () => {
+        test('GET /auth/profile - should get current user profile', async () => {
             const response = await request(app)
-                .get('/api/auth/profile')
+                .get('/auth/profile')
                 .set('Authorization', `Bearer ${authToken}`);
 
             expect(response.status).toBe(200);
@@ -77,14 +87,14 @@ describe('User API Tests', () => {
             expect(response.body.data.email).toBe('testuser@example.com');
         });
 
-        test('PUT /api/auth/profile - should update user profile', async () => {
+        test('PUT /auth/profile - should update user profile', async () => {
             const updateData = {
                 name: 'Updated Test User',
                 bio: 'Updated bio'
             };
 
             const response = await request(app)
-                .put('/api/auth/profile')
+                .put('/auth/profile')
                 .set('Authorization', `Bearer ${authToken}`)
                 .send(updateData);
 
@@ -160,9 +170,9 @@ describe('User API Tests', () => {
     });
 
     describe('Error Handling', () => {
-        test('GET /api/auth/profile - should reject request without token', async () => {
+        test('GET /auth/profile - should reject request without token', async () => {
             const response = await request(app)
-                .get('/api/auth/profile');
+                .get('/auth/profile');
 
             expect(response.status).toBe(401);
             expect(response.body.success).toBe(false);

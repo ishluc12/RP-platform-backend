@@ -147,12 +147,15 @@ class UserController {
                 });
             }
 
+            // Use the new findByRole method from the User model
             const result = await User.findByRole(role, parseInt(page), parseInt(limit));
             if (!result.success) {
+                // Log the actual error for debugging
+                console.error('Error from User.findByRole:', result.error);
                 return res.status(500).json({
                     success: false,
                     message: 'Failed to get users by role',
-                    error: result.error
+                    error: result.error || 'No data returned'
                 });
             }
 

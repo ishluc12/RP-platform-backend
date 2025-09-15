@@ -100,8 +100,8 @@ class Appointment {
                 .from('appointments')
                 .select(`
                     *,
-                    student:users!appointments_student_id_fkey(id, name, profile_picture),
-                    lecturer:users!appointments_lecturer_id_fkey(id, name, profile_picture)
+                    student:users!appointments_student_id_fkey(id, name),
+                    lecturer:users!appointments_lecturer_id_fkey(id, name)
                 `)
                 .gte('appointment_time', now)
                 .order('appointment_time', { ascending: true })

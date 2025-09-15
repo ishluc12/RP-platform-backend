@@ -227,6 +227,32 @@ class User {
             return { success: false, error: error.message || 'Unknown error' };
         }
     }
+
+    /** Get users by role */
+    static async findByRole(role, page = 1, limit = 10) {
+        try {
+            let query = db.from('users').select('*', { count: 'exact' }).eq('role', role).order('created_at', { ascending: false });
+
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error, count } = await query.range(from, to);
+            if (error) throw error;
+
+            return {
+                success: true,
+                data: data || [], // Ensure data is always an array
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    totalPages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
 }
 
 // Additional helpers

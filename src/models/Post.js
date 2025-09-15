@@ -39,7 +39,6 @@ class PostModel {
             const { data, error } = await supabase
                 .from('posts')
                 .select('*')
-                .order('created_at', { ascending: false })
                 .range(from, to);
 
             if (error) throw error;
@@ -65,7 +64,6 @@ class PostModel {
                 .from('posts')
                 .select('*')
                 .eq('user_id', userId)
-                .order('created_at', { ascending: false })
                 .range(from, to);
 
             if (error) throw error;

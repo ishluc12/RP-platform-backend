@@ -152,6 +152,7 @@ class AuthController {
             }
 
             const user = result.data;
+            console.log('User data from DB:', user); // Added log
             const isPasswordValid = await comparePassword(password, user.password_hash);
             if (!isPasswordValid) {
                 console.error('comparePassword error (login): Invalid password for user', email);

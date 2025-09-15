@@ -29,7 +29,7 @@ app.get('/', (req, res) => {
 
 // Routes
 const authRoutes = require('./routes/auth');
-app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
 
 // 404 handler
 app.use((req, res) => {

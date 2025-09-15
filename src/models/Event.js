@@ -402,7 +402,7 @@ class Event {
                     )
                 `, { count: 'exact' })
                 .eq('user_id', userId)
-                .order('event_date', { foreignTable: 'events', ascending: true })
+                .order('events.event_date', { ascending: true }) // Directly reference event_date from events table
                 .range(offset, offset + limit - 1);
 
             if (error) {
