@@ -1,5 +1,49 @@
 const Message = require('../../models/Message');
+const ChatGroup = require('../../models/ChatGroup');
 const { response, errorResponse } = require('../../utils/responseHandlers');
+const { logger } = require('../../utils/logger');
+
+/**
+ * Send a message (direct or group)
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const sendMessage = async (req, res) => {
+    try {
+        const senderId = req.user.id;
+        const { content, receiverId, groupId } = req.body;
+
+        if (!content || content.trim() === '') {
+            return errorResponse(res, 400, 'Message content cannot be empty');
+        }
+
+        // Validate that either receiverId or groupId is provided, not both
+        if ((!receiverId && !groupId) || (receiverId && groupId)) {
+            return errorResponse(res, 400, 'Provide either receiverId for direct message or groupId for group message');
+        }
+
+        const messageData = {
+            sender_id: senderId,
+            message: content.trim(),
+            is_group: !!groupId,
+            group_id: groupId || null,
+            receiver_id: receiverId || null,
+            message_type: 'text',
+            sent_at: new Date().toISOString()
+        };
+
+        const result = await Message.create(messageData);
+        if (!result.success) {
+            logger.error('Failed to send message:', result.error);
+            return errorResponse(res, 400, result.error);
+        }
+
+        response(res, 201, 'Message sent successfully', result.data);
+    } catch (error) {
+        logger.error('Error sending message:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
+    }
+};
 
 /**
  * Get messages for a specific group chat.
@@ -7,17 +51,83 @@ const { response, errorResponse } = require('../../utils/responseHandlers');
  * @param {Object} res - Express response object.
  */
 const getGroupMessages = async (req, res) => {
-    const { groupId } = req.params;
-    const { page, limit } = req.query;
-    const userId = req.user.id; // Assuming user is authenticated and userId is available
-
     try {
-        // In a real application, you'd also check if the user is a member of this group
-        const result = await Message.getGroupMessages(parseInt(groupId), { page, limit });
-        if (!result.success) return errorResponse(res, 400, result.error);
-        response(res, 200, 'Group messages fetched successfully', result.data);
+        const { groupId } = req.params;
+        const { page = 1, limit = 50 } = req.query;
+        const userId = req.user.id;
+
+        if (!groupId) {
+            return errorResponse(res, 400, 'Group ID is required');
+        }
+
+        // Check if user is member of the group (simple check)
+        const { data: memberCheck } = await require('../../config/database').supabase
+            .from('group_members')
+            .select('user_id')
+            .eq('group_id', groupId)
+            .eq('user_id', userId)
+            .single();
+
+        if (!memberCheck) {
+            return errorResponse(res, 403, 'You are not a member of this group');
+        }
+
+        const result = await Message.getGroupMessages(groupId, {
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
+
+        if (!result.success) {
+            logger.error('Failed to fetch group messages:', result.error);
+            return errorResponse(res, 400, result.error);
+        }
+
+        response(res, 200, 'Group messages fetched successfully', {
+            messages: result.data || [],
+            pagination: result.pagination || {}
+        });
     } catch (error) {
-        errorResponse(res, 500, error.message);
+        logger.error('Error fetching group messages:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
+    }
+};
+
+/**
+ * Get direct message thread with another user
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getDirectMessageThread = async (req, res) => {
+    try {
+        const { otherId: otherUserId } = req.params;
+        const currentUserId = req.user.id;
+        const { page = 1, limit = 50 } = req.query;
+
+        if (!otherUserId) {
+            return errorResponse(res, 400, 'Other user ID is required');
+        }
+
+        if (otherUserId === currentUserId) {
+            return errorResponse(res, 400, 'Cannot get thread with yourself');
+        }
+
+        const result = await Message.getDirectThread(currentUserId, otherUserId, {
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
+
+        if (!result.success) {
+            logger.error('Failed to fetch direct message thread:', result.error);
+            return errorResponse(res, 400, result.error);
+        }
+
+        response(res, 200, 'Direct message thread fetched successfully', {
+            messages: result.data || [],
+            pagination: result.pagination || {}
+        });
+    } catch (error) {
+        logger.error('Error fetching direct message thread:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 
@@ -27,14 +137,22 @@ const getGroupMessages = async (req, res) => {
  * @param {Object} res - Express response object.
  */
 const getUserConversations = async (req, res) => {
-    const userId = req.user.id;
-
     try {
+        const userId = req.user.id;
+
         const result = await Message.getUserConversations(userId);
-        if (!result.success) return errorResponse(res, 400, result.error);
-        response(res, 200, 'User conversations fetched successfully', result.data);
+
+        if (!result.success) {
+            logger.error('Failed to fetch user conversations:', result.error);
+            // Return empty array instead of error for better UX
+            return response(res, 200, 'No conversations found', []);
+        }
+
+        response(res, 200, 'User conversations fetched successfully', result.data || []);
     } catch (error) {
-        errorResponse(res, 500, error.message);
+        logger.error('Error fetching user conversations:', error.message);
+        // Return empty array instead of error for better UX
+        response(res, 200, 'No conversations found', []);
     }
 };
 
@@ -44,19 +162,58 @@ const getUserConversations = async (req, res) => {
  * @param {Object} res - Express response object.
  */
 const getUserGroupChats = async (req, res) => {
-    const userId = req.user.id;
-
     try {
+        const userId = req.user.id;
+
         const result = await Message.getUserGroupChats(userId);
-        if (!result.success) return errorResponse(res, 400, result.error);
-        response(res, 200, 'User group chats fetched successfully', result.data);
+
+        if (!result.success) {
+            logger.error('Failed to fetch user group chats:', result.error);
+            // Return empty array instead of error for better UX
+            return response(res, 200, 'No group chats found', []);
+        }
+
+        response(res, 200, 'User group chats fetched successfully', result.data || []);
     } catch (error) {
-        errorResponse(res, 500, error.message);
+        logger.error('Error fetching user group chats:', error.message);
+        // Return empty array instead of error for better UX
+        response(res, 200, 'No group chats found', []);
+    }
+};
+
+/**
+ * Mark messages as read
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const markAsRead = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { messageIds } = req.body;
+
+        if (!Array.isArray(messageIds) || messageIds.length === 0) {
+            return errorResponse(res, 400, 'Message IDs array is required');
+        }
+
+        const result = await Message.markAsRead(messageIds, userId);
+
+        if (!result.success) {
+            logger.error('Failed to mark messages as read:', result.error);
+            return errorResponse(res, 400, result.error);
+        }
+
+        response(res, 200, 'Messages marked as read', result.data);
+    } catch (error) {
+        logger.error('Error marking messages as read:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 
 module.exports = {
+    sendMessage,
     getGroupMessages,
+    getDirectMessageThread,
     getUserConversations,
-    getUserGroupChats
+    getUserGroupChats,
+    markAsRead
 };

@@ -4,8 +4,11 @@
  *
  * Add more utility functions here as needed.
  */
-import { logger } from "./logger.js";
-import { successResponse } from "./responseHandlers.js";
-import { errorResponse } from "./responseHandlers.js";
+const { logger } = require('./logger');
+const { successResponse, errorResponse } = require('./responseHandlers');
 
-export { logger, successResponse, errorResponse };
+module.exports = {
+    logger,
+    successResponse,
+    errorResponse,
+};

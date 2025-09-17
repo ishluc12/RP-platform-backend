@@ -5,6 +5,7 @@ const Message = require('../../models/Message');
 const Forum = require('../../models/Forum');
 const Poll = require('../../models/Poll');
 const Appointment = require('../../models/Appointment');
+const Comment = require('../../models/Comment'); // Added Comment model
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
@@ -101,13 +102,13 @@ class AdminAnalyticsController {
     static async getContentOverview(req, res) {
         try {
             const totalPostsResult = await Post.findAll(1, 1, {});
-            const totalCommentsResult = await Message.findAll(1, 1, {}); // Assuming Message model is used for comments/messages
+            const totalCommentsResult = await Comment.getCommentsByPost(null, { page: 1, limit: 1 }); // Assuming a method to get total comments exists or can be adapted
             const totalForumsResult = await Forum.getAll({});
             const totalPollsResult = await Poll.getAll({});
 
             const overview = {
                 totalPosts: totalPostsResult.pagination ? totalPostsResult.pagination.total : 0,
-                totalComments: totalCommentsResult.pagination ? totalCommentsResult.pagination.total : 0,
+                totalComments: totalCommentsResult.data ? totalCommentsResult.data.length : 0, // Access length of data array
                 totalForums: totalForumsResult.pagination ? totalForumsResult.pagination.total : 0,
                 totalPolls: totalPollsResult.pagination ? totalPollsResult.pagination.total : 0,
                 generatedAt: new Date().toISOString()

@@ -15,7 +15,7 @@ class StudentEventController {
             // Apply filters from query parameters
             if (req.query.title) filters.title = req.query.title;
             if (req.query.location) filters.location = req.query.location;
-            if (req.query.created_by) filters.created_by = parseInt(req.query.created_by);
+            if (req.query.created_by) filters.created_by = req.query.created_by; // Removed parseInt
             if (req.query.event_date_from) filters.event_date_from = req.query.event_date_from;
             if (req.query.event_date_to) filters.event_date_to = req.query.event_date_to;
 
@@ -40,13 +40,13 @@ class StudentEventController {
     static async getEventById(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            // const eventId = parseInt(id); // Removed parseInt
 
-            if (isNaN(eventId)) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
+            // if (isNaN(eventId)) { // Removed isNaN check
+            //     return errorResponse(res, 400, 'Invalid event ID');
+            // }
 
-            const result = await Event.findById(eventId);
+            const result = await Event.findById(id); // Use id directly
 
             if (!result.success) {
                 return errorResponse(res, 404, 'Event not found');
@@ -260,17 +260,17 @@ class StudentEventController {
             const { id } = req.params;
             const { status } = req.body;
             const userId = req.user.id;
-            const eventId = parseInt(id);
+            // const eventId = parseInt(id); // Removed parseInt
 
-            if (isNaN(eventId)) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
+            // if (isNaN(eventId)) { // Removed isNaN check
+            //     return errorResponse(res, 400, 'Invalid event ID');
+            // }
 
             if (!status || !['interested', 'going', 'not going'].includes(status)) {
                 return errorResponse(res, 400, 'Valid RSVP status is required (interested, going, or not going)');
             }
 
-            const result = await Event.rsvpToEvent(eventId, userId, status);
+            const result = await Event.rsvpToEvent(id, userId, status); // Use id directly
 
             if (!result.success) {
                 logger.error('Failed to RSVP to event:', result.error);
@@ -319,13 +319,13 @@ class StudentEventController {
         try {
             const { id } = req.params;
             const userId = req.user.id;
-            const eventId = parseInt(id);
+            // const eventId = parseInt(id); // Removed parseInt
 
-            if (isNaN(eventId)) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
+            // if (isNaN(eventId)) { // Removed isNaN check
+            //     return errorResponse(res, 400, 'Invalid event ID');
+            // }
 
-            const result = await Event.removeRsvp(eventId, userId);
+            const result = await Event.removeRsvp(id, userId); // Use id directly
 
             if (!result.success) {
                 logger.error('Failed to remove RSVP:', result.error);
@@ -343,15 +343,15 @@ class StudentEventController {
     static async getEventParticipants(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            // const eventId = parseInt(id); // Removed parseInt
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 20;
 
-            if (isNaN(eventId)) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
+            // if (isNaN(eventId)) { // Removed isNaN check
+            //     return errorResponse(res, 400, 'Invalid event ID');
+            // }
 
-            const result = await Event.getEventParticipants(eventId, page, limit);
+            const result = await Event.getEventParticipants(id, page, limit); // Use id directly
 
             if (!result.success) {
                 logger.error('Failed to fetch event participants:', result.error);
@@ -373,13 +373,13 @@ class StudentEventController {
         try {
             const { id } = req.params;
             const userId = req.user.id;
-            const eventId = parseInt(id);
+            // const eventId = parseInt(id); // Removed parseInt
 
-            if (isNaN(eventId)) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
+            // if (isNaN(eventId)) { // Removed isNaN check
+            //     return errorResponse(res, 400, 'Invalid event ID');
+            // }
 
-            const result = await Event.getUserRsvpStatus(eventId, userId);
+            const result = await Event.getUserRsvpStatus(id, userId); // Use id directly
 
             if (!result.success) {
                 logger.error('Failed to get user RSVP status:', result.error);
@@ -424,13 +424,13 @@ class StudentEventController {
     static async getEventStats(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            // const eventId = parseInt(id); // Removed parseInt
 
-            if (isNaN(eventId)) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
+            // if (isNaN(eventId)) { // Removed isNaN check
+            //     return errorResponse(res, 400, 'Invalid event ID');
+            // }
 
-            const result = await Event.getEventStats(eventId);
+            const result = await Event.getEventStats(id); // Use id directly
 
             if (!result.success) {
                 return errorResponse(res, 404, 'Event not found');

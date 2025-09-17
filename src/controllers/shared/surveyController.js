@@ -45,7 +45,7 @@ const getSurveyDetails = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await Survey.getSurveyWithDetails(parseInt(id));
+        const result = await Survey.getSurveyWithDetails(id);
         if (!result.survey) return errorResponse(res, 404, 'Survey not found');
         response(res, 200, 'Survey details fetched successfully', result);
     } catch (error) {
@@ -88,14 +88,14 @@ const updateSurvey = async (req, res) => {
 
     try {
         // Ensure only the original creator (student_id) or an admin can update basic survey info
-        const survey = await Survey.getSurveyWithDetails(parseInt(id));
+        const survey = await Survey.getSurveyWithDetails(id);
         if (!survey.survey) return errorResponse(res, 404, 'Survey not found');
 
         if (survey.survey.student_id !== studentId && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
             return errorResponse(res, 403, 'Unauthorized to update this survey');
         }
 
-        const result = await Survey.updateSurvey(parseInt(id), studentId, updates);
+        const result = await Survey.updateSurvey(id, updates);
         response(res, 200, 'Survey updated successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
@@ -113,14 +113,14 @@ const deleteSurvey = async (req, res) => {
 
     try {
         // Ensure only the original creator (student_id) or an admin can delete a survey
-        const survey = await Survey.getSurveyWithDetails(parseInt(id));
+        const survey = await Survey.getSurveyWithDetails(id);
         if (!survey.survey) return errorResponse(res, 404, 'Survey not found');
 
         if (survey.survey.student_id !== studentId && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
             return errorResponse(res, 403, 'Unauthorized to delete this survey');
         }
 
-        await Survey.deleteSurveyCascade(parseInt(id), studentId);
+        await Survey.deleteSurveyCascade(id);
         response(res, 200, 'Survey and associated data deleted successfully');
     } catch (error) {
         errorResponse(res, 500, error.message);
@@ -141,7 +141,7 @@ const submitSurveyResponse = async (req, res) => {
 
     try {
         // Ensure survey exists and is either for this student or a broadcast survey
-        const surveyDetails = await Survey.getSurveyWithDetails(parseInt(id));
+        const surveyDetails = await Survey.getSurveyWithDetails(id);
         if (!surveyDetails.survey) return errorResponse(res, 404, 'Survey not found');
 
         // If survey is specific to a student, ensure it's for this student
@@ -151,7 +151,7 @@ const submitSurveyResponse = async (req, res) => {
 
         // If survey is a broadcast, ensure this student hasn't already filled it
         if (!surveyDetails.survey.student_id) {
-            const existingResponse = await Survey.listSurveysByStudent(studentId, null, { id: parseInt(id) });
+            const existingResponse = await Survey.listSurveysByStudent(studentId, null, { id: id });
             if (existingResponse && existingResponse.length > 0) {
                 return errorResponse(res, 400, 'You have already responded to this survey.');
             }
@@ -159,17 +159,17 @@ const submitSurveyResponse = async (req, res) => {
 
         // Add/replace ratings
         if (ratings && Array.isArray(ratings)) {
-            await Survey.replaceRatings(parseInt(id), ratings);
+            await Survey.replaceRatings(id, ratings);
         }
 
         // Upsert comments
         if (comments) {
-            await Survey.upsertComments(parseInt(id), comments);
+            await Survey.upsertComments(id, comments);
         }
 
         // Mark survey as filled by this student if it was a broadcast survey
         if (!surveyDetails.survey.student_id) {
-            await Survey.updateSurvey(parseInt(id), null, { student_id: studentId, filled_at: new Date().toISOString() });
+            await Survey.updateSurvey(id, { student_id: studentId, filled_at: new Date().toISOString() });
         }
 
         response(res, 200, 'Survey response submitted successfully');

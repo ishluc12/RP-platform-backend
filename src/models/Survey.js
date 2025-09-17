@@ -3,9 +3,11 @@ const db = supabaseAdmin || supabase;
 
 // Create a survey
 const createSurvey = async (survey) => {
+    const { student_id, ...rest } = survey;
+    const payload = student_id ? { ...rest, student_id } : { ...rest, student_id: null };
     const { data, error } = await db
         .from('surveys')
-        .insert(survey)
+        .insert(payload)
         .select('*')
         .single();
     if (error) throw error;
@@ -105,7 +107,7 @@ const listSurveysByStudent = async (studentId, studentDepartment, filters = {}) 
 };
 
 // Update base survey fields
-const updateSurvey = async (surveyId, studentId, updates) => {
+const updateSurvey = async (surveyId, updates) => {
     const { data, error } = await db
         .from('surveys')
         .update(updates)
@@ -127,7 +129,7 @@ const replaceRatings = async (surveyId, ratings) => {
 };
 
 // Delete a survey and its children
-const deleteSurveyCascade = async (surveyId, studentId) => {
+const deleteSurveyCascade = async (surveyId) => {
     const { error: delRatingsErr } = await supabase
         .from('survey_ratings')
         .delete()
@@ -155,7 +157,14 @@ const adminListSurveys = async (filters = {}) => {
     let query = db.from('surveys').select('*');
     const keys = ['module_code', 'module_name', 'academic_year', 'semester', 'department', 'program', 'class', 'module_leader_name', 'student_id'];
     for (const k of keys) {
-        if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') query = query.eq(k, filters[k]);
+        if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') {
+            // Special handling for student_id to ensure it's treated as UUID string
+            if (k === 'student_id') {
+                query = query.eq(k, String(filters[k]));
+            } else {
+                query = query.eq(k, filters[k]);
+            }
+        }
     }
     const { data, error } = await query.order('filled_at', { ascending: false });
     if (error) throw error;
@@ -206,10 +215,10 @@ module.exports = {
     // Attachments for surveys
     addAttachmentForSurvey: async (surveyId, uploadedBy, fileUrl, originalName, mimeType) => {
         const payload = {
-            uploaded_by: uploadedBy,
+            uploaded_by: String(uploadedBy),
             file_url: fileUrl,
             entity_type: 'survey',
-            entity_id: surveyId,
+            entity_id: String(surveyId),
             original_name: originalName || null,
             mime_type: mimeType || null,
             uploaded_at: new Date().toISOString()

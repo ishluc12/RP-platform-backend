@@ -396,13 +396,12 @@ class Event {
                     events!event_participants_event_id_fkey(
                         *,
                         users!events_created_by_fkey(
-                            name,
-                            email
+                            name
                         )
                     )
                 `, { count: 'exact' })
                 .eq('user_id', userId)
-                .order('events.event_date', { ascending: true }) // Directly reference event_date from events table
+                .order('event_date', { ascending: true, foreignTable: 'events' })
                 .range(offset, offset + limit - 1);
 
             if (error) {

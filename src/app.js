@@ -31,6 +31,21 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
+// Lecturer routes
+const lecturerAppointmentRoutes = require('./routes/lecturer/appointments');
+app.use('/api/lecturer/appointments', lecturerAppointmentRoutes);
+
+const lecturerAvailabilityRoutes = require('./routes/lecturer/availability');
+app.use('/api/lecturer/availability', lecturerAvailabilityRoutes);
+
+// Student routes
+const studentAppointmentRoutes = require('./routes/student/appointments');
+app.use('/api/student/appointments', studentAppointmentRoutes);
+
+// Shared routes
+const sharedRoutes = require('./routes/shared/index');
+app.use('/api/shared', sharedRoutes);
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });

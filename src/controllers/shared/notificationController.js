@@ -29,7 +29,7 @@ const markNotificationAsRead = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await NotificationModel.markRead(parseInt(id), userId);
+        const result = await NotificationModel.markRead(id, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Notification marked as read', result.data);
     } catch (error) {

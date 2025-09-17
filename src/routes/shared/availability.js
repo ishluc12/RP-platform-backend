@@ -9,18 +9,18 @@ router.use(authenticateToken);
 router.use(requireStudentOrAdmin());
 
 // GET /api/shared/availability/:lecturerId
-router.get('/:lecturerId', async (req, res) => {
+router.get('/:staffId', async (req, res) => {
     try {
-        const lecturerId = Number(req.params.lecturerId);
-        if (Number.isNaN(lecturerId)) {
-            return res.status(400).json({ success: false, message: 'Invalid lecturer ID' });
+        const staffId = req.params.staffId;
+        if (!staffId) {
+            return res.status(400).json({ success: false, message: 'Invalid staff ID' });
         }
 
         const { data, error } = await supabase
-            .from('lecturer_availability')
+            .from('staff_availability')
             .select('*')
-            .eq('lecturer_id', lecturerId)
-            .order('available_from', { ascending: true });
+            .eq('staff_id', staffId)
+            .order('day_of_week', { ascending: true });
 
         if (error) throw error;
 

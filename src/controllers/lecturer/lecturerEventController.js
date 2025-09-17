@@ -109,11 +109,11 @@ class LecturerEventController {
     static async updateEvent(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            const eventId = id;
             const updates = req.body;
             const userId = req.user.id;
 
-            if (isNaN(eventId)) {
+            if (!eventId) {
                 return errorResponse(res, 400, 'Invalid event ID');
             }
 
@@ -146,10 +146,10 @@ class LecturerEventController {
     static async deleteEvent(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            const eventId = id;
             const userId = req.user.id;
 
-            if (isNaN(eventId)) {
+            if (!eventId) {
                 return errorResponse(res, 400, 'Invalid event ID');
             }
 
@@ -182,9 +182,9 @@ class LecturerEventController {
     static async getEventById(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            const eventId = id;
 
-            if (isNaN(eventId)) {
+            if (!eventId) {
                 return errorResponse(res, 400, 'Invalid event ID');
             }
 
@@ -239,7 +239,7 @@ class LecturerEventController {
             let result;
             if (id) {
                 // Get stats for a specific event if ID is provided
-                const eventId = parseInt(id);
+                const eventId = id;
                 const eventCheck = await Event.findById(eventId);
                 if (!eventCheck.success || eventCheck.data.created_by !== lecturerId) {
                     return errorResponse(res, 403, 'Unauthorized to view stats for this event');
@@ -280,11 +280,11 @@ class LecturerEventController {
         try {
             const { id } = req.params;
             const userId = req.user.id;
-            const eventId = parseInt(id);
+            const eventId = id;
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 20;
 
-            if (isNaN(eventId)) {
+            if (!eventId) {
                 return errorResponse(res, 400, 'Invalid event ID');
             }
 

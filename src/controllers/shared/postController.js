@@ -42,7 +42,7 @@ const getFeed = async (req, res) => {
 const getPostById = async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await Post.getById(parseInt(id));
+        const result = await Post.getById(id);
         if (!result.success) return errorResponse(res, 404, result.error);
         response(res, 200, 'Post fetched successfully', result.data);
     } catch (error) {
@@ -61,7 +61,7 @@ const updatePost = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await Post.update(parseInt(id), userId, { content, image_url });
+        const result = await Post.update(id, userId, { content, image_url });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Post updated successfully', result.data);
     } catch (error) {
@@ -79,7 +79,7 @@ const deletePost = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await Post.delete(parseInt(id), userId);
+        const result = await Post.delete(id, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Post deleted successfully', result.data);
     } catch (error) {
@@ -96,7 +96,7 @@ const likePost = async (req, res) => {
     const { postId } = req.params;
     const userId = req.user.id;
     try {
-        const result = await Post.like({ post_id: parseInt(postId), user_id: userId });
+        const result = await Post.like({ post_id: postId, user_id: userId });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Post liked successfully', result.data);
     } catch (error) {
@@ -113,7 +113,7 @@ const unlikePost = async (req, res) => {
     const { postId } = req.params;
     const userId = req.user.id;
     try {
-        const result = await Post.unlike({ post_id: parseInt(postId), user_id: userId });
+        const result = await Post.unlike({ post_id: postId, user_id: userId });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Post unliked successfully', result.data);
     } catch (error) {

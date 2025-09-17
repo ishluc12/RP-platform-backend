@@ -41,7 +41,7 @@ const getAllEvents = async (req, res) => {
     const filters = {};
     if (title) filters.title = title;
     if (location) filters.location = location;
-    if (created_by) filters.created_by = parseInt(created_by);
+    if (created_by) filters.created_by = created_by;
     if (event_date_from) filters.event_date_from = event_date_from;
     if (event_date_to) filters.event_date_to = event_date_to;
 
@@ -67,7 +67,7 @@ const getEventById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await Event.findById(parseInt(id));
+        const result = await Event.findById(id);
         if (!result.success) {
             logger.error('Error fetching event by ID in controller:', result.error);
             return errorResponse(res, result.error === 'Event not found' ? 404 : 400, result.error.message || result.error);
@@ -91,12 +91,12 @@ const updateEvent = async (req, res) => {
 
     try {
         // First, check if the user is the creator of the event
-        const eventResult = await Event.findById(parseInt(id));
+        const eventResult = await Event.findById(id);
         if (!eventResult.success || eventResult.data.created_by !== userId) {
             return errorResponse(res, 403, 'Unauthorized to update this event');
         }
 
-        const result = await Event.update(parseInt(id), updates);
+        const result = await Event.update(id, updates);
         if (!result.success) {
             logger.error('Error updating event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to update event');
@@ -119,12 +119,12 @@ const deleteEvent = async (req, res) => {
 
     try {
         // First, check if the user is the creator of the event
-        const eventResult = await Event.findById(parseInt(id));
+        const eventResult = await Event.findById(id);
         if (!eventResult.success || eventResult.data.created_by !== userId) {
             return errorResponse(res, 403, 'Unauthorized to delete this event');
         }
 
-        const result = await Event.delete(parseInt(id));
+        const result = await Event.delete(id);
         if (!result.success) {
             logger.error('Error deleting event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to delete event');
@@ -153,7 +153,7 @@ const rsvpToEvent = async (req, res) => {
     }
 
     try {
-        const result = await Event.rsvpToEvent(parseInt(eventId), userId, status);
+        const result = await Event.rsvpToEvent(eventId, userId, status);
         if (!result.success) {
             logger.error('Error RSVPing to event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to RSVP to event');
@@ -175,7 +175,7 @@ const getEventParticipants = async (req, res) => {
     const { page, limit } = req.query;
 
     try {
-        const result = await Event.getEventParticipants(parseInt(eventId), parseInt(page) || 1, parseInt(limit) || 20);
+        const result = await Event.getEventParticipants(eventId, parseInt(page) || 1, parseInt(limit) || 20);
         if (!result.success) {
             logger.error('Error fetching event participants in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to fetch participants');
@@ -197,7 +197,7 @@ const getUserRsvpStatus = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await Event.getUserRsvpStatus(parseInt(eventId), userId);
+        const result = await Event.getUserRsvpStatus(eventId, userId);
         if (!result.success) {
             logger.error('Error fetching user RSVP status in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to fetch RSVP status');
@@ -241,7 +241,7 @@ const removeRsvp = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await Event.removeRsvp(parseInt(eventId), userId);
+        const result = await Event.removeRsvp(eventId, userId);
         if (!result.success) {
             logger.error('Error removing RSVP in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to remove RSVP');

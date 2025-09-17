@@ -30,7 +30,7 @@ class UserController {
             };
 
             // Add student_id or staff_id if current user is admin or same user
-            if (req.user.role === 'admin' || currentUserId === parseInt(id)) {
+            if (req.user.role === 'administrator' || currentUserId === id) { // Corrected role to 'administrator'
                 if (user.student_id) publicProfile.student_id = user.student_id;
                 if (user.staff_id) publicProfile.staff_id = user.staff_id;
                 if (user.phone) publicProfile.phone = user.phone;
@@ -139,11 +139,11 @@ class UserController {
             const { page = 1, limit = 10 } = req.query;
 
             // Validate role
-            const validRoles = ['student', 'lecturer', 'admin'];
+            const validRoles = ['student', 'lecturer', 'administrator']; // Corrected 'admin' to 'administrator'
             if (!validRoles.includes(role)) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid role. Must be student, lecturer, or admin'
+                    message: 'Invalid role. Must be student, lecturer, or administrator' // Corrected error message
                 });
             }
 
@@ -313,7 +313,7 @@ class UserController {
             const { targetUserId } = req.params;
             const currentUserId = req.user.id;
 
-            if (currentUserId === parseInt(targetUserId)) {
+            if (currentUserId === targetUserId) { // Removed parseInt
                 return res.status(400).json({
                     success: false,
                     message: 'Cannot follow yourself'
@@ -336,7 +336,7 @@ class UserController {
                 message: 'Follow functionality not implemented yet',
                 data: {
                     following: true,
-                    targetUserId: parseInt(targetUserId)
+                    targetUserId: targetUserId // Removed parseInt
                 }
             });
         } catch (error) {
@@ -370,7 +370,7 @@ class UserController {
                 success: true,
                 message: 'User activity functionality not implemented yet',
                 data: {
-                    userId: parseInt(id),
+                    userId: id, // Removed parseInt
                     activities: [],
                     pagination: {
                         page: parseInt(page),

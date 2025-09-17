@@ -13,7 +13,7 @@ class AdminEventController {
             // Apply filters from query parameters
             if (req.query.title) filters.title = req.query.title;
             if (req.query.location) filters.location = req.query.location;
-            if (req.query.created_by) filters.created_by = parseInt(req.query.created_by);
+            if (req.query.created_by) filters.created_by = req.query.created_by;
             if (req.query.event_date_from) filters.event_date_from = req.query.event_date_from;
             if (req.query.event_date_to) filters.event_date_to = req.query.event_date_to;
             if (req.query.status) filters.status = req.query.status;
@@ -37,7 +37,7 @@ class AdminEventController {
         try {
             const { id } = req.params; // Optional event ID for specific stats
 
-            const result = await Event.getEventStats(id ? parseInt(id) : null);
+            const result = await Event.getEventStats(id || null);
 
             if (!result.success) {
                 logger.error('Failed to fetch event statistics:', result.error);
@@ -55,10 +55,10 @@ class AdminEventController {
     static async updateEvent(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            const eventId = id;
             const updates = req.body; // Pass all updates directly
 
-            if (isNaN(eventId)) {
+            if (!eventId) {
                 return errorResponse(res, 400, 'Invalid event ID');
             }
 
@@ -81,9 +81,9 @@ class AdminEventController {
     static async deleteEvent(req, res) {
         try {
             const { id } = req.params;
-            const eventId = parseInt(id);
+            const eventId = id;
 
-            if (isNaN(eventId)) {
+            if (!eventId) {
                 return errorResponse(res, 400, 'Invalid event ID');
             }
 
@@ -108,9 +108,9 @@ class AdminEventController {
             const { userId } = req.params;
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 20;
-            const creatorId = parseInt(userId);
+            const creatorId = userId;
 
-            if (isNaN(creatorId)) {
+            if (!creatorId) {
                 return errorResponse(res, 400, 'Invalid user ID');
             }
 
@@ -146,7 +146,7 @@ class AdminEventController {
 
             for (const eventId of eventIds) {
                 try {
-                    const result = await Event.delete(parseInt(eventId));
+                    const result = await Event.delete(eventId);
                     if (result.success) {
                         successCount++;
                         results.push({ id: eventId, status: 'deleted' });
@@ -184,7 +184,7 @@ class AdminEventController {
             // Apply all possible filters
             if (req.query.title) filters.title = req.query.title;
             if (req.query.location) filters.location = req.query.location;
-            if (req.query.created_by) filters.created_by = parseInt(req.query.created_by);
+            if (req.query.created_by) filters.created_by = req.query.created_by;
             if (req.query.event_date_from) filters.event_date_from = req.query.event_date_from;
             if (req.query.event_date_to) filters.event_date_to = req.query.event_date_to;
             if (req.query.department) filters.department = req.query.department;

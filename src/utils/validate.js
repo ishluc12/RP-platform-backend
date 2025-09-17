@@ -1,4 +1,4 @@
-function validateFields(body, requiredFields){
+function validateFields(body, requiredFields) {
     return requiredFields.every(field => !!body[field]);
 }
-export  default validateFields;
+module.exports = validateFields;

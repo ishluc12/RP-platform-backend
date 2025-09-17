@@ -34,7 +34,7 @@ const getChatGroupById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await ChatGroup.getById(parseInt(id));
+        const result = await ChatGroup.getById(id);
         if (!result.success) return errorResponse(res, result.error === 'Chat group not found' ? 404 : 400, result.error);
         response(res, 200, 'Chat group fetched successfully', result.data);
     } catch (error) {
@@ -53,7 +53,7 @@ const updateChatGroup = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await ChatGroup.update(parseInt(id), userId, { name });
+        const result = await ChatGroup.update(id, userId, { name });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Chat group updated successfully', result.data);
     } catch (error) {
@@ -71,7 +71,7 @@ const deleteChatGroup = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await ChatGroup.delete(parseInt(id), userId);
+        const result = await ChatGroup.delete(id, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Chat group deleted successfully', result.data);
     } catch (error) {
@@ -95,7 +95,7 @@ const addGroupMember = async (req, res) => {
     }
 
     try {
-        const result = await ChatGroup.addMember(parseInt(groupId), parseInt(userId));
+        const result = await ChatGroup.addMember(groupId, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Member added to group successfully', result.data);
     } catch (error) {
@@ -112,7 +112,7 @@ const removeGroupMember = async (req, res) => {
     const { groupId, userId } = req.params;
 
     try {
-        const result = await ChatGroup.removeMember(parseInt(groupId), parseInt(userId));
+        const result = await ChatGroup.removeMember(groupId, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Member removed from group successfully', result.data);
     } catch (error) {

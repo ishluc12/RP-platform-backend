@@ -9,13 +9,31 @@ describe('Events API', () => {
     let testUserId;
 
     beforeAll(async () => {
-        // Setup test data and authentication
-        // This would typically involve creating test users and getting auth tokens
+        // Register a test user
+        const userRegisterResponse = await request(app)
+            .post('/auth/register')
+            .send({
+                name: 'Events Test User',
+                email: 'eventstestuser@example.com',
+                password: 'EventsPass123!',
+                role: 'student',
+                department: 'Testing'
+            });
+        testUserId = userRegisterResponse.body.data.user.id;
+
+        // Login as the test user to get token
+        const userLoginResponse = await request(app)
+            .post('/auth/login')
+            .send({
+                email: 'eventstestuser@example.com',
+                password: 'EventsPass123!'
+            });
+        authToken = userLoginResponse.body.data.token;
     });
 
     afterAll(async () => {
         // Cleanup test data
-        await db.end();
+        // await db.end(); // No need to call db.end() here as it's handled globally if needed
     });
 
     // Test event creation

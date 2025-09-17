@@ -13,8 +13,8 @@ class StaffDashboardController { // Renamed class
             const staffId = req.user.id; // Renamed lecturerId to staffId
 
             const [totalAppointmentsResult, upcomingAppointmentsResult, createdEventsResult, upcomingEventsResult] = await Promise.all([
-                Appointment.listByAppointee(staffId), // Renamed listByStaff to listByAppointee
-                Appointment.findUpcomingAppointments(staffId, 'appointee'), // Renamed 'staff' role to 'appointee'
+                Appointment.listByStaff(staffId), // Renamed listByLecturer to listByStaff
+                Appointment.findUpcomingAppointments(staffId, 'staff'), // Renamed 'lecturer' role to 'staff'
                 Event.findByCreator(staffId, 1, 1, {}),
                 Event.findAll(1, 1, { created_by: staffId, event_date_from: new Date().toISOString() })
             ]);
@@ -42,7 +42,7 @@ class StaffDashboardController { // Renamed class
             const staffId = req.user.id; // Renamed lecturerId to staffId
             const limit = parseInt(req.query.limit) || 5;
 
-            const allAppointmentsResult = await Appointment.listByAppointee(staffId); // Renamed listByStaff to listByAppointee
+            const allAppointmentsResult = await Appointment.listByStaff(staffId); // Renamed listByLecturer to listByStaff
             if (!allAppointmentsResult.success) throw new Error(allAppointmentsResult.error);
 
             const sortedAppointments = (allAppointmentsResult.data || []).sort((a, b) => {
@@ -64,10 +64,10 @@ class StaffDashboardController { // Renamed class
             const staffId = req.user.id; // Renamed lecturerId to staffId
             const limit = parseInt(req.query.limit) || 5;
 
-            const allAppointmentsResult = await Appointment.listByAppointee(staffId); // Renamed listByStaff to listByAppointee
+            const allAppointmentsResult = await Appointment.listByStaff(staffId); // Renamed listByLecturer to listByStaff
             if (!allAppointmentsResult.success) throw new Error(allAppointmentsResult.error);
 
-            const studentIds = [...new Set((allAppointmentsResult.data || []).map(appt => appt.requester_id))]; // Changed student_id to requester_id
+            const studentIds = [...new Set((allAppointmentsResult.data || []).map(appt => appt.student_id))];
 
             const recentStudentsDetails = await Promise.all(studentIds.slice(0, limit).map(async studentId => {
                 const userResult = await User.findById(studentId);

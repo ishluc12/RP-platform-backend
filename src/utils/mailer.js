@@ -1,6 +1,6 @@
 // utils/email.js
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
+const nodemailer = require('nodemailer');
+const dotenv = require('dotenv');
 
 dotenv.config();
 
@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
  * @param {string} subject - Email subject
  * @param {string} html - HTML content of the email
  */
-export const sendEmail = async (to, subject, html) => {
+const sendEmail = async (to, subject, html) => {
   try {
     const info = await transporter.sendMail({
       from: `"Student Registration Team" <${process.env.MAIL_USER}>`,
@@ -36,3 +36,5 @@ export const sendEmail = async (to, subject, html) => {
     throw error;
   }
 };
+
+module.exports = { sendEmail };

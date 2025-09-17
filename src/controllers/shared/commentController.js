@@ -16,7 +16,7 @@ const createComment = async (req, res) => {
     }
 
     try {
-        const result = await Comment.create({ post_id: parseInt(postId), user_id: userId, content });
+        const result = await Comment.create({ post_id: postId, user_id: userId, content });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 201, 'Comment created successfully', result.data);
     } catch (error) {
@@ -34,7 +34,7 @@ const getCommentsByPost = async (req, res) => {
     const { page, limit } = req.query;
 
     try {
-        const result = await Comment.getCommentsByPost(parseInt(postId), { page: parseInt(page), limit: parseInt(limit) });
+        const result = await Comment.getCommentsByPost(postId, { page: parseInt(page), limit: parseInt(limit) });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Comments fetched successfully', result.data);
     } catch (error) {
@@ -52,7 +52,7 @@ const deleteComment = async (req, res) => {
     const userId = req.user.id; // Authenticated user
 
     try {
-        const result = await Comment.delete(parseInt(commentId), userId);
+        const result = await Comment.delete(commentId, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Comment deleted successfully', result.data);
     } catch (error) {

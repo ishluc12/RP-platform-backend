@@ -52,7 +52,7 @@ const getForumById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await Forum.getById(parseInt(id));
+        const result = await Forum.getById(id);
         if (!result.success) return errorResponse(res, 404, result.error);
         response(res, 200, 'Forum fetched successfully', result.data);
     } catch (error) {
@@ -71,7 +71,7 @@ const updateForum = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await Forum.update(parseInt(id), userId, { title, description });
+        const result = await Forum.update(id, userId, { title, description });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Forum updated successfully', result.data);
     } catch (error) {
@@ -89,7 +89,7 @@ const deleteForum = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await Forum.delete(parseInt(id), userId);
+        const result = await Forum.delete(id, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Forum deleted successfully', result.data);
     } catch (error) {
@@ -114,7 +114,7 @@ const createForumPost = async (req, res) => {
     }
 
     try {
-        const result = await ForumPost.create({ forum_id: parseInt(forumId), user_id: userId, content });
+        const result = await ForumPost.create({ forum_id: forumId, user_id: userId, content });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 201, 'Forum post created successfully', result.data);
     } catch (error) {
@@ -132,7 +132,7 @@ const getForumPostsByForum = async (req, res) => {
     const { page, limit } = req.query;
 
     try {
-        const result = await ForumPost.getPostsByForum(parseInt(forumId), { page: parseInt(page), limit: parseInt(limit) });
+        const result = await ForumPost.getPostsByForum(forumId, { page: parseInt(page), limit: parseInt(limit) });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Forum posts fetched successfully', result.data);
     } catch (error) {
@@ -149,7 +149,7 @@ const getForumPostById = async (req, res) => {
     const { postId } = req.params;
 
     try {
-        const result = await ForumPost.getById(parseInt(postId));
+        const result = await ForumPost.getById(postId);
         if (!result.success) return errorResponse(res, 404, result.error);
         response(res, 200, 'Forum post fetched successfully', result.data);
     } catch (error) {
@@ -168,7 +168,7 @@ const updateForumPost = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await ForumPost.update(parseInt(postId), userId, { content });
+        const result = await ForumPost.update(postId, userId, { content });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Forum post updated successfully', result.data);
     } catch (error) {
@@ -186,7 +186,7 @@ const deleteForumPost = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const result = await ForumPost.delete(parseInt(postId), userId);
+        const result = await ForumPost.delete(postId, userId);
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Forum post deleted successfully', result.data);
     } catch (error) {

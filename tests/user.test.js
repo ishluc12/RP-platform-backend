@@ -4,6 +4,8 @@ const app = require('../server');
 describe('User API Tests', () => {
     let authToken;
     let adminToken;
+    let testUserId;
+    let adminUserId;
 
     beforeAll(async () => {
         // Register admin user first
@@ -15,6 +17,7 @@ describe('User API Tests', () => {
                 password: 'Admin123!',
                 role: 'administrator'
             });
+        adminUserId = adminRegisterResponse.body.data.user.id;
 
         // Login as admin to get token
         const adminResponse = await request(app)
@@ -25,6 +28,28 @@ describe('User API Tests', () => {
             });
 
         adminToken = adminResponse.body.data.token;
+
+        // Register test user
+        const testUserRegisterResponse = await request(app)
+            .post('/auth/register')
+            .send({
+                name: 'Test User',
+                email: 'testuser@example.com',
+                password: 'TestPass123!',
+                role: 'student',
+                department: 'Computer Science',
+                student_id: 'TEST001'
+            });
+        testUserId = testUserRegisterResponse.body.data.user.id;
+
+        // Login as test user to get token
+        const testUserLoginResponse = await request(app)
+            .post('/auth/login')
+            .send({
+                email: 'testuser@example.com',
+                password: 'TestPass123!'
+            });
+        authToken = testUserLoginResponse.body.data.token;
     });
 
     describe('Authentication', () => {
@@ -108,12 +133,12 @@ describe('User API Tests', () => {
     describe('Shared User Endpoints', () => {
         test('GET /api/shared/users/:id - should get public user profile', async () => {
             const response = await request(app)
-                .get('/api/shared/users/1')
+                .get(`/api/shared/users/${testUserId}`)
                 .set('Authorization', `Bearer ${authToken}`);
 
             expect(response.status).toBe(200);
             expect(response.body.success).toBe(true);
-            expect(response.body.data.id).toBe(1);
+            expect(response.body.data.id).toBe(testUserId);
         });
 
         test('GET /api/shared/users/search - should search users', async () => {
@@ -166,6 +191,16 @@ describe('User API Tests', () => {
             expect(response.status).toBe(200);
             expect(response.body.success).toBe(true);
             expect(response.body.data.totalUsers).toBeDefined();
+        });
+
+        test('GET /api/admin/users/:id - should get a specific user (admin only)', async () => {
+            const response = await request(app)
+                .get(`/api/admin/users/${testUserId}`)
+                .set('Authorization', `Bearer ${adminToken}`);
+
+            expect(response.status).toBe(200);
+            expect(response.body.success).toBe(true);
+            expect(response.body.data.id).toBe(testUserId);
         });
     });
 

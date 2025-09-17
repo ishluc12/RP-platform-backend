@@ -31,7 +31,7 @@ const createPoll = async (req, res) => {
 const getAllPolls = async (req, res) => {
     const { created_by, active, page, limit } = req.query;
     const filters = {};
-    if (created_by) filters.created_by = parseInt(created_by);
+    if (created_by) filters.created_by = created_by;
     if (active !== undefined) filters.active = active === 'true';
 
     try {
@@ -52,7 +52,7 @@ const getPollById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await Poll.getById(parseInt(id));
+        const result = await Poll.getById(id);
         if (!result.success) return errorResponse(res, 404, result.error);
         response(res, 200, 'Poll fetched successfully', result.data);
     } catch (error) {
@@ -74,7 +74,7 @@ const voteOnPoll = async (req, res) => {
     }
 
     try {
-        const result = await Poll.vote({ poll_option_id: parseInt(pollOptionId), user_id: userId });
+        const result = await Poll.vote({ poll_option_id: pollOptionId, user_id: userId });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Vote cast successfully', result.data);
     } catch (error) {

@@ -5,8 +5,8 @@ class ChatGroup {
      * Create a new chat group
      * @param {Object} params
      * @param {string} params.name
-     * @param {number} params.created_by
-     * @param {Array<number>} [params.initial_members]
+     * @param {string} params.created_by
+     * @param {Array<string>} [params.initial_members]
      * @returns {Promise<Object>}
      */
     static async create({ name, created_by, initial_members = [] }) {
@@ -45,8 +45,33 @@ class ChatGroup {
     }
 
     /**
+     * Check if a user is a member of a group
+     * @param {string} groupId
+     * @param {string} userId
+     * @returns {Promise<Object>}
+     */
+    static async isMember(groupId, userId) {
+        try {
+            const { data, error } = await supabase
+                .from('group_members')
+                .select('user_id')
+                .eq('group_id', groupId)
+                .eq('user_id', userId)
+                .single();
+
+            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+                throw error;
+            }
+
+            return { success: true, data: !!data };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
      * Get a chat group by ID with its members and latest messages
-     * @param {number} groupId
+     * @param {string} groupId
      * @returns {Promise<Object>}
      */
     static async getById(groupId) {
@@ -67,7 +92,11 @@ class ChatGroup {
             const formattedGroup = {
                 ...group,
                 members: group.members.map(m => ({ ...m.users, joined_at: m.joined_at })),
-                latest_message: group.latest_message[0] ? { ...group.latest_message[0].users, message: group.latest_message[0].message, sent_at: group.latest_message[0].sent_at } : null
+                latest_message: group.latest_message[0] ? {
+                    ...group.latest_message[0].users,
+                    message: group.latest_message[0].message,
+                    sent_at: group.latest_message[0].sent_at
+                } : null
             };
 
             return { success: true, data: formattedGroup };
@@ -78,8 +107,8 @@ class ChatGroup {
 
     /**
      * Update a chat group's details
-     * @param {number} groupId
-     * @param {number} userId - The ID of the user trying to update (for authorization)
+     * @param {string} groupId
+     * @param {string} userId - The ID of the user trying to update (for authorization)
      * @param {Object} updates - Fields to update (name, description)
      * @returns {Promise<Object>}
      */
@@ -126,8 +155,8 @@ class ChatGroup {
 
     /**
      * Delete a chat group
-     * @param {number} groupId
-     * @param {number} userId - The ID of the user trying to delete (for authorization)
+     * @param {string} groupId
+     * @param {string} userId - The ID of the user trying to delete (for authorization)
      * @returns {Promise<Object>}
      */
     static async delete(groupId, userId) {
@@ -177,8 +206,8 @@ class ChatGroup {
 
     /**
      * Add a member to a chat group
-     * @param {number} groupId
-     * @param {number} userId - User to add
+     * @param {string} groupId
+     * @param {string} userId - User to add
      * @returns {Promise<Object>}
      */
     static async addMember(groupId, userId) {
@@ -209,8 +238,8 @@ class ChatGroup {
 
     /**
      * Remove a member from a chat group
-     * @param {number} groupId
-     * @param {number} userId - User to remove
+     * @param {string} groupId
+     * @param {string} userId - User to remove
      * @returns {Promise<Object>}
      */
     static async removeMember(groupId, userId) {
@@ -227,6 +256,35 @@ class ChatGroup {
             if (!data) return { success: false, error: 'Member not found in this group' };
 
             return { success: true, data: { message: 'Member removed successfully' } };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Get all members of a group
+     * @param {string} groupId
+     * @returns {Promise<Object>}
+     */
+    static async getMembers(groupId) {
+        try {
+            const { data, error } = await supabase
+                .from('group_members')
+                .select(`
+                    user_id,
+                    joined_at,
+                    users(id, name, profile_picture, role)
+                `)
+                .eq('group_id', groupId);
+
+            if (error) throw error;
+
+            const members = data.map(member => ({
+                ...member.users,
+                joined_at: member.joined_at
+            }));
+
+            return { success: true, data: members };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }

@@ -5,7 +5,7 @@ class Poll {
      * Create a new poll
      * @param {Object} params
      * @param {string} params.question
-     * @param {number} params.created_by
+     * @param {string} params.created_by
      * @param {Array<string>} params.options - Array of poll option texts
      * @param {string} [params.expires_at]
      * @returns {Promise<Object>}
@@ -38,7 +38,7 @@ class Poll {
 
     /**
      * Get a poll by ID with its options and current vote counts
-     * @param {number} pollId
+     * @param {string} pollId
      * @returns {Promise<Object>}
      */
     static async getById(pollId) {
@@ -72,8 +72,8 @@ class Poll {
     /**
      * Record a vote for a poll option
      * @param {Object} params
-     * @param {number} params.poll_option_id
-     * @param {number} params.user_id
+     * @param {string} params.poll_option_id
+     * @param {string} params.user_id
      * @returns {Promise<Object>}
      */
     static async vote({ poll_option_id, user_id }) {
@@ -109,7 +109,7 @@ class Poll {
     /**
      * Get all polls, optionally filtered by creator or active status
      * @param {Object} [filters={}]
-     * @param {number} [filters.created_by]
+     * @param {string} [filters.created_by]
      * @param {boolean} [filters.active=true] - Only return polls that have not expired
      * @param {number} [options.page=1]
      * @param {number} [options.limit=10]

@@ -1,10 +1,9 @@
 const { supabase } = require('../config/database');
 
 class Appointment {
-    static async create({ student_id, lecturer_id, appointment_time, reason, status, location = null, meeting_type = 'in_person', meeting_link = null }) {
+    static async create({ requester_id, appointee_id, appointment_time, duration_minutes = 30, reason, status = 'pending', location = null, meeting_type = 'in_person', meeting_link = null, priority = 'normal', appointment_type = null, notes = null }) {
         try {
-            const insertData = { student_id, lecturer_id, appointment_time, reason, location, meeting_type, meeting_link };
-            if (status) insertData.status = status;
+            const insertData = { requester_id, appointee_id, appointment_time, duration_minutes, reason, status, location, meeting_type, meeting_link, priority, appointment_type, notes };
             const { data, error } = await supabase
                 .from('appointments')
                 .insert([insertData])
@@ -31,12 +30,12 @@ class Appointment {
         }
     }
 
-    static async listByStudent(studentId) {
+    static async listByRequester(requesterId) {
         try {
             const { data, error } = await supabase
                 .from('appointments')
                 .select('*')
-                .eq('student_id', studentId)
+                .eq('requester_id', requesterId)
                 .order('appointment_time', { ascending: true });
             if (error) throw error;
             return { success: true, data };
@@ -45,12 +44,12 @@ class Appointment {
         }
     }
 
-    static async listByLecturer(lecturerId) {
+    static async listByAppointee(appointeeId) {
         try {
             const { data, error } = await supabase
                 .from('appointments')
                 .select('*')
-                .eq('lecturer_id', lecturerId)
+                .eq('appointee_id', appointeeId)
                 .order('appointment_time', { ascending: true });
             if (error) throw error;
             return { success: true, data };
@@ -61,7 +60,7 @@ class Appointment {
 
     static async update(id, updateData) {
         // Filter allowed fields for update
-        const allowedFields = ['appointment_time', 'reason', 'status', 'location', 'meeting_type', 'meeting_link'];
+        const allowedFields = ['appointment_time', 'duration_minutes', 'reason', 'status', 'location', 'meeting_type', 'meeting_link', 'priority', 'appointment_type', 'notes'];
         const filteredUpdate = {};
         allowedFields.forEach(field => {
             if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];
@@ -82,9 +81,9 @@ class Appointment {
     }
 
     /**
-     * Find upcoming appointments for a user (student or lecturer)
-     * @param {number} userId
-     * @param {string} role - 'student' or 'lecturer'
+     * Find upcoming appointments for a user (student or staff)
+     * @param {string} userId - UUID of the user
+     * @param {string} role - 'student' or 'staff'
      * @param {Object} [options={}]
      * @param {number} [options.page=1]
      * @param {number} [options.limit=10]
@@ -100,17 +99,17 @@ class Appointment {
                 .from('appointments')
                 .select(`
                     *,
-                    student:users!appointments_student_id_fkey(id, name),
-                    lecturer:users!appointments_lecturer_id_fkey(id, name)
+                    requester:users!requester_id(id, name),
+                    appointee:users!appointee_id(id, name)
                 `)
                 .gte('appointment_time', now)
                 .order('appointment_time', { ascending: true })
                 .range(from, to);
 
-            if (role === 'student') {
-                query = query.eq('student_id', userId);
-            } else if (role === 'lecturer') {
-                query = query.eq('lecturer_id', userId);
+            if (role === 'requester') {
+                query = query.eq('requester_id', String(userId));
+            } else if (role === 'appointee') {
+                query = query.eq('appointee_id', String(userId));
             } else {
                 return { success: false, error: 'Invalid role specified' };
             }
@@ -121,8 +120,8 @@ class Appointment {
 
             const formattedAppointments = data.map(appt => ({
                 ...appt,
-                student: appt.student,
-                lecturer: appt.lecturer
+                requester: appt.requester,
+                appointee: appt.appointee
             }));
 
             return { success: true, data: formattedAppointments };
@@ -139,7 +138,7 @@ class Appointment {
                 .eq('id', id)
                 .single();
             if (findErr) throw findErr;
-            if (appt.student_id !== byUserId && appt.lecturer_id !== byUserId) {
+            if (appt.requester_id !== byUserId && appt.appointee_id !== byUserId) {
                 return { success: false, error: 'Not authorized to cancel this appointment' };
             }
             const { data, error } = await supabase

@@ -6,7 +6,7 @@ class Forum {
      * @param {Object} params
      * @param {string} params.title
      * @param {string} [params.description]
-     * @param {number} params.created_by
+     * @param {string} params.created_by
      * @returns {Promise<Object>}
      */
     static async create({ title, description = null, created_by }) {
@@ -62,7 +62,7 @@ class Forum {
 
     /**
      * Get a forum by ID
-     * @param {number} forumId
+     * @param {string} forumId
      * @returns {Promise<Object>}
      */
     static async getById(forumId) {
@@ -95,8 +95,8 @@ class Forum {
 
     /**
      * Update a forum
-     * @param {number} forumId
-     * @param {number} userId - The ID of the user trying to update (for authorization)
+     * @param {string} forumId
+     * @param {string} userId - The ID of the user trying to update (for authorization)
      * @param {Object} updates - Object containing fields to update (e.g., { title: 'new title' })
      * @returns {Promise<Object>}
      */

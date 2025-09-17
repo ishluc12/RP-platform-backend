@@ -73,32 +73,6 @@ class AuthController {
                 updated_at: new Date().toISOString()
             };
 
-            // Create user in Supabase Auth first
-            const { data: supabaseAuthData, error: supabaseAuthError } = await supabaseAdmin.auth.admin.createUser({
-                email: email.toLowerCase(),
-                password: password,
-                email_confirm: true, // Auto-confirm email for backend-created users
-                user_metadata: {
-                    name: name,
-                    role: requestedRole // Pass the role to Supabase user metadata if needed for Supabase's internal user management
-                }
-            });
-
-            console.log('Supabase Auth User Creation Data:', supabaseAuthData); // Debug log
-            console.log('Supabase Auth User ID:', supabaseAuthData?.user?.id); // Debug log
-
-            if (supabaseAuthError) {
-                console.error('Supabase Auth user creation error:', supabaseAuthError);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to register user with authentication service',
-                    error: supabaseAuthError.message
-                });
-            }
-
-            // Store the Supabase Auth UUID
-            userData.supabase_auth_id = supabaseAuthData.user.id; // This line is crucial for RLS
-
             const result = await User.create(userData);
 
             if (!result.success) {

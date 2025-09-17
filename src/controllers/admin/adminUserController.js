@@ -176,7 +176,7 @@ class AdminUserController {
             }
 
             // Prevent admin from deleting themselves
-            if (req.user.id === parseInt(id)) {
+            if (req.user.id === id) {
                 return errorResponse(res, 400, 'Cannot delete your own account');
             }
 
@@ -385,7 +385,7 @@ class AdminUserController {
             }
 
             // Prevent admin from suspending themselves
-            if (req.user.id === parseInt(id)) {
+            if (req.user.id === id) {
                 return errorResponse(res, 400, 'Cannot change your own status');
             }
 
@@ -400,7 +400,7 @@ class AdminUserController {
             }
 
             response(res, 200, `User ${isActive ? 'activated' : 'suspended'} successfully`, {
-                id: parseInt(id),
+                id: id,
                 is_active: isActive,
                 reason: reason || null
             });
@@ -425,7 +425,7 @@ class AdminUserController {
             // In a real application, you'd fetch activity logs from a logs table
             // For now, we'll return a placeholder response
             response(res, 200, 'User activity logs functionality not implemented yet', {
-                userId: parseInt(id),
+                userId: id,
                 logs: [],
                 pagination: {
                     page: parseInt(page),

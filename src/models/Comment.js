@@ -4,8 +4,8 @@ class Comment {
     /**
      * Create a new comment on a post
      * @param {Object} params
-     * @param {number} params.post_id
-     * @param {number} params.user_id
+     * @param {string} params.post_id
+     * @param {string} params.user_id
      * @param {string} params.content
      * @returns {Promise<Object>}
      */
@@ -26,7 +26,7 @@ class Comment {
 
     /**
      * Get comments for a specific post
-     * @param {number} postId
+     * @param {string} postId
      * @param {Object} [options={}]
      * @param {number} [options.page=1]
      * @param {number} [options.limit=10]
@@ -62,8 +62,8 @@ class Comment {
 
     /**
      * Delete a comment
-     * @param {number} commentId
-     * @param {number} userId - The ID of the user trying to delete (for authorization)
+     * @param {string} commentId
+     * @param {string} userId - The ID of the user trying to delete (for authorization)
      * @returns {Promise<Object>}
      */
     static async delete(commentId, userId) {

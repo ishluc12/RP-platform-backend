@@ -1,42 +1,43 @@
-const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
+const fs = require('fs');
 const { pgPool, testConnection } = require('../src/config/database');
+// const { seedDatabase } = require('../seeds/seedDb'); // Import the main seeder
+
+const migrationsDir = path.join(__dirname);
 
 async function runMigrations() {
     console.log('Starting database migrations...');
 
     const isConnected = await testConnection();
     if (!isConnected) {
-        console.error('Migration failed: Database not connected.');
-        process.exit(1);
-    }
-
-    const migrationsDir = path.join(__dirname);
-    const migrationFiles = fs.readdirSync(migrationsDir).filter(file => file.endsWith('.sql')).sort();
-
-    if (migrationFiles.length === 0) {
-        console.log('No migration files found.');
+        console.error('❌ Database not connected, aborting migrations.');
         return;
     }
 
-    const client = await pgPool.connect();
     try {
+        // Get all migration files, sort them to ensure order
+        const migrationFiles = ['007_create_all_tables_with_uuid.sql'];
+
         for (const file of migrationFiles) {
             const filePath = path.join(migrationsDir, file);
             const sql = fs.readFileSync(filePath, 'utf8');
             console.log(`Executing migration: ${file}`);
-
-            await client.query(sql);
+            await pgPool.query(sql);
             console.log(`Successfully executed ${file}`);
         }
-    } catch (error) {
-        console.error(`❌ Error executing migration:`, error.message);
-        process.exit(1);
-    } finally {
-        client.release();
-    }
 
-    console.log('All migrations executed successfully!');
+        console.log('All migrations executed successfully!');
+
+        // After migrations, run the seeding script
+        // await seedDatabase();
+
+    } catch (error) {
+        console.error('❌ Database migration or seeding failed:', error);
+    } finally {
+        await pgPool.end();
+    }
 }
 
 runMigrations();

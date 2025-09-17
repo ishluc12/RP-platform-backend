@@ -7,31 +7,18 @@ const { logger } = require('../../utils/logger');
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id; // Renamed lecturerId to staffId
-        const { slots } = req.body; // [{ day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot, slot_duration_minutes, is_active, availability_type, valid_from, valid_to }]
+        const { slots } = req.body; // [{ available_from, available_to, recurring }]
 
         if (!Array.isArray(slots) || slots.length === 0) {
             return errorResponse(res, 400, 'Slots array is required');
         }
 
-        const dayMap = {
-            'Monday': 1,
-            'Tuesday': 2,
-            'Wednesday': 3,
-            'Thursday': 4,
-            'Friday': 5
-        };
-
         const createdSlots = [];
         for (const slot of slots) {
-            const numericDayOfWeek = dayMap[slot.day_of_week];
-            if (numericDayOfWeek === undefined) {
-                return errorResponse(res, 400, `Invalid day_of_week: ${slot.day_of_week}. Must be Monday-Friday.`);
+            if (!slot.available_from || !slot.available_to) {
+                return errorResponse(res, 400, 'Each slot must include available_from and available_to');
             }
-
-            if (!slot.start_time || !slot.end_time) {
-                return errorResponse(res, 400, 'Each slot must include start_time and end_time');
-            }
-            const result = await StaffAvailability.create({ ...slot, day_of_week: numericDayOfWeek, staff_id: staffId }); // Pass all new fields
+            const result = await StaffAvailability.create({ ...slot, staff_id: staffId }); // Renamed lecturer_id to staff_id
             if (!result.success) throw new Error(result.error);
             createdSlots.push(result.data);
         }
@@ -49,7 +36,7 @@ const getMyAvailability = async (req, res) => {
         const staffId = req.user.id; // Renamed lecturerId to staffId
         const { start_date, end_date } = req.query;
 
-        const result = await StaffAvailability.findByStaffId(staffId); // Renamed getByStaff to findByStaffId, removed date filters
+        const result = await StaffAvailability.getByStaff(staffId, { start_date, end_date }); // Renamed getByLecturer to getByStaff
         if (!result.success) throw new Error(result.error);
 
         response(res, 200, 'Staff availability fetched successfully', result.data);
@@ -63,14 +50,14 @@ const getMyAvailability = async (req, res) => {
 const updateAvailability = async (req, res) => {
     try {
         const staffId = req.user.id; // Renamed lecturerId to staffId
-        const slotId = req.params.id;
+        const slotId = Number(req.params.id);
         const updates = req.body;
 
-        if (!slotId) {
+        if (Number.isNaN(slotId)) {
             return errorResponse(res, 400, 'Invalid slot ID');
         }
 
-        const result = await StaffAvailability.update(slotId, updates); // Removed staffId as an argument
+        const result = await StaffAvailability.update(slotId, staffId, updates); // Renamed lecturerId to staffId
         if (!result.success) {
             return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }
@@ -86,13 +73,13 @@ const updateAvailability = async (req, res) => {
 const deleteAvailability = async (req, res) => {
     try {
         const staffId = req.user.id; // Renamed lecturerId to staffId
-        const slotId = req.params.id;
+        const slotId = Number(req.params.id);
 
-        if (!slotId) {
+        if (Number.isNaN(slotId)) {
             return errorResponse(res, 400, 'Invalid slot ID');
         }
 
-        const result = await StaffAvailability.delete(slotId); // Removed staffId as an argument
+        const result = await StaffAvailability.delete(slotId, staffId); // Renamed lecturerId to staffId
         if (!result.success) {
             return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }

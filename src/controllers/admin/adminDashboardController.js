@@ -34,8 +34,8 @@ class AdminDashboardController {
                 upcomingEvents: upcomingEventsResult.pagination ? upcomingEventsResult.pagination.total : 0,
                 totalAppointments: totalAppointmentsResult.pagination ? totalAppointmentsResult.pagination.total : 0,
                 pendingAppointments: pendingAppointmentsResult.pagination ? pendingAppointmentsResult.pagination.total : 0,
-                totalForums: totalForumsResult.pagination ? totalForumsResult.pagination.total : 0,
-                totalPosts: totalPostsResult.pagination ? totalPostsResult.pagination.total : 0,
+                totalForums: totalForumsResult.data ? totalForumsResult.data.length : 0,
+                totalPosts: totalPostsResult.data ? totalPostsResult.data.length : 0,
                 generatedAt: new Date().toISOString()
             };
 
@@ -152,7 +152,7 @@ class AdminDashboardController {
             }).slice(0, limit);
 
             const topCreatorsDetails = await Promise.all(topCreatorsIds.map(async userId => {
-                const userResult = await User.findById(parseInt(userId));
+                const userResult = await User.findById(userId);
                 return userResult.success ? {
                     id: userResult.data.id,
                     name: userResult.data.name,

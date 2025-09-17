@@ -5,7 +5,7 @@ const { logger } = require('../../utils/logger');
 module.exports = {
     async list(req, res) {
         try {
-            const result = await Appointment.listByAppointee(req.user.id); // Renamed listByStaff to listByAppointee
+            const result = await Appointment.listByStaff(req.user.id); // Renamed listByLecturer to listByStaff
             if (!result.success) {
                 logger.error('Failed to fetch staff appointments:', result.error);
                 return errorResponse(res, 400, result.error);
@@ -20,7 +20,7 @@ module.exports = {
     async getUpcoming(req, res) {
         try {
             const { page, limit } = req.query;
-            const result = await Appointment.findUpcomingAppointments(req.user.id, 'appointee', { page: parseInt(page), limit: parseInt(limit) }); // Renamed 'lecturer' role to 'appointee'
+            const result = await Appointment.findUpcomingAppointments(req.user.id, 'staff', { page: parseInt(page), limit: parseInt(limit) }); // Renamed 'lecturer' role to 'staff'
             if (!result.success) {
                 logger.error('Failed to fetch upcoming staff appointments:', result.error);
                 return errorResponse(res, 400, result.error);
@@ -39,8 +39,8 @@ module.exports = {
                 return errorResponse(res, 400, 'Invalid status');
             }
 
-            const apptId = req.params.id;
-            if (!apptId) {
+            const apptId = parseInt(req.params.id);
+            if (isNaN(apptId)) {
                 return errorResponse(res, 400, 'Invalid appointment ID');
             }
 

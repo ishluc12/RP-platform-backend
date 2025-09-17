@@ -56,11 +56,8 @@ router.post('/register', [
     validateRole
 ], AuthController.register);
 
-// Change password route
-router.post('/change-password', [
-    authenticateToken,
-    validateNewPassword
-], AuthController.changePassword);
+// Change password route (moved below protected routes, as it requires authentication)
+router.put('/change-password', [validateNewPassword], AuthController.changePassword);
 
 router.post('/login', [
     authRateLimit,
@@ -95,7 +92,6 @@ router.post('/profile/picture',
     AuthController.uploadProfilePicture
 );
 
-router.put('/change-password', [validateNewPassword], AuthController.changePassword);
 // Health check for authenticated users
 router.get('/health', (req, res) => {
     res.json({

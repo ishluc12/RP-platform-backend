@@ -4,7 +4,7 @@ class PostModel {
     /**
      * Create a new post
      * @param {Object} param0
-     * @param {number} param0.user_id
+     * @param {string} param0.user_id
      * @param {string} param0.content
      * @param {string} [param0.image_url]
      * @returns {Promise<Object>}
@@ -50,7 +50,7 @@ class PostModel {
 
     /**
      * Get recent posts by a specific user (paginated)
-     * @param {number} userId
+     * @param {string} userId
      * @param {number} [page=1]
      * @param {number} [limit=10]
      * @returns {Promise<Object>}
@@ -76,8 +76,8 @@ class PostModel {
     /**
      * Like a post (or upsert if already liked)
      * @param {Object} param0
-     * @param {number} param0.post_id
-     * @param {number} param0.user_id
+     * @param {string} param0.post_id
+     * @param {string} param0.user_id
      * @returns {Promise<Object>}
      */
     static async like({ post_id, user_id }) {
@@ -98,8 +98,8 @@ class PostModel {
     /**
      * Unlike a post
      * @param {Object} param0
-     * @param {number} param0.post_id
-     * @param {number} param0.user_id
+     * @param {string} param0.post_id
+     * @param {string} param0.user_id
      * @returns {Promise<Object>}
      */
     static async unlike({ post_id, user_id }) {
@@ -120,7 +120,7 @@ class PostModel {
 
     /**
      * Get a single post by ID, with like and comment counts
-     * @param {number} postId
+     * @param {string} postId
      * @returns {Promise<Object>}
      */
     static async getById(postId) {

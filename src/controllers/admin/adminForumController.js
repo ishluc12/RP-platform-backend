@@ -10,7 +10,7 @@ class AdminForumController {
         const { page, limit, title, created_by } = req.query;
         const filters = {};
         if (title) filters.title = title;
-        if (created_by) filters.created_by = parseInt(created_by);
+        if (created_by) filters.created_by = created_by;
 
         try {
             const result = await Forum.getAll({ ...filters, page: parseInt(page) || 1, limit: parseInt(limit) || 10 });
@@ -28,7 +28,7 @@ class AdminForumController {
     static async getForumById(req, res) {
         const { id } = req.params;
         try {
-            const result = await Forum.getById(parseInt(id));
+            const result = await Forum.getById(id);
             if (!result.success) {
                 logger.error('Error fetching forum by ID (admin):', result.error);
                 return errorResponse(res, result.error === 'Forum not found' ? 404 : 500, result.error);
@@ -45,7 +45,7 @@ class AdminForumController {
         const updates = req.body;
         try {
             // Admin can update any forum, so pass null for userId for authorization check bypass in model
-            const result = await Forum.update(parseInt(id), null, updates);
+            const result = await Forum.update(id, null, updates);
             if (!result.success) {
                 logger.error('Error updating forum (admin):', result.error);
                 return errorResponse(res, result.error === 'Forum not found or unauthorized to update' ? 404 : 500, result.error);
@@ -61,7 +61,7 @@ class AdminForumController {
         const { id } = req.params;
         try {
             // Admin can delete any forum, so pass null for userId for authorization check bypass in model
-            const result = await Forum.delete(parseInt(id), null);
+            const result = await Forum.delete(id, null);
             if (!result.success) {
                 logger.error('Error deleting forum (admin):', result.error);
                 return errorResponse(res, result.error === 'Forum not found or unauthorized to delete' ? 404 : 500, result.error);
@@ -79,7 +79,7 @@ class AdminForumController {
         const { forumId } = req.params;
         const { page, limit } = req.query;
         try {
-            const result = await ForumPost.getPostsByForum(parseInt(forumId), { page: parseInt(page) || 1, limit: parseInt(limit) || 10 });
+            const result = await ForumPost.getPostsByForum(forumId, { page: parseInt(page) || 1, limit: parseInt(limit) || 10 });
             if (!result.success) {
                 logger.error('Error fetching forum posts by forum (admin):', result.error);
                 return errorResponse(res, 500, 'Failed to fetch forum posts', result.error);
@@ -94,7 +94,7 @@ class AdminForumController {
     static async getForumPostById(req, res) {
         const { postId } = req.params;
         try {
-            const result = await ForumPost.getById(parseInt(postId));
+            const result = await ForumPost.getById(postId);
             if (!result.success) {
                 logger.error('Error fetching forum post by ID (admin):', result.error);
                 return errorResponse(res, result.error === 'Forum post not found' ? 404 : 500, result.error);
@@ -111,7 +111,7 @@ class AdminForumController {
         const updates = req.body;
         try {
             // Admin can update any forum post, so pass null for userId for authorization check bypass in model
-            const result = await ForumPost.update(parseInt(postId), null, updates);
+            const result = await ForumPost.update(postId, null, updates);
             if (!result.success) {
                 logger.error('Error updating forum post (admin):', result.error);
                 return errorResponse(res, result.error === 'Forum post not found or unauthorized to update' ? 404 : 500, result.error);
@@ -127,7 +127,7 @@ class AdminForumController {
         const { postId } = req.params;
         try {
             // Admin can delete any forum post, so pass null for userId for authorization check bypass in model
-            const result = await ForumPost.delete(parseInt(postId), null);
+            const result = await ForumPost.delete(postId, null);
             if (!result.success) {
                 logger.error('Error deleting forum post (admin):', result.error);
                 return errorResponse(res, result.error === 'Forum post not found or unauthorized to delete' ? 404 : 500, result.error);

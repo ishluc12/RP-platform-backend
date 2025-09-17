@@ -19,7 +19,7 @@ class User {
                 department,
                 student_id,
                 staff_id,
-                supabase_auth_id
+                // supabase_auth_id
             } = userData;
 
             const insertData = {
@@ -35,7 +35,7 @@ class User {
                 staff_id: staff_id || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
-                supabase_auth_id: supabase_auth_id || null
+                // supabase_auth_id: supabase_auth_id || null
             };
 
             const { data, error } = await db
@@ -74,7 +74,14 @@ class User {
                 .select('*')
                 .eq('email', email)
                 .single();
-            if (error) throw error;
+            if (error) {
+                // If no row is found, Supabase returns error.code 'PGRST116'
+                if (error.code === 'PGRST116') {
+                    return { success: false, error: 'User not found' };
+                }
+                // If multiple rows are found, or other errors
+                return { success: false, error: error.message || 'Multiple users found or unknown error' };
+            }
             return { success: true, data };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };

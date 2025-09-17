@@ -3,7 +3,7 @@ const { supabase } = require('../config/database');
 class NotificationModel {
     /**
      * List notifications for a specific user with pagination
-     * @param {number} user_id
+     * @param {string} user_id
      * @param {Object} options
      * @param {number} [options.page=1]
      * @param {number} [options.limit=20]
@@ -31,8 +31,8 @@ class NotificationModel {
 
     /**
      * Mark a specific notification as read for a user
-     * @param {number} id
-     * @param {number} user_id
+     * @param {string} id
+     * @param {string} user_id
      * @returns {Promise<Object>}
      */
     static async markRead(id, user_id) {
@@ -54,7 +54,7 @@ class NotificationModel {
 
     /**
      * Mark all notifications as read for a user
-     * @param {number} user_id
+     * @param {string} user_id
      * @returns {Promise<Object>}
      */
     static async markAllRead(user_id) {

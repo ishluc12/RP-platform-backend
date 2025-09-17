@@ -4,8 +4,8 @@ class ForumPost {
     /**
      * Create a new post in a forum
      * @param {Object} params
-     * @param {number} params.forum_id
-     * @param {number} params.user_id
+     * @param {string} params.forum_id
+     * @param {string} params.user_id
      * @param {string} params.content
      * @returns {Promise<Object>}
      */
@@ -26,7 +26,7 @@ class ForumPost {
 
     /**
      * Get posts for a specific forum
-     * @param {number} forumId
+     * @param {string} forumId
      * @param {Object} [options={}]
      * @param {number} [options.page=1]
      * @param {number} [options.limit=10]
@@ -62,7 +62,7 @@ class ForumPost {
 
     /**
      * Get a single forum post by ID
-     * @param {number} postId
+     * @param {string} postId
      * @returns {Promise<Object>}
      */
     static async getById(postId) {
@@ -96,8 +96,8 @@ class ForumPost {
 
     /**
      * Update a forum post
-     * @param {number} postId
-     * @param {number} userId - The ID of the user trying to update (for authorization)
+     * @param {string} postId
+     * @param {string} userId - The ID of the user trying to update (for authorization)
      * @param {Object} updates - Object containing fields to update (e.g., { content: 'new content' })
      * @returns {Promise<Object>}
      */
@@ -123,8 +123,8 @@ class ForumPost {
 
     /**
      * Delete a forum post
-     * @param {number} postId
-     * @param {number} userId - The ID of the user trying to delete (for authorization)
+     * @param {string} postId
+     * @param {string} userId - The ID of the user trying to delete (for authorization)
      * @returns {Promise<Object>}
      */
     static async delete(postId, userId) {
