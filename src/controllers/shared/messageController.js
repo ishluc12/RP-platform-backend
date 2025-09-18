@@ -1,5 +1,7 @@
 const Message = require('../../models/Message');
 const ChatGroup = require('../../models/ChatGroup');
+const NotificationModel = require('../../models/Notification');
+const User = require('../../models/User');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
@@ -36,6 +38,44 @@ const sendMessage = async (req, res) => {
         if (!result.success) {
             logger.error('Failed to send message:', result.error);
             return errorResponse(res, 400, result.error);
+        }
+
+        const newMessage = result.data;
+
+        // Create notification for the recipient(s)
+        if (newMessage.receiver_id) {
+            // Direct message
+            const senderUser = await User.findById(senderId);
+            const senderName = senderUser.success ? senderUser.data.name : 'Someone';
+
+            await NotificationModel.createNotification({
+                user_id: newMessage.receiver_id,
+                type: 'message_new_direct',
+                content: `New message from ${senderName}: ${newMessage.message.substring(0, 50)}...`,
+                source_id: newMessage.id,
+                source_table: 'messages',
+            });
+        } else if (newMessage.group_id) {
+            // Group message
+            const groupMembersResult = await ChatGroup.getMembers(newMessage.group_id);
+            if (groupMembersResult.success && groupMembersResult.data.length > 0) {
+                const senderUser = await User.findById(senderId);
+                const senderName = senderUser.success ? senderUser.data.name : 'Someone';
+                const chatGroup = await ChatGroup.getById(newMessage.group_id);
+                const groupName = chatGroup.success ? chatGroup.data.name : 'a group';
+
+                for (const member of groupMembersResult.data) {
+                    if (member.id !== senderId) { // Don't notify the sender
+                        await NotificationModel.createNotification({
+                            user_id: member.id,
+                            type: 'message_new_group',
+                            content: `New message in ${groupName} from ${senderName}: ${newMessage.message.substring(0, 50)}...`,
+                            source_id: newMessage.id,
+                            source_table: 'messages',
+                        });
+                    }
+                }
+            }
         }
 
         response(res, 201, 'Message sent successfully', result.data);

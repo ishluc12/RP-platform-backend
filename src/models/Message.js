@@ -228,7 +228,7 @@ class Message {
                 .select(`
                     group_id,
                     joined_at,
-                    chat_groups!inner(id, name, created_by, created_at)
+                    chat_groups!inner(id, name, created_by, created_at, avatar)
                 `)
                 .eq('user_id', userId);
 
@@ -247,7 +247,7 @@ class Message {
                     group_id,
                     message,
                     sent_at,
-                    sender:sender_id(name)
+                    sender:sender_id(name, profile_picture)
                 `)
                 .in('group_id', groupIds)
                 .eq('is_group', true)
@@ -279,7 +279,8 @@ class Message {
                     latest_message: latestMsg ? {
                         message: latestMsg.message,
                         sent_at: latestMsg.sent_at,
-                        sender_name: latestMsg.sender?.name || 'Unknown'
+                        sender_name: latestMsg.sender?.name || 'Unknown',
+                        sender_profile_picture: latestMsg.sender?.profile_picture
                     } : null,
                     last_message: latestMsg?.message || 'No messages yet', // Alias for compatibility
                     updated_at: latestMsg?.sent_at || mg.chat_groups.created_at

@@ -13,8 +13,8 @@ class ChatGroup {
         try {
             const { data: group, error: groupError } = await supabase
                 .from('chat_groups')
-                .insert([{ name, created_by }])
-                .select('id')
+                .insert([{ name, created_by, avatar: params.avatar || null }])
+                .select('id, name, avatar')
                 .single();
 
             if (groupError) throw groupError;
@@ -80,6 +80,7 @@ class ChatGroup {
                 .from('chat_groups')
                 .select(`
                     *,
+                    avatar,
                     members:group_members(user_id, joined_at, users(id, name, profile_picture)),
                     latest_message:messages(sender_id, message, sent_at, users(id, name, profile_picture))
                 `)

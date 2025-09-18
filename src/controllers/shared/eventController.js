@@ -1,5 +1,7 @@
 // D:\final-year-project\backend\src\controllers\shared\eventController.js
 const Event = require('../../models/Event');
+const NotificationModel = require('../../models/Notification');
+const User = require('../../models/User');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
@@ -11,7 +13,7 @@ const { logger } = require('../../utils/logger');
  * @param {Object} res - Express response object.
  */
 const createEvent = async (req, res) => {
-    const { title, description, event_date, location, max_participants, registration_required } = req.body;
+    const { title, description, event_date, location, max_participants, registration_required, department, is_college_wide } = req.body;
     const created_by = req.user.id;
 
     if (!title || !event_date || !location) {
@@ -19,11 +21,45 @@ const createEvent = async (req, res) => {
     }
 
     try {
-        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required });
+        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required, department, is_college_wide });
         if (!result.success) {
             logger.error('Error creating event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to create event');
         }
+
+        const newEvent = result.data;
+
+        // Create notifications for the new event
+        if (newEvent.is_college_wide) {
+            // Notify all users
+            const allUsersResult = await User.findAll(1, 1000); // Fetch a reasonable limit of users
+            if (allUsersResult.success && allUsersResult.data.length > 0) {
+                for (const user of allUsersResult.data) {
+                    await NotificationModel.createNotification({
+                        user_id: user.id,
+                        type: 'event_college_wide_new',
+                        content: `New college-wide event: ${newEvent.title} on ${new Date(newEvent.event_date).toLocaleDateString()}`,
+                        source_id: newEvent.id,
+                        source_table: 'events',
+                    });
+                }
+            }
+        } else if (newEvent.department) {
+            // Notify users in the specific department
+            const departmentUsersResult = await User.findAll(1, 1000, { department: newEvent.department });
+            if (departmentUsersResult.success && departmentUsersResult.data.length > 0) {
+                for (const user of departmentUsersResult.data) {
+                    await NotificationModel.createNotification({
+                        user_id: user.id,
+                        type: 'event_department_new',
+                        content: `New department event: ${newEvent.title} on ${new Date(newEvent.event_date).toLocaleDateString()}`,
+                        source_id: newEvent.id,
+                        source_table: 'events',
+                    });
+                }
+            }
+        }
+
         response(res, 201, 'Event created successfully', result.data);
     } catch (error) {
         logger.error('Exception creating event:', error.message);
@@ -101,6 +137,64 @@ const updateEvent = async (req, res) => {
             logger.error('Error updating event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to update event');
         }
+
+        const updatedEvent = result.data;
+
+        // Notification logic for updated event
+        const oldEvent = eventResult.data; // eventResult was fetched earlier
+
+        // Check for changes in college-wide status or department
+        const isCollegeWideChanged = oldEvent.is_college_wide !== updatedEvent.is_college_wide;
+        const departmentChanged = oldEvent.department !== updatedEvent.department;
+        const eventDetailsChanged = oldEvent.title !== updatedEvent.title || oldEvent.event_date !== updatedEvent.event_date;
+
+        if (isCollegeWideChanged && updatedEvent.is_college_wide) {
+            // Event became college-wide or was college-wide and changed
+            const allUsersResult = await User.findAll(1, 1000);
+            if (allUsersResult.success && allUsersResult.data.length > 0) {
+                for (const user of allUsersResult.data) {
+                    await NotificationModel.createNotification({
+                        user_id: user.id,
+                        type: 'event_college_wide_update',
+                        content: `College-wide event updated: ${updatedEvent.title} on ${new Date(updatedEvent.event_date).toLocaleDateString()}`,
+                        source_id: updatedEvent.id,
+                        source_table: 'events',
+                    });
+                }
+            }
+        } else if (departmentChanged || (updatedEvent.department && !oldEvent.department)) {
+            // Event changed department or became department-specific
+            const targetDepartment = updatedEvent.department || oldEvent.department;
+            if (targetDepartment) {
+                const departmentUsersResult = await User.findAll(1, 1000, { department: targetDepartment });
+                if (departmentUsersResult.success && departmentUsersResult.data.length > 0) {
+                    for (const user of departmentUsersResult.data) {
+                        await NotificationModel.createNotification({
+                            user_id: user.id,
+                            type: 'event_department_update',
+                            content: `Department event updated: ${updatedEvent.title} on ${new Date(updatedEvent.event_date).toLocaleDateString()} (Department: ${targetDepartment})`,
+                            source_id: updatedEvent.id,
+                            source_table: 'events',
+                        });
+                    }
+                }
+            }
+        } else if (eventDetailsChanged) {
+            // Generic update notification for event participants if no other specific notification was sent
+            const participantsResult = await Event.getEventParticipants(id); // Assuming this fetches user_ids
+            if (participantsResult.success && participantsResult.data.length > 0) {
+                for (const participant of participantsResult.data) {
+                    await NotificationModel.createNotification({
+                        user_id: participant.user_id,
+                        type: 'event_update_generic',
+                        content: `Event you RSVP'd to has been updated: ${updatedEvent.title} on ${new Date(updatedEvent.event_date).toLocaleDateString()}`,
+                        source_id: updatedEvent.id,
+                        source_table: 'events',
+                    });
+                }
+            }
+        }
+
         response(res, 200, 'Event updated successfully', result.data);
     } catch (error) {
         logger.error('Exception updating event:', error.message);
