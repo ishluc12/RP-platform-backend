@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
+const net = require('net');
 
 const app = express();
 const server = http.createServer(app);
@@ -90,10 +91,32 @@ setupSocketHandlers(io);
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-    console.log(`🚀 P-Community Backend server running on port ${PORT}`);
-    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+function findAvailablePort(currentPort) {
+    return new Promise((resolve, reject) => {
+        const tester = net.createServer()
+            .once('error', err => {
+                if (err.code === 'EADDRINUSE') {
+                    findAvailablePort(currentPort + 1).then(resolve).catch(reject);
+                } else {
+                    reject(err);
+                }
+            })
+            .once('listening', () => {
+                tester.once('close', () => resolve(currentPort)).close();
+            })
+            .listen(currentPort);
+    });
+}
+
+findAvailablePort(parseInt(PORT)).then(availablePort => {
+    server.listen(availablePort, () => {
+        console.log(`🚀 P-Community Backend server running on port ${availablePort}`);
+        console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🔗 Health check: http://localhost:${availablePort}/health`);
+    });
+}).catch(err => {
+    console.error('Failed to find an available port:', err);
+    process.exit(1);
 });
 
 // Graceful shutdown

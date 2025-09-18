@@ -96,6 +96,7 @@ class User {
             if (filters.role) query = query.eq('role', filters.role);
             if (filters.department) query = query.eq('department', filters.department);
             if (filters.search) query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+            if (filters.created_after) query = query.gte('created_at', filters.created_after);
 
             const from = (page - 1) * limit;
             const to = from + limit - 1;

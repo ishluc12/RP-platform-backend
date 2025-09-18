@@ -19,23 +19,40 @@ class AdminDashboardController {
                 Event.findAll(1, 1, { event_date_from: new Date().toISOString() }),
                 Appointment.findAll(1, 1, {}),
                 Appointment.findAll(1, 1, { status: 'pending' }),
-                Forum.getAll({}),
+                Forum.getAll({ page: 1, limit: 99999 }),
                 Post.findAll(1, 1, {}),
                 User.findAll(1, 1, { role: 'student' }),
                 User.findAll(1, 1, { role: 'lecturer' })
             ]);
 
+            // Helper to safely get total from results
+            const getTotal = (result) => {
+                if (!result.success) {
+                    logger.error('Error in dashboard query:', result.error);
+                    return 0; // Return 0 or throw error based on desired behavior
+                }
+                // For models with pagination
+                if (result.pagination && typeof result.pagination.total === 'number') {
+                    return result.pagination.total;
+                }
+                // For models like Forum.getAll that return data array directly
+                if (Array.isArray(result.data)) {
+                    return result.data.length;
+                }
+                return 0;
+            };
+
             const summary = {
-                totalUsers: totalUsersResult.pagination ? totalUsersResult.pagination.total : 0,
-                totalStudents: totalStudentsResult.pagination ? totalStudentsResult.pagination.total : 0,
-                totalLecturers: totalLecturersResult.pagination ? totalLecturersResult.pagination.total : 0,
-                newUsersLast30Days: newUsersLast30DaysResult.pagination ? newUsersLast30DaysResult.pagination.total : 0,
-                totalEvents: totalEventsResult.pagination ? totalEventsResult.pagination.total : 0,
-                upcomingEvents: upcomingEventsResult.pagination ? upcomingEventsResult.pagination.total : 0,
-                totalAppointments: totalAppointmentsResult.pagination ? totalAppointmentsResult.pagination.total : 0,
-                pendingAppointments: pendingAppointmentsResult.pagination ? pendingAppointmentsResult.pagination.total : 0,
-                totalForums: totalForumsResult.data ? totalForumsResult.data.length : 0,
-                totalPosts: totalPostsResult.data ? totalPostsResult.data.length : 0,
+                totalUsers: getTotal(totalUsersResult),
+                totalStudents: getTotal(totalStudentsResult),
+                totalLecturers: getTotal(totalLecturersResult),
+                newUsersLast30Days: getTotal(newUsersLast30DaysResult),
+                totalEvents: getTotal(totalEventsResult),
+                upcomingEvents: getTotal(upcomingEventsResult),
+                totalAppointments: getTotal(totalAppointmentsResult),
+                pendingAppointments: getTotal(pendingAppointmentsResult),
+                totalForums: getTotal(totalForumsResult),
+                totalPosts: getTotal(totalPostsResult),
                 generatedAt: new Date().toISOString()
             };
 

@@ -94,9 +94,9 @@ CREATE TABLE staff_availability (
     staff_id UUID REFERENCES users(id) NOT NULL,
     day_of_week INTEGER CHECK (
         day_of_week >= 1
-        AND day_of_week <= 5
+        AND day_of_week <= 7
     ),
-    -- 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday
+    -- 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     max_regular_students INTEGER DEFAULT 5 CHECK (max_regular_students <= 5),

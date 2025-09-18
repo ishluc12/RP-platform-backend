@@ -49,6 +49,46 @@ class PostModel {
     }
 
     /**
+     * Get all posts with pagination and optional filters
+     * @param {number} [page=1]
+     * @param {number} [limit=10]
+     * @param {Object} [filters={}]
+     * @returns {Promise<Object>}
+     */
+    static async findAll(page = 1, limit = 10, filters = {}) {
+        try {
+            let query = supabase.from('posts').select('*, users(id, name, email)', { count: 'exact' }).order('created_at', { ascending: false });
+
+            // Apply filters if needed
+            if (filters.user_id) {
+                query = query.eq('user_id', filters.user_id);
+            }
+            if (filters.created_after) {
+                query = query.gte('created_at', filters.created_after);
+            }
+
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error, count } = await query.range(from, to);
+            if (error) throw error;
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    totalPages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
      * Get recent posts by a specific user (paginated)
      * @param {string} userId
      * @param {number} [page=1]

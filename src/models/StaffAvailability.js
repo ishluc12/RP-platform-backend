@@ -53,6 +53,21 @@ class StaffAvailability {
         }
     }
 
+    static async findByStaffIdAndDay(staffId, dayOfWeek) {
+        try {
+            const { data, error } = await supabase
+                .from('staff_availability')
+                .select('*')
+                .eq('staff_id', staffId)
+                .eq('day_of_week', dayOfWeek)
+                .order('start_time', { ascending: true }); // Order by start_time
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
     static async update(id, updateData) {
         const allowedFields = [
             'day_of_week', 'start_time', 'end_time', 'max_regular_students', 'max_emergency_students', 'allow_emergency', 'is_active'

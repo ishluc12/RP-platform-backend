@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const StudentEventController = require('../../controllers/student/studentEventController');
 const { authenticateToken } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/roleAuth');
+const { requireRoles } = require('../../middleware/roleAuth');
 
 // Apply authentication and role middleware to all routes
 router.use(authenticateToken);
-router.use(requireRole(['student', 'lecturer', 'admin', 'sys_admin']));
+router.use(requireRoles('student', 'lecturer', 'admin', 'sys_admin'));
 
 // Student event routes (read-only access)
 router.get('/', StudentEventController.getAllEvents);

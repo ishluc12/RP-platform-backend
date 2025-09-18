@@ -7,36 +7,31 @@ const { logger } = require('../../utils/logger');
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id; // Renamed lecturerId to staffId
-        const { slots } = req.body; // [{ day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot, slot_duration_minutes, is_active, availability_type, valid_from, valid_to }]
+        const { day_of_week, start_time, end_time, max_regular_students, max_emergency_students, allow_emergency, is_active } = req.body; // Expect single slot directly
 
-        if (!Array.isArray(slots) || slots.length === 0) {
-            return errorResponse(res, 400, 'Slots array is required');
+        if (!day_of_week || !start_time || !end_time) {
+            return errorResponse(res, 400, 'day_of_week, start_time, and end_time are required');
         }
 
-        const dayMap = {
-            'Monday': 1,
-            'Tuesday': 2,
-            'Wednesday': 3,
-            'Thursday': 4,
-            'Friday': 5
-        };
-
-        const createdSlots = [];
-        for (const slot of slots) {
-            const numericDayOfWeek = dayMap[slot.day_of_week];
-            if (numericDayOfWeek === undefined) {
-                return errorResponse(res, 400, `Invalid day_of_week: ${slot.day_of_week}. Must be Monday-Friday.`);
-            }
-
-            if (!slot.start_time || !slot.end_time) {
-                return errorResponse(res, 400, 'Each slot must include start_time and end_time');
-            }
-            const result = await StaffAvailability.create({ ...slot, day_of_week: numericDayOfWeek, staff_id: staffId }); // Pass all new fields
-            if (!result.success) throw new Error(result.error);
-            createdSlots.push(result.data);
+        // Validate day_of_week is between 1 and 7
+        if (day_of_week < 1 || day_of_week > 7) {
+            return errorResponse(res, 400, 'day_of_week must be between 1 and 7 (1=Monday, 7=Sunday)');
         }
 
-        response(res, 201, 'Availability slots created successfully', createdSlots);
+        const result = await StaffAvailability.create({
+            staff_id: staffId,
+            day_of_week,
+            start_time,
+            end_time,
+            max_regular_students: max_regular_students || 0, // Default to 0 if not provided
+            max_emergency_students: max_emergency_students || 0, // Default to 0 if not provided
+            allow_emergency: allow_emergency !== undefined ? allow_emergency : false, // Default to false
+            is_active: is_active !== undefined ? is_active : true, // Default to true
+        });
+
+        if (!result.success) throw new Error(result.error);
+
+        response(res, 201, 'Availability slot created successfully', result.data);
     } catch (error) {
         logger.error('Error creating availability:', error.message);
         errorResponse(res, 500, 'Internal server error', error.message);
@@ -47,9 +42,20 @@ const createAvailability = async (req, res) => {
 const getMyAvailability = async (req, res) => {
     try {
         const staffId = req.user.id; // Renamed lecturerId to staffId
-        const { start_date, end_date } = req.query;
+        const { day_of_week } = req.query; // Accept day_of_week as query parameter
 
-        const result = await StaffAvailability.findByStaffId(staffId); // Renamed getByStaff to findByStaffId, removed date filters
+        let result;
+        if (day_of_week) {
+            // Validate day_of_week
+            const numericDayOfWeek = parseInt(day_of_week, 10);
+            if (isNaN(numericDayOfWeek) || numericDayOfWeek < 1 || numericDayOfWeek > 7) {
+                return errorResponse(res, 400, 'Invalid day_of_week. Must be a number between 1 and 7.');
+            }
+            result = await StaffAvailability.findByStaffIdAndDay(staffId, numericDayOfWeek);
+        } else {
+            result = await StaffAvailability.findByStaffId(staffId);
+        }
+
         if (!result.success) throw new Error(result.error);
 
         response(res, 200, 'Staff availability fetched successfully', result.data);

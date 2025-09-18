@@ -11,7 +11,7 @@ const {
 
 // All routes require authentication and lecturer/admin role
 router.use(authenticateToken);
-router.use(requireLecturerOrAdmin());
+router.use(requireLecturerOrAdmin);
 
 // Create/update availability slots (bulk)
 router.post('/', createAvailability);

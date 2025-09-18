@@ -1,38 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const AdminForumController = require('../../controllers/admin/adminForumController');
 const { authenticateToken } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/roleAuth');
+const { requireAdmin } = require('../../middleware/roleAuth');
+const AdminForumController = require('../../controllers/admin/adminForumController');
 
-router.use(authenticateToken);
-router.use(requireRole(['admin', 'sys_admin']));
-
-// --- Admin Forum Routes ---
-
-// Get all forums
-router.get('/', AdminForumController.getAllForums);
-
-// Get a specific forum by ID
-router.get('/:id', AdminForumController.getForumById);
-
-// Update a forum
-router.put('/:id', AdminForumController.updateForum);
-
-// Delete a forum
-router.delete('/:id', AdminForumController.deleteForum);
-
-// --- Admin Forum Post Routes ---
-
-// Get all posts for a specific forum
-router.get('/:forumId/posts', AdminForumController.getForumPostsByForum);
-
-// Get a specific forum post by ID
-router.get('/posts/:postId', AdminForumController.getForumPostById);
-
-// Update a forum post
-router.put('/posts/:postId', AdminForumController.updateForumPost);
-
-// Delete a forum post
-router.delete('/posts/:postId', AdminForumController.deleteForumPost);
+// Forum management routes
+router.get('/', authenticateToken, requireAdmin, AdminForumController.getAllForums);
+router.get('/:id', authenticateToken, requireAdmin, AdminForumController.getForumById);
+router.put('/:id', authenticateToken, requireAdmin, AdminForumController.updateForum);
+router.delete('/:id', authenticateToken, requireAdmin, AdminForumController.deleteForum);
+router.get('/:forumId/posts', authenticateToken, requireAdmin, AdminForumController.getForumPostsByForum);
+router.get('/posts/:postId', authenticateToken, requireAdmin, AdminForumController.getForumPostById);
+router.put('/posts/:postId', authenticateToken, requireAdmin, AdminForumController.updateForumPost);
+router.delete('/posts/:postId', authenticateToken, requireAdmin, AdminForumController.deleteForumPost);
 
 module.exports = router;

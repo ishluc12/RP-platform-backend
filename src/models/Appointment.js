@@ -130,6 +130,55 @@ class Appointment {
         }
     }
 
+    /**
+     * Get all appointments with pagination and optional filters
+     * @param {number} [page=1]
+     * @param {number} [limit=10]
+     * @param {Object} [filters={}]
+     * @returns {Promise<Object>}
+     */
+    static async findAll(page = 1, limit = 10, filters = {}) {
+        try {
+            let query = supabase.from('appointments').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+
+            // Apply filters
+            if (filters.status) {
+                query = query.eq('status', filters.status);
+            }
+            if (filters.requester_id) {
+                query = query.eq('requester_id', filters.requester_id);
+            }
+            if (filters.appointee_id) {
+                query = query.eq('appointee_id', filters.appointee_id);
+            }
+            if (filters.appointment_time_from) {
+                query = query.gte('appointment_time', filters.appointment_time_from);
+            }
+            if (filters.appointment_time_to) {
+                query = query.lte('appointment_time', filters.appointment_time_to);
+            }
+
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error, count } = await query.range(from, to);
+            if (error) throw error;
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    totalPages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
     static async cancel(id, byUserId) {
         try {
             const { data: appt, error: findErr } = await supabase

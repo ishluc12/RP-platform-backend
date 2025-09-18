@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const LecturerEventController = require('../../controllers/lecturer/lecturerEventController');
 const { authenticateToken } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/roleAuth');
+const { requireRoles } = require('../../middleware/roleAuth');
 // const { validateEvent, validateEventUpdate } = require('../../middleware/validation'); // Removed for now
 
 // Apply authentication and role middleware to all routes
 router.use(authenticateToken);
-router.use(requireRole(['lecturer', 'admin', 'sys_admin']));
+router.use(requireRoles('lecturer', 'admin', 'sys_admin'));
 
 // Lecturer event management routes
 router.post('/', LecturerEventController.createEvent);

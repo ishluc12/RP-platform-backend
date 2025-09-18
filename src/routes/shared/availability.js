@@ -6,7 +6,7 @@ const { supabase } = require('../../config/database');
 
 // Students can view a lecturer's availability by lecturer ID
 router.use(authenticateToken);
-router.use(requireStudentOrAdmin());
+router.use(requireStudentOrAdmin);
 
 // GET /api/shared/availability/:lecturerId
 router.get('/:staffId', async (req, res) => {

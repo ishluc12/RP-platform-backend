@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const StudentDashboardController = require('../../controllers/student/studentDashboardController');
 const { authenticateToken } = require('../../middleware/auth');
-const { requireRole } = require('../../middleware/roleAuth');
+const { requireRoles } = require('../../middleware/roleAuth');
 
 router.use(authenticateToken);
-router.use(requireRole(['student', 'admin', 'sys_admin']));
+router.use(requireRoles('student', 'admin', 'sys_admin'));
 
 // Get a summary of key metrics for the student dashboard
 router.get('/summary', StudentDashboardController.getDashboardSummary);
