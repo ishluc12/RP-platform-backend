@@ -34,11 +34,25 @@ class Appointment {
         try {
             const { data, error } = await supabase
                 .from('appointments')
-                .select('*')
+                .select(`
+                    *,
+                    requester:users!requester_id(id, name, email),
+                    appointee:users!appointee_id(id, name, email)
+                `)
                 .eq('requester_id', requesterId)
                 .order('appointment_time', { ascending: true });
             if (error) throw error;
-            return { success: true, data };
+
+            // Format appointments to include appointee information
+            const formattedAppointments = data.map(appt => ({
+                ...appt,
+                appointee_name: appt.appointee?.name || 'Unknown Lecturer',
+                appointee_email: appt.appointee?.email || '',
+                requester: appt.requester,
+                appointee: appt.appointee
+            }));
+
+            return { success: true, data: formattedAppointments };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -48,11 +62,25 @@ class Appointment {
         try {
             const { data, error } = await supabase
                 .from('appointments')
-                .select('*')
+                .select(`
+                    *,
+                    requester:users!requester_id(id, name, email),
+                    appointee:users!appointee_id(id, name, email)
+                `)
                 .eq('appointee_id', appointeeId)
                 .order('appointment_time', { ascending: true });
             if (error) throw error;
-            return { success: true, data };
+
+            // Format appointments to include requester information
+            const formattedAppointments = data.map(appt => ({
+                ...appt,
+                student_name: appt.requester?.name || 'Unknown Student',
+                student_email: appt.requester?.email || '',
+                requester: appt.requester,
+                appointee: appt.appointee
+            }));
+
+            return { success: true, data: formattedAppointments };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -192,7 +220,7 @@ class Appointment {
             }
             const { data, error } = await supabase
                 .from('appointments')
-                .update({ status: 'declined' })
+                .update({ status: 'cancelled' })
                 .eq('id', id)
                 .select('*')
                 .single();

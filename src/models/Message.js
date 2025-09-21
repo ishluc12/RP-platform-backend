@@ -63,8 +63,8 @@ class Message {
                     sent_at,
                     is_read,
                     message_type,
-                    sender:sender_id(id, name, profile_picture),
-                    receiver:receiver_id(id, name, profile_picture)
+                    sender:users!sender_id(id, name, profile_picture),
+                    receiver:users!receiver_id(id, name, profile_picture)
                 `)
                 .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`)
                 .eq('is_group', false)
@@ -86,7 +86,8 @@ class Message {
                 message_type: msg.message_type,
                 sender_name: msg.sender?.name || 'Unknown',
                 senderName: msg.sender?.name || 'Unknown', // Alias for compatibility
-                sender_profile_picture: msg.sender?.profile_picture
+                sender_profile_picture: msg.sender?.profile_picture,
+                sender: msg.sender // Include full sender object
             }));
 
             return {
@@ -124,7 +125,7 @@ class Message {
                     sent_at,
                     is_read,
                     message_type,
-                    sender:sender_id(id, name, profile_picture)
+                    sender:users!sender_id(id, name, profile_picture)
                 `)
                 .eq('group_id', groupId)
                 .eq('is_group', true)
@@ -146,7 +147,8 @@ class Message {
                 message_type: msg.message_type,
                 sender_name: msg.sender?.name || 'Unknown',
                 senderName: msg.sender?.name || 'Unknown', // Alias for compatibility
-                sender_profile_picture: msg.sender?.profile_picture
+                sender_profile_picture: msg.sender?.profile_picture,
+                sender: msg.sender // Include full sender object
             }));
 
             return {
@@ -179,8 +181,8 @@ class Message {
                     receiver_id,
                     message,
                     sent_at,
-                    sender:sender_id(id, name, profile_picture),
-                    receiver:receiver_id(id, name, profile_picture)
+                    sender:users!sender_id(id, name, profile_picture),
+                    receiver:users!receiver_id(id, name, profile_picture)
                 `)
                 .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
                 .eq('is_group', false)
