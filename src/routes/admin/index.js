@@ -7,6 +7,7 @@ const analyticsRoutes = require('./analytics');
 const forumRoutes = require('./forums');
 const dashboardRoutes = require('./dashboard');
 const surveyRoutes = require('./surveys');
+const appointmentRoutes = require('./appointments');
 
 // Mount admin routes
 router.use('/users', userRoutes);
@@ -15,5 +16,6 @@ router.use('/analytics', analyticsRoutes);
 router.use('/forums', forumRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/surveys', surveyRoutes);
+router.use('/appointments', appointmentRoutes);
 
 module.exports = router;

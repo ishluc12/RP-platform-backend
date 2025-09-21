@@ -1,0 +1,304 @@
+const Appointment = require('../../models/Appointment');
+const User = require('../../models/User');
+const { supabase } = require('../../config/database');
+
+// Get all appointments (admin can see ALL appointments in system)
+exports.getAllAppointments = async (req, res) => {
+  try {
+    const { q, status, date, page = 1, limit = 10, lecturer, student } = req.query;
+
+    // Build filters for Supabase
+    let filters = {};
+    if (status) {
+      filters.status = status;
+    }
+    if (date) {
+      filters.date = date;
+    }
+
+    // Get appointments using the model's findAll method
+    const result = await Appointment.findAll(parseInt(page), parseInt(limit), filters);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch appointments',
+        error: result.error
+      });
+    }
+
+    let appointments = result.data;
+
+    // Get all unique user IDs from appointments
+    const userIds = [...new Set([
+      ...appointments.map(apt => apt.requester_id),
+      ...appointments.map(apt => apt.appointee_id)
+    ].filter(Boolean))];
+
+    // Fetch user details
+    let usersMap = {};
+    if (userIds.length > 0) {
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, role')
+        .in('id', userIds);
+
+      if (!usersError && users) {
+        usersMap = users.reduce((acc, user) => {
+          acc[user.id] = {
+            name: `${user.first_name} ${user.last_name}`.trim(),
+            role: user.role
+          };
+          return acc;
+        }, {});
+      }
+    }
+
+    // Transform for frontend with actual user names
+    let transformedAppointments = appointments.map(apt => {
+      const requester = usersMap[apt.requester_id] || { name: 'Unknown User', role: 'unknown' };
+      const appointee = usersMap[apt.appointee_id] || { name: 'Unknown User', role: 'unknown' };
+
+      // Determine which is lecturer and which is student based on roles
+      let lecturer_name = 'Unknown';
+      let student_name = 'Unknown';
+
+      if (requester.role === 'lecturer' || requester.role === 'staff') {
+        lecturer_name = requester.name;
+        student_name = appointee.name;
+      } else if (appointee.role === 'lecturer' || appointee.role === 'staff') {
+        lecturer_name = appointee.name;
+        student_name = requester.name;
+      } else {
+        // Fallback: assume requester is student, appointee is lecturer
+        student_name = requester.name;
+        lecturer_name = appointee.name;
+      }
+
+      return {
+        id: apt.id,
+        _id: apt.id,
+        lecturer_name,
+        student_name,
+        date: apt.appointment_time?.split('T')[0] || apt.appointment_time,
+        time: apt.appointment_time?.split('T')[1]?.split('.')[0] || '',
+        appointment_time: apt.appointment_time,
+        status: apt.status,
+        reason: apt.reason,
+        location: apt.location,
+        meeting_type: apt.meeting_type,
+        meeting_link: apt.meeting_link,
+        duration_minutes: apt.duration_minutes,
+        notes: apt.notes,
+        requester_id: apt.requester_id,
+        appointee_id: apt.appointee_id,
+        created_at: apt.created_at,
+        updated_at: apt.updated_at
+      };
+    });
+
+    // Apply frontend filters if specified
+    if (lecturer) {
+      transformedAppointments = transformedAppointments.filter(apt =>
+        apt.lecturer_name.toLowerCase().includes(lecturer.toLowerCase())
+      );
+    }
+    if (student) {
+      transformedAppointments = transformedAppointments.filter(apt =>
+        apt.student_name.toLowerCase().includes(student.toLowerCase())
+      );
+    }
+    if (q) {
+      transformedAppointments = transformedAppointments.filter(apt =>
+        apt.lecturer_name.toLowerCase().includes(q.toLowerCase()) ||
+        apt.student_name.toLowerCase().includes(q.toLowerCase()) ||
+        apt.reason?.toLowerCase().includes(q.toLowerCase())
+      );
+    }
+
+    res.json({
+      success: true,
+      data: transformedAppointments,
+      pagination: result.pagination
+    });
+  } catch (error) {
+    console.error('Error fetching admin appointments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch appointments',
+      error: error.message
+    });
+  }
+};
+
+// Get appointment by ID
+exports.getAppointmentById = async (req, res) => {
+  try {
+    const result = await Appointment.findById(req.params.id);
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Error fetching appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch appointment',
+      error: error.message
+    });
+  }
+};
+
+// Update appointment status
+exports.updateAppointmentStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { id } = req.params;
+
+    const validStatuses = ['pending', 'confirmed', 'active', 'completed', 'cancelled', 'declined'];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status value'
+      });
+    }
+
+    const result = await Appointment.update(id, { status });
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found or update failed',
+        error: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Appointment status updated successfully',
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Error updating appointment status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update appointment status',
+      error: error.message
+    });
+  }
+};
+
+// Delete appointment
+exports.deleteAppointment = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Appointment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete appointment',
+      error: error.message
+    });
+  }
+};
+
+// Get appointment statistics
+exports.getAppointmentStats = async (req, res) => {
+  try {
+    // Get total count
+    const { count: total, error: countError } = await supabase
+      .from('appointments')
+      .select('*', { count: 'exact', head: true });
+
+    if (countError) throw countError;
+
+    // Get stats by status
+    const { data: statusStats, error: statsError } = await supabase
+      .from('appointments')
+      .select('status');
+
+    if (statsError) throw statsError;
+
+    // Count by status
+    const byStatus = statusStats.reduce((acc, appt) => {
+      acc[appt.status] = (acc[appt.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        byStatus
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching appointment stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch appointment statistics',
+      error: error.message
+    });
+  }
+};
+
+// Search appointments (additional search endpoint if needed)
+exports.searchAppointments = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query required'
+      });
+    }
+
+    // Simple search in reason field for now
+    const { data: appointments, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .ilike('reason', `%${q}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: appointments
+    });
+  } catch (error) {
+    console.error('Error searching appointments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search appointments',
+      error: error.message
+    });
+  }
+};
