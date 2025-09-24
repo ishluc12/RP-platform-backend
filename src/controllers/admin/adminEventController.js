@@ -1,6 +1,7 @@
 const Event = require('../../models/Event');
 const { logger } = require('../../utils/logger');
 const { response, errorResponse } = require('../../utils/responseHandlers');
+const { supabase } = require('../../config/database');
 
 class AdminEventController {
     // Get all events with admin privileges (no restrictions)
@@ -28,6 +29,60 @@ class AdminEventController {
             return response(res, 200, 'Events retrieved successfully', result.data, result.pagination);
         } catch (error) {
             logger.error('Error in admin getAllEvents:', error);
+            return errorResponse(res, 500, 'Internal server error', error.message);
+        }
+    }
+
+    // Create new event (admin)
+    static async createEvent(req, res) {
+        try {
+            const { 
+                title, 
+                description, 
+                event_date, 
+                location,
+                max_participants, 
+                registration_required 
+            } = req.body;
+
+            // Get user ID from authenticated request
+            const created_by = req.user?.id || req.user?.user_id;
+
+            if (!created_by) {
+                return errorResponse(res, 401, 'User not authenticated');
+            }
+
+            // Validate required fields
+            if (!title || !event_date || !location) {
+                return errorResponse(res, 400, 'Title, event date, and location are required');
+            }
+
+            // Create event data that matches your database schema
+            const eventData = {
+                title: title.trim(),
+                description: description?.trim() || null,
+                event_date,
+                location: location.trim(),
+                created_by,
+                max_participants: max_participants ? parseInt(max_participants) : null,
+                registration_required: !!registration_required
+            };
+
+            // Use direct Supabase insert to match your schema exactly
+            const { data, error } = await supabase
+                .from('events')
+                .insert([eventData])
+                .select()
+                .single();
+
+            if (error) {
+                logger.error('Supabase error creating event:', error);
+                return errorResponse(res, 500, 'Failed to create event', error.message);
+            }
+
+            return response(res, 201, 'Event created successfully', data);
+        } catch (error) {
+            logger.error('Error in admin createEvent:', error);
             return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }

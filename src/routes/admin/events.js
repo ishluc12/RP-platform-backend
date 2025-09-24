@@ -13,5 +13,6 @@ router.get('/user/:userId', authenticateToken, requireAdmin, AdminEventControlle
 router.put('/:id', authenticateToken, requireAdmin, AdminEventController.updateEvent);
 router.delete('/:id', authenticateToken, requireAdmin, AdminEventController.deleteEvent);
 router.delete('/bulk', authenticateToken, requireAdmin, AdminEventController.bulkDeleteEvents);
+router.post('/', authenticateToken, requireAdmin, AdminEventController.createEvent);
 
 module.exports = router;
