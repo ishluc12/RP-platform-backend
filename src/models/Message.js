@@ -63,8 +63,8 @@ class Message {
                     sent_at,
                     is_read,
                     message_type,
-                    sender:sender_id(id, name, profile_picture),
-                    receiver:receiver_id(id, name, profile_picture)
+                    sender:users!sender_id(id, name, profile_picture),
+                    receiver:users!receiver_id(id, name, profile_picture)
                 `)
                 .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`)
                 .eq('is_group', false)
@@ -124,7 +124,7 @@ class Message {
                     sent_at,
                     is_read,
                     message_type,
-                    sender:sender_id(id, name, profile_picture)
+                    sender:users!sender_id(id, name, profile_picture)
                 `)
                 .eq('group_id', groupId)
                 .eq('is_group', true)
@@ -179,8 +179,8 @@ class Message {
                     receiver_id,
                     message,
                     sent_at,
-                    sender:sender_id(id, name, profile_picture),
-                    receiver:receiver_id(id, name, profile_picture)
+                    sender:users!sender_id(id, name, profile_picture),
+                    receiver:users!receiver_id(id, name, profile_picture)
                 `)
                 .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
                 .eq('is_group', false)
@@ -247,7 +247,7 @@ class Message {
                     group_id,
                     message,
                     sent_at,
-                    sender:sender_id(name, profile_picture)
+                    sender:users!sender_id(name, profile_picture)
                 `)
                 .in('group_id', groupIds)
                 .eq('is_group', true)
@@ -367,8 +367,8 @@ class Message {
                     message,
                     sent_at,
                     is_group,
-                    sender:sender_id(name, profile_picture),
-                    receiver:receiver_id(name, profile_picture)
+                    sender:users!sender_id(name, profile_picture),
+                    receiver:users!receiver_id(name, profile_picture)
                 `)
                 .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
                 .ilike('message', `%${searchQuery}%`)
