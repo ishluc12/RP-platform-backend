@@ -4,8 +4,8 @@ const { logger } = require('../utils/logger');
 class Event {
     static async create(eventData) {
         try {
-            const { title, description, event_date, location, created_by, max_participants = null, registration_required = false, department = null, is_college_wide = false } = eventData;
-            const insertData = { title, description, event_date, location, created_by, max_participants, registration_required, department, is_college_wide };
+            const { title, description, event_date, location, created_by, max_participants = null, registration_required = false } = eventData;
+            const insertData = { title, description, event_date, location, created_by, max_participants, registration_required };
             const { data, error } = await supabase
                 .from('events')
                 .insert([insertData])
@@ -30,8 +30,6 @@ class Event {
                 .from('events')
                 .select(`
                     *,
-                    department,
-                    is_college_wide,
                     users!events_created_by_fkey(
                         name,
                         email
@@ -60,15 +58,13 @@ class Event {
             let query = supabase.from('events')
                 .select(`
                     *,
-                    department,
-                    is_college_wide,
                     users!events_created_by_fkey(
                         name,
                         email
                     )
                 `, { count: 'exact' });
 
-            // Apply filters
+            // Apply filters (only for columns that exist)
             if (filters.title) {
                 query = query.ilike('title', `%${filters.title}%`);
             }
@@ -83,12 +79,6 @@ class Event {
             }
             if (filters.event_date_to) {
                 query = query.lte('event_date', filters.event_date_to);
-            }
-            if (filters.department) {
-                query = query.eq('department', filters.department);
-            }
-            if (filters.is_college_wide !== undefined) {
-                query = query.eq('is_college_wide', filters.is_college_wide);
             }
 
             const offset = (page - 1) * limit;
@@ -127,9 +117,7 @@ class Event {
                 'event_date',
                 'location',
                 'max_participants',
-                'registration_required',
-                'department',
-                'is_college_wide'
+                'registration_required'
             ];
             const filteredUpdate = {};
             allowedFields.forEach(field => {
@@ -188,8 +176,6 @@ class Event {
                 .from('events')
                 .select(`
                     *,
-                    department,
-                    is_college_wide,
                     users!events_created_by_fkey(
                         name,
                         email
@@ -217,8 +203,6 @@ class Event {
                 .from('events')
                 .select(`
                     *,
-                    department,
-                    is_college_wide,
                     users!events_created_by_fkey(
                         name,
                         email
@@ -247,8 +231,6 @@ class Event {
                 .from('events')
                 .select(`
                     *,
-                    department,
-                    is_college_wide,
                     users!events_created_by_fkey(
                         name,
                         email
@@ -287,8 +269,6 @@ class Event {
                 .from('events')
                 .select(`
                     *,
-                    department,
-                    is_college_wide,
                     users!events_created_by_fkey(
                         name,
                         email

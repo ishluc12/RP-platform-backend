@@ -13,7 +13,7 @@ const { logger } = require('../../utils/logger');
  * @param {Object} res - Express response object.
  */
 const createEvent = async (req, res) => {
-    const { title, description, event_date, location, max_participants, registration_required, department, is_college_wide } = req.body;
+    const { title, description, event_date, location, max_participants, registration_required } = req.body;
     const created_by = req.user.id;
 
     if (!title || !event_date || !location) {
@@ -21,7 +21,7 @@ const createEvent = async (req, res) => {
     }
 
     try {
-        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required, department, is_college_wide });
+        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required });
         if (!result.success) {
             logger.error('Error creating event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to create event');
@@ -29,36 +29,8 @@ const createEvent = async (req, res) => {
 
         const newEvent = result.data;
 
-        // Create notifications for the new event
-        if (newEvent.is_college_wide) {
-            // Notify all users
-            const allUsersResult = await User.findAll(1, 1000); // Fetch a reasonable limit of users
-            if (allUsersResult.success && allUsersResult.data.length > 0) {
-                for (const user of allUsersResult.data) {
-                    await NotificationModel.createNotification({
-                        user_id: user.id,
-                        type: 'event_college_wide_new',
-                        content: `New college-wide event: ${newEvent.title} on ${new Date(newEvent.event_date).toLocaleDateString()}`,
-                        source_id: newEvent.id,
-                        source_table: 'events',
-                    });
-                }
-            }
-        } else if (newEvent.department) {
-            // Notify users in the specific department
-            const departmentUsersResult = await User.findAll(1, 1000, { department: newEvent.department });
-            if (departmentUsersResult.success && departmentUsersResult.data.length > 0) {
-                for (const user of departmentUsersResult.data) {
-                    await NotificationModel.createNotification({
-                        user_id: user.id,
-                        type: 'event_department_new',
-                        content: `New department event: ${newEvent.title} on ${new Date(newEvent.event_date).toLocaleDateString()}`,
-                        source_id: newEvent.id,
-                        source_table: 'events',
-                    });
-                }
-            }
-        }
+        // Simplified notification logic - just log the event creation
+        logger.info(`New event created: ${newEvent.title} by user ${created_by}`);
 
         response(res, 201, 'Event created successfully', result.data);
     } catch (error) {
@@ -139,49 +111,14 @@ const updateEvent = async (req, res) => {
         }
 
         const updatedEvent = result.data;
-
-        // Notification logic for updated event
         const oldEvent = eventResult.data; // eventResult was fetched earlier
 
-        // Check for changes in college-wide status or department
-        const isCollegeWideChanged = oldEvent.is_college_wide !== updatedEvent.is_college_wide;
-        const departmentChanged = oldEvent.department !== updatedEvent.department;
+        // Check for basic event details changes
         const eventDetailsChanged = oldEvent.title !== updatedEvent.title || oldEvent.event_date !== updatedEvent.event_date;
 
-        if (isCollegeWideChanged && updatedEvent.is_college_wide) {
-            // Event became college-wide or was college-wide and changed
-            const allUsersResult = await User.findAll(1, 1000);
-            if (allUsersResult.success && allUsersResult.data.length > 0) {
-                for (const user of allUsersResult.data) {
-                    await NotificationModel.createNotification({
-                        user_id: user.id,
-                        type: 'event_college_wide_update',
-                        content: `College-wide event updated: ${updatedEvent.title} on ${new Date(updatedEvent.event_date).toLocaleDateString()}`,
-                        source_id: updatedEvent.id,
-                        source_table: 'events',
-                    });
-                }
-            }
-        } else if (departmentChanged || (updatedEvent.department && !oldEvent.department)) {
-            // Event changed department or became department-specific
-            const targetDepartment = updatedEvent.department || oldEvent.department;
-            if (targetDepartment) {
-                const departmentUsersResult = await User.findAll(1, 1000, { department: targetDepartment });
-                if (departmentUsersResult.success && departmentUsersResult.data.length > 0) {
-                    for (const user of departmentUsersResult.data) {
-                        await NotificationModel.createNotification({
-                            user_id: user.id,
-                            type: 'event_department_update',
-                            content: `Department event updated: ${updatedEvent.title} on ${new Date(updatedEvent.event_date).toLocaleDateString()} (Department: ${targetDepartment})`,
-                            source_id: updatedEvent.id,
-                            source_table: 'events',
-                        });
-                    }
-                }
-            }
-        } else if (eventDetailsChanged) {
-            // Generic update notification for event participants if no other specific notification was sent
-            const participantsResult = await Event.getEventParticipants(id); // Assuming this fetches user_ids
+        if (eventDetailsChanged) {
+            // Generic update notification for event participants if details changed
+            const participantsResult = await Event.getEventParticipants(id);
             if (participantsResult.success && participantsResult.data.length > 0) {
                 for (const participant of participantsResult.data) {
                     await NotificationModel.createNotification({

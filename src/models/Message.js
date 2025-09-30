@@ -249,7 +249,7 @@ class Message {
                     group_id,
                     message,
                     sent_at,
-                    sender:sender_id(name, profile_picture)
+                    sender:users!sender_id(name, profile_picture)
                 `)
                 .in('group_id', groupIds)
                 .eq('is_group', true)
@@ -369,8 +369,8 @@ class Message {
                     message,
                     sent_at,
                     is_group,
-                    sender:sender_id(name, profile_picture),
-                    receiver:receiver_id(name, profile_picture)
+                    sender:users!sender_id(name, profile_picture),
+                    receiver:users!receiver_id(name, profile_picture)
                 `)
                 .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
                 .ilike('message', `%${searchQuery}%`)

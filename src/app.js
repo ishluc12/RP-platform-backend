@@ -46,6 +46,10 @@ app.use('/api/student/appointments', studentAppointmentRoutes);
 const sharedRoutes = require('./routes/shared/index');
 app.use('/api/shared', sharedRoutes);
 
+// Admin routes
+const adminRoutes = require('./routes/admin');
+app.use('/api/admin', adminRoutes);
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
