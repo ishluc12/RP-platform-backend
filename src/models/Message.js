@@ -86,7 +86,8 @@ class Message {
                 message_type: msg.message_type,
                 sender_name: msg.sender?.name || 'Unknown',
                 senderName: msg.sender?.name || 'Unknown', // Alias for compatibility
-                sender_profile_picture: msg.sender?.profile_picture
+                sender_profile_picture: msg.sender?.profile_picture,
+                sender: msg.sender // Include full sender object
             }));
 
             return {
@@ -146,7 +147,8 @@ class Message {
                 message_type: msg.message_type,
                 sender_name: msg.sender?.name || 'Unknown',
                 senderName: msg.sender?.name || 'Unknown', // Alias for compatibility
-                sender_profile_picture: msg.sender?.profile_picture
+                sender_profile_picture: msg.sender?.profile_picture,
+                sender: msg.sender // Include full sender object
             }));
 
             return {
