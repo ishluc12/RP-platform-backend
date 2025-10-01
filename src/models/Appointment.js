@@ -82,6 +82,7 @@ class Appointment {
 
             return { success: true, data: formattedAppointments };
         } catch (error) {
+            console.error('Error in Appointment.listByAppointee:', error.message); // Add detailed logging
             return { success: false, error: error.message };
         }
     }

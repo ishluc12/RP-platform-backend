@@ -5,6 +5,8 @@
  * Accepts both 'admin' and 'administrator' roles
  */
 const requireAdmin = (req, res, next) => {
+    console.log('User attempting to access lecturer/admin route:', req.user);
+
     if (!req.user) {
         return res.status(401).json({
             success: false,
@@ -98,6 +100,7 @@ const requireStudentOrAdmin = (req, res, next) => {
  * Check if user has lecturer or admin privileges
  */
 const requireLecturerOrAdmin = (req, res, next) => {
+    console.log('User attempting to access lecturer/admin route:', req.user);
     if (!req.user) {
         return res.status(401).json({
             success: false,
@@ -128,6 +131,9 @@ const requireRoles = (...allowedRoles) => {
                 message: 'Authentication required'
             });
         }
+
+        console.log(`Checking role for user: ${req.user.email} (ID: ${req.user.id}, Role: ${req.user.role})`);
+        console.log(`Allowed roles for this route: ${allowedRoles.join(', ')}`);
 
         if (!allowedRoles.includes(req.user.role)) {
             return res.status(403).json({

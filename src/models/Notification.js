@@ -42,60 +42,52 @@ class NotificationModel {
 
             const { data, error, count } = await supabase
                 .from('notifications')
-                .select(`
-                    *,
-                    events:source_id(
-                        id,
-                        title,
-                        description,
-                        event_date,
-                        location,
-                        department,
-                        is_college_wide
-                    ),
-                    messages:source_id(
-                        id,
-                        sender_id,
-                        message,
-                        sent_at,
-                        sender:sender_id(id, name, profile_picture)
-                    )
-                `, { count: 'exact' })
+                .select('*', { count: 'exact' })
                 .eq('user_id', user_id)
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
             if (error) throw error;
 
-            // Post-process data to flatten source details
-            const formattedNotifications = data.map(notification => {
-                let source_details = null;
-                if (notification.source_table === 'events' && notification.events) {
-                    source_details = Array.isArray(notification.events) ? notification.events[0] : notification.events;
-                    delete notification.events;
-                } else if (notification.source_table === 'messages' && notification.messages) {
-                    source_details = Array.isArray(notification.messages) ? notification.messages[0] : notification.messages;
-                    if (source_details && source_details.sender) {
-                        source_details.sender_name = source_details.sender.name;
-                        source_details.sender_profile_picture = source_details.sender.profile_picture;
-                        delete source_details.sender;
-                    }
-                    delete notification.messages;
-                }
-
-                return { ...notification, source_details };
-            });
-
             return {
                 success: true,
                 data: {
-                    notifications: formattedNotifications,
+                    notifications: data || [],
                     pagination: {
                         page,
                         limit,
                         total: count,
                         pages: Math.ceil(count / limit)
                     }
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * List unread notifications for a specific user
+     * @param {string} user_id
+     * @returns {Promise<Object>}
+     */
+    static async listUnreadForUser(user_id) {
+        try {
+            const { data, error, count } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact' })
+                .eq('user_id', user_id)
+                .eq('is_read', false) // Filter for unread notifications
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            return {
+                success: true,
+                data: data || [], // Return just the array of notifications
+                pagination: { // Optional: You might not need pagination for unread, but keeping structure consistent
+                    total: count,
+                    // page, limit are not used in this specific query, but can be added if needed
                 }
             };
         } catch (error) {

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { requireStudentOrAdmin } = require('../../middleware/roleAuth');
-const { supabase } = require('../../config/database');
+const { pgPool } = require('../../config/database');
 
 // Students can view a lecturer's availability by lecturer ID
 router.use(authenticateToken);
@@ -16,15 +16,16 @@ router.get('/:staffId', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid staff ID' });
         }
 
-        const { data, error } = await supabase
-            .from('staff_availability')
-            .select('*')
-            .eq('staff_id', staffId)
-            .order('day_of_week', { ascending: true });
+        // Use PostgreSQL pool directly instead of Supabase client
+        const query = `
+            SELECT * FROM staff_availability 
+            WHERE staff_id = $1 
+            ORDER BY day_of_week ASC
+        `;
+        
+        const result = await pgPool.query(query, [staffId]);
 
-        if (error) throw error;
-
-        return res.json({ success: true, data });
+        return res.json({ success: true, data: result.rows });
     } catch (error) {
         console.error('Error fetching lecturer availability:', error);
         return res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -32,5 +33,3 @@ router.get('/:staffId', async (req, res) => {
 });
 
 module.exports = router;
-
-

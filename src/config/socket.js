@@ -42,7 +42,8 @@ const createSocketServer = (httpServer) => {
 
     // Connection handler
     io.on('connection', (socket) => {
-        console.log(`🔌 User ${socket.userId} (${socket.userRole}) connected`);
+        const userIdentifier = socket.userId ? `${socket.userId} (${socket.userRole})` : 'undefined (undefined)';
+        console.log(`🔌 User ${userIdentifier} connected`);
 
         // Join user to role-specific room
         socket.join(socket.userRole);

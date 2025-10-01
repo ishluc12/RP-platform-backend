@@ -29,7 +29,7 @@ app.get('/', (req, res) => {
 
 // Routes
 const authRoutes = require('./routes/auth');
-app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
 
 // Lecturer routes
 const lecturerAppointmentRoutes = require('./routes/lecturer/appointments');

@@ -70,13 +70,21 @@ class StaffDashboardController { // Renamed class
             const studentIds = [...new Set((allAppointmentsResult.data || []).map(appt => appt.requester_id))]; // Changed student_id to requester_id
 
             const recentStudentsDetails = await Promise.all(studentIds.slice(0, limit).map(async studentId => {
+                if (!studentId) {
+                    logger.warn('Encountered null or undefined studentId in recent students list.');
+                    return null;
+                }
                 const userResult = await User.findById(studentId);
-                return userResult.success ? {
+                if (!userResult.success) {
+                    logger.error(`Failed to find user with ID ${studentId}:`, userResult.error);
+                    return null;
+                }
+                return {
                     id: userResult.data.id,
                     name: userResult.data.name,
                     profile_picture: userResult.data.profile_picture,
                     email: userResult.data.email
-                } : null;
+                };
             }));
 
             response(res, 200, 'Recent students retrieved successfully', recentStudentsDetails.filter(Boolean));

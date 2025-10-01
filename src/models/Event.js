@@ -1,12 +1,15 @@
-const { supabase } = require('../config/database');
+const { supabase, supabaseAdmin } = require('../config/database');
 const { logger } = require('../utils/logger');
+
+// Use admin client to bypass RLS policies for server-side operations
+const db = supabaseAdmin || supabase;
 
 class Event {
     static async create(eventData) {
         try {
             const { title, description, event_date, location, created_by, max_participants = null, registration_required = false } = eventData;
             const insertData = { title, description, event_date, location, created_by, max_participants, registration_required };
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('events')
                 .insert([insertData])
                 .select()
@@ -26,7 +29,7 @@ class Event {
 
     static async findById(id) {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('events')
                 .select(`
                     *,
@@ -55,7 +58,7 @@ class Event {
 
     static async findAll(page = 1, limit = 10, filters = {}) {
         try {
-            let query = supabase.from('events')
+            let query = db.from('events')
                 .select(`
                     *,
                     users!events_created_by_fkey(
@@ -124,7 +127,7 @@ class Event {
                 if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];
             });
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('events')
                 .update(filteredUpdate)
                 .eq('id', id)
