@@ -8,12 +8,12 @@ const { requireRoles } = require('../../middleware/roleAuth');
 router.use(authenticateToken);
 
 // List lecturer's appointments
-router.get('/', requireRoles('lecturer', 'admin', 'sys_admin'), lecturerAppointmentController.list);
+router.get('/', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'), lecturerAppointmentController.list);
 
 // Get upcoming lecturer appointments
-router.get('/upcoming', requireRoles('lecturer', 'admin', 'sys_admin'), lecturerAppointmentController.getUpcoming);
+router.get('/upcoming', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'), lecturerAppointmentController.getUpcoming);
 
 // Update appointment status (accept/decline/complete)
-router.put('/:id/status', requireRoles('lecturer', 'admin', 'sys_admin'), lecturerAppointmentController.updateStatus);
+router.put('/:id/status', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'), lecturerAppointmentController.updateStatus);
 
 module.exports = router;

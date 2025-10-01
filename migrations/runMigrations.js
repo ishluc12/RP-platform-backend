@@ -18,7 +18,9 @@ async function runMigrations() {
 
     try {
         // Get all migration files, sort them to ensure order
-        const migrationFiles = ['007_create_all_tables_with_uuid.sql'];
+        const migrationFiles = fs.readdirSync(migrationsDir)
+            .filter(file => file.endsWith('.sql'))
+            .sort(); // Sort alphabetically to ensure order
 
         for (const file of migrationFiles) {
             const filePath = path.join(migrationsDir, file);

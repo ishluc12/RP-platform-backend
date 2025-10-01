@@ -7,7 +7,7 @@ const { logger } = require('../../utils/logger');
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
-        const { day_of_week, start_time, end_time, max_regular_students, max_emergency_students, allow_emergency, is_active } = req.body;
+        const { day_of_week, week_of_month, weeks, start_time, end_time, max_regular_students, max_emergency_students, allow_emergency, is_active } = req.body;
 
         // Validation
         if (!day_of_week || !start_time || !end_time) {
@@ -18,6 +18,33 @@ const createAvailability = async (req, res) => {
         const dayOfWeekNum = parseInt(day_of_week);
         if (isNaN(dayOfWeekNum) || dayOfWeekNum < 1 || dayOfWeekNum > 7) {
             return errorResponse(res, 400, 'day_of_week must be between 1 and 7 (1=Monday, 7=Sunday)');
+        }
+
+        // Validate week_of_month if provided
+        let weekOfMonth = null;
+        if (week_of_month !== undefined) {
+            const weekNum = parseInt(week_of_month);
+            if (isNaN(weekNum) || weekNum < 1 || weekNum > 5) {
+                return errorResponse(res, 400, 'week_of_month must be between 1 and 5');
+            }
+            weekOfMonth = weekNum;
+        }
+
+        // Handle weeks array for bulk creation
+        let weeksToCreate = [];
+        if (weeks && Array.isArray(weeks)) {
+            weeksToCreate = weeks.filter(w => {
+                const num = parseInt(w);
+                return !isNaN(num) && num >= 1 && num <= 5;
+            });
+            if (weeksToCreate.length === 0) {
+                return errorResponse(res, 400, 'weeks array must contain valid week numbers (1-5)');
+            }
+        } else if (weekOfMonth) {
+            weeksToCreate = [weekOfMonth];
+        } else {
+            // If no weeks specified, create for all weeks (backward compatibility)
+            weeksToCreate = [null];
         }
 
         // Format time properly - handle both HH:MM and HH:MM:SS
@@ -52,23 +79,30 @@ const createAvailability = async (req, res) => {
         const maxRegular = Math.max(0, Math.min(parseInt(max_regular_students) || 0, 10));
         const maxEmergency = Math.max(0, Math.min(parseInt(max_emergency_students) || 0, 5));
 
-        const result = await StaffAvailability.create({
-            staff_id: staffId,
-            day_of_week: dayOfWeekNum,
-            start_time: formattedStartTime,
-            end_time: formattedEndTime,
-            max_regular_students: maxRegular,
-            max_emergency_students: maxEmergency,
-            allow_emergency: allow_emergency !== undefined ? Boolean(allow_emergency) : false,
-            is_active: is_active !== undefined ? Boolean(is_active) : true,
-        });
+        // Create slots for each week
+        const createdSlots = [];
+        for (const week of weeksToCreate) {
+            const result = await StaffAvailability.create({
+                staff_id: staffId,
+                day_of_week: dayOfWeekNum,
+                week_of_month: week,
+                start_time: formattedStartTime,
+                end_time: formattedEndTime,
+                max_regular_students: maxRegular,
+                max_emergency_students: maxEmergency,
+                allow_emergency: allow_emergency !== undefined ? Boolean(allow_emergency) : false,
+                is_active: is_active !== undefined ? Boolean(is_active) : true,
+            });
 
-        if (!result.success) {
-            logger.error('Failed to create availability in DB:', result.error);
-            return errorResponse(res, 400, result.error);
+            if (!result.success) {
+                logger.error('Failed to create availability in DB:', result.error);
+                return errorResponse(res, 400, result.error);
+            }
+            createdSlots.push(result.data);
         }
 
-        response(res, 201, 'Availability slot created successfully', result.data);
+        logger.info(`Availability slots created for staff_id: ${staffId}, role: ${req.user.role}, day: ${dayOfWeekNum}, weeks: ${weeksToCreate.join(', ')}`);
+        response(res, 201, 'Availability slots created successfully', createdSlots);
     } catch (error) {
         logger.error('Error creating availability:', error.message);
         logger.error('Error stack:', error.stack);

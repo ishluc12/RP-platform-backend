@@ -5,7 +5,7 @@ const { authenticateToken } = require('../../middleware/auth');
 const { requireRoles } = require('../../middleware/roleAuth');
 
 router.use(authenticateToken);
-router.use(requireRoles('lecturer', 'admin', 'sys_admin'));
+router.use(requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'));
 
 // Get a summary of key metrics for the lecturer dashboard
 router.get('/summary', LecturerDashboardController.getDashboardSummary);

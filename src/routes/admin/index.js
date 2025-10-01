@@ -4,7 +4,7 @@ const { requireRoles } = require('../../middleware/roleAuth');
 
 // Middleware for all admin routes
 router.use(authenticateToken);
-router.use(requireRoles('admin', 'sys_admin'));
+router.use(requireRoles('admin', 'administrator', 'sys_admin'));
 
 // Import and mount admin sub-routes
 const userRoutes = require('./users');
@@ -16,6 +16,8 @@ const surveyRoutes = require('./surveys');
 const appointmentRoutes = require('./appointments');
 const announcementRoutes = require('./announcements');
 
+console.log('✅ Admin routes loaded - dashboard routes:', typeof dashboardRoutes);
+
 // Mount admin routes
 router.use('/users', userRoutes);
 router.use('/events', eventRoutes);
@@ -25,5 +27,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/surveys', surveyRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/announcements', announcementRoutes);
+
+console.log('✅ Admin dashboard routes mounted at /dashboard');
 
 module.exports = router;

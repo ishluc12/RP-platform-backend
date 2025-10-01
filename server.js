@@ -19,6 +19,8 @@ const sharedRoutes = require('./src/routes/shared');
 const studentRoutes = require('./src/routes/student');
 const lecturerRoutes = require('./src/routes/lecturer');
 const adminRoutes = require('./src/routes/admin');
+const chatbotRoutes = require('./src/routes/chatbot');
+const administratorRoutes = require('./src/routes/administrator');
 const pollsRoutes = require('./src/routes/shared/polls');
 const commentsRoutes = require('./src/routes/shared/comments');
 const forumsRoutes = require('./src/routes/shared/forums');
@@ -80,6 +82,8 @@ app.use('/api/shared', sharedRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/lecturer', lecturerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/administrator', administratorRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/shared/polls', pollsRoutes); // Polls Route
 app.use('/api/shared/comments', commentsRoutes); // Comments Route
 app.use('/api/shared/forums', forumsRoutes); // Forums Route

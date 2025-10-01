@@ -3,7 +3,7 @@ const StaffAvailability = require('../../models/StaffAvailability');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
-// Create availability slot for the authenticated staff member
+// Create availability slot for the authenticated administrator
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
@@ -101,7 +101,7 @@ const createAvailability = async (req, res) => {
             createdSlots.push(result.data);
         }
 
-        logger.info(`Availability slots created for staff_id: ${staffId}, role: ${req.user.role}, day: ${dayOfWeekNum}, weeks: ${weeksToCreate.join(', ')}`);
+        logger.info(`Availability slots created for administrator: ${staffId}, day: ${dayOfWeekNum}, weeks: ${weeksToCreate.join(', ')}`);
         response(res, 201, 'Availability slots created successfully', createdSlots);
     } catch (error) {
         logger.error('Error creating availability:', error.message);
@@ -110,7 +110,7 @@ const createAvailability = async (req, res) => {
     }
 };
 
-// Get all availability slots for the authenticated staff member
+// Get all availability slots for the authenticated administrator
 const getMyAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
@@ -133,14 +133,14 @@ const getMyAvailability = async (req, res) => {
             throw new Error(result.error);
         }
 
-        response(res, 200, 'Staff availability fetched successfully', result.data);
+        response(res, 200, 'Administrator availability fetched successfully', result.data);
     } catch (error) {
         logger.error('Error fetching availability:', error.message);
         errorResponse(res, 500, 'Internal server error', error.message);
     }
 };
 
-// Update a specific availability slot owned by the authenticated staff member
+// Update a specific availability slot owned by the authenticated administrator
 const updateAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
@@ -183,7 +183,7 @@ const updateAvailability = async (req, res) => {
     }
 };
 
-// Delete a specific availability slot owned by the authenticated staff member
+// Delete a specific availability slot owned by the authenticated administrator
 const deleteAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
@@ -205,28 +205,9 @@ const deleteAvailability = async (req, res) => {
     }
 };
 
-// Get all active availability slots for students (no authentication required)
-const getLecturerAvailabilityForStudents = async (req, res) => {
-    try {
-        // Fetch all active staff availability (includes both lecturers and administrators)
-        const result = await StaffAvailability.getAllActiveLecturerAvailability();
-
-        if (!result.success) {
-            logger.error('Failed to fetch staff availability:', result.error);
-            throw new Error(result.error);
-        }
-
-        response(res, 200, 'Staff availability fetched successfully', result.data);
-    } catch (error) {
-        logger.error('Error fetching staff availability for students:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
-    }
-};
-
 module.exports = {
     createAvailability,
     getMyAvailability,
     updateAvailability,
-    deleteAvailability,
-    getLecturerAvailabilityForStudents
+    deleteAvailability
 };
