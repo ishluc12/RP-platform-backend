@@ -1,236 +1,308 @@
 const { supabase, supabaseAdmin } = require('../config/database');
 const db = supabaseAdmin || supabase;
 
-// Create a survey
-const createSurvey = async (survey) => {
-    const { student_id, ...rest } = survey;
-    const payload = student_id ? { ...rest, student_id } : { ...rest, student_id: null };
+// Create a survey template
+const createSurveyTemplate = async (templateData) => {
     const { data, error } = await db
-        .from('surveys')
-        .insert(payload)
+        .from('survey_templates')
+        .insert(templateData)
         .select('*')
         .single();
     if (error) throw error;
     return data;
 };
 
-// Bulk insert ratings for a survey
-const addRatings = async (ratings) => {
-    if (!ratings || ratings.length === 0) return [];
-    const { data, error } = await db
-        .from('survey_ratings')
-        .insert(ratings)
-        .select('*');
-    if (error) throw error;
-    return data;
-};
-
-// Upsert comments (one row per survey)
-const upsertComments = async (surveyId, comments) => {
-    const payload = { survey_id: surveyId, ...comments };
-    const existing = await db
-        .from('survey_comments')
+// Get a survey template with questions and options (initially, without responses)
+const getSurveyTemplateDetails = async (templateId) => {
+    const { data: template, error: tErr } = await db
+        .from('survey_templates')
         .select('*')
-        .eq('survey_id', surveyId)
-        .maybeSingle();
-    if (existing.error) throw existing.error;
-    if (existing.data) {
-        const { data, error } = await db
-            .from('survey_comments')
-            .update(payload)
-            .eq('survey_id', surveyId)
-            .select('*')
-            .single();
-        if (error) throw error;
-        return data;
-    }
-    const { data, error } = await db
-        .from('survey_comments')
-        .insert(payload)
-        .select('*')
+        .eq('id', templateId)
         .single();
-    if (error) throw error;
-    return data;
+    if (tErr) throw tErr;
+
+    const { data: questions, error: qErr } = await db
+        .from('survey_questions')
+        .select('*, survey_question_options(*)')
+        .eq('survey_template_id', templateId)
+        .order('order_index', { ascending: true });
+    if (qErr) throw qErr;
+
+    return { template, questions };
 };
 
-// Fetch a survey with ratings and comments
-const getSurveyWithDetails = async (surveyId) => {
-    const { data: survey, error: sErr } = await db
-        .from('surveys')
-        .select('*')
-        .eq('id', surveyId)
-        .single();
-    if (sErr) throw sErr;
-
-    const { data: ratings, error: rErr } = await db
-        .from('survey_ratings')
-        .select('*')
-        .eq('survey_id', surveyId)
-        .order('created_at', { ascending: true });
-    if (rErr) throw rErr;
-
-    const { data: comments, error: cErr } = await db
-        .from('survey_comments')
-        .select('*')
-        .eq('survey_id', surveyId)
-        .single();
-    if (cErr && cErr.code !== 'PGRST116') throw cErr; // allow no rows
-
-    return { survey, ratings, comments: comments || null };
-};
-
-// List surveys for a specific student
-const listSurveysByStudent = async (studentId, studentDepartment, filters = {}) => {
-    // Personal surveys
-    let personal = db.from('surveys').select('*').eq('student_id', studentId);
-    if (filters.module_code) personal = personal.eq('module_code', filters.module_code);
-    if (filters.academic_year) personal = personal.eq('academic_year', filters.academic_year);
-    if (filters.semester) personal = personal.eq('semester', filters.semester);
-    const personalRes = await personal;
-    if (personalRes.error) throw personalRes.error;
-
-    // Broadcast surveys: student_id IS NULL and (department IS NULL OR department == student's department)
-    let broadcast = db
-        .from('surveys')
-        .select('*')
-        .is('student_id', null);
-    if (filters.module_code) broadcast = broadcast.eq('module_code', filters.module_code);
-    if (filters.academic_year) broadcast = broadcast.eq('academic_year', filters.academic_year);
-    if (filters.semester) broadcast = broadcast.eq('semester', filters.semester);
-    const broadcastResAll = await broadcast;
-    if (broadcastResAll.error) throw broadcastResAll.error;
-    const filteredBroadcast = (broadcastResAll.data || []).filter(s => !s.department || s.department === studentDepartment);
-
-    const combined = [...(personalRes.data || []), ...filteredBroadcast];
-    combined.sort((a, b) => new Date(b.filled_at || b.created_at) - new Date(a.filled_at || a.created_at));
-    return combined;
-};
-
-// Update base survey fields
-const updateSurvey = async (surveyId, updates) => {
-    const { data, error } = await db
-        .from('surveys')
-        .update(updates)
-        .eq('id', surveyId)
-        .select('*')
-        .single();
-    if (error) throw error;
-    return data;
-};
-
-// Replace ratings for a survey (delete then insert)
-const replaceRatings = async (surveyId, ratings) => {
-    const { error: delErr } = await db
-        .from('survey_ratings')
-        .delete()
-        .eq('survey_id', surveyId);
-    if (delErr) throw delErr;
-    return addRatings(ratings.map(r => ({ ...r, survey_id: surveyId })));
-};
-
-// Delete a survey and its children
-const deleteSurveyCascade = async (surveyId) => {
-    const { error: delRatingsErr } = await supabase
-        .from('survey_ratings')
-        .delete()
-        .eq('survey_id', surveyId);
-    if (delRatingsErr) throw delRatingsErr;
-
-    const { error: delCommentsErr } = await db
-        .from('survey_comments')
-        .delete()
-        .eq('survey_id', surveyId);
-    if (delCommentsErr) throw delCommentsErr;
-
-    const { data, error } = await db
-        .from('surveys')
-        .delete()
-        .eq('id', surveyId)
-        .select('*')
-        .single();
-    if (error) throw error;
-    return data;
-};
-
-// Admin: list surveys with filters
-const adminListSurveys = async (filters = {}) => {
-    let query = db.from('surveys').select('*');
-    const keys = ['module_code', 'module_name', 'academic_year', 'semester', 'department', 'program', 'class', 'module_leader_name', 'student_id'];
+// List survey templates (for admin or lecturer to manage)
+const listSurveyTemplates = async (filters = {}) => {
+    let query = db.from('survey_templates').select('*');
+    const keys = ['title', 'target_audience', 'is_active', 'created_by'];
     for (const k of keys) {
         if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') {
-            // Special handling for student_id to ensure it's treated as UUID string
-            if (k === 'student_id') {
-                query = query.eq(k, String(filters[k]));
-            } else {
-                query = query.eq(k, filters[k]);
-            }
+            query = query.eq(k, filters[k]);
         }
     }
-    const { data, error } = await query.order('filled_at', { ascending: false });
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data;
 };
 
-// Admin: aggregate ratings per description and overall average for a filter set
-const adminAggregateRatings = async (filters = {}) => {
-    // First fetch matching survey IDs
-    const surveys = await adminListSurveys(filters);
-    if (surveys.length === 0) return { count: 0, perDescription: [], overallAverage: null };
-    const ids = surveys.map(s => s.id);
-
-    const { data: ratings, error } = await db
-        .from('survey_ratings')
-        .select('description, rating, survey_id')
-        .in('survey_id', ids);
+// Update a survey template's base fields
+const updateSurveyTemplate = async (templateId, updates) => {
+    const { data, error } = await db
+        .from('survey_templates')
+        .update(updates)
+        .eq('id', templateId)
+        .select('*')
+        .single();
     if (error) throw error;
-
-    const map = new Map();
-    let total = 0;
-    let n = 0;
-    for (const r of ratings) {
-        total += r.rating;
-        n += 1;
-        const key = r.description;
-        const entry = map.get(key) || { description: key, count: 0, sum: 0 };
-        entry.count += 1;
-        entry.sum += r.rating;
-        map.set(key, entry);
-    }
-    const perDescription = Array.from(map.values()).map(e => ({ description: e.description, average: e.sum / e.count, count: e.count }));
-    const overallAverage = n ? total / n : null;
-    return { count: surveys.length, perDescription, overallAverage };
+    return data;
 };
 
+// Delete a survey template and its children (questions, options, responses, answers, files)
+const deleteSurveyTemplateCascade = async (templateId) => {
+    // Deletion is cascaded from survey_templates to survey_questions, then to options, responses, answers, files
+    const { data, error } = await db
+        .from('survey_templates')
+        .delete()
+        .eq('id', templateId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Questions Management ---
+const createQuestion = async (questionData) => {
+    const { data, error } = await db
+        .from('survey_questions')
+        .insert(questionData)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const getQuestion = async (questionId) => {
+    const { data, error } = await db
+        .from('survey_questions')
+        .select('*, survey_question_options(*)')
+        .eq('id', questionId)
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const updateQuestion = async (questionId, updates) => {
+    const { data, error } = await db
+        .from('survey_questions')
+        .update(updates)
+        .eq('id', questionId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const deleteQuestion = async (questionId) => {
+    const { data, error } = await db
+        .from('survey_questions')
+        .delete()
+        .eq('id', questionId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Question Options Management ---
+const createQuestionOption = async (optionData) => {
+    const { data, error } = await db
+        .from('survey_question_options')
+        .insert(optionData)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const updateQuestionOption = async (optionId, updates) => {
+    const { data, error } = await db
+        .from('survey_question_options')
+        .update(updates)
+        .eq('id', optionId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const deleteQuestionOption = async (optionId) => {
+    const { data, error } = await db
+        .from('survey_question_options')
+        .delete()
+        .eq('id', optionId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Responses Management ---
+const createResponse = async (responseData) => {
+    const { data, error } = await db
+        .from('survey_responses')
+        .insert(responseData)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const getResponseWithAnswers = async (responseId) => {
+    const { data: response, error: rErr } = await db
+        .from('survey_responses')
+        .select('*, survey_answers(*, survey_answer_options(*), survey_answer_files(*))')
+        .eq('id', responseId)
+        .single();
+    if (rErr) throw rErr;
+    return response;
+};
+
+const updateResponse = async (responseId, updates) => {
+    const { data, error } = await db
+        .from('survey_responses')
+        .update(updates)
+        .eq('id', responseId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Answers Management ---
+const createAnswer = async (answerData) => {
+    const { data, error } = await db
+        .from('survey_answers')
+        .insert(answerData)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const updateAnswer = async (answerId, updates) => {
+    const { data, error } = await db
+        .from('survey_answers')
+        .update(updates)
+        .eq('id', answerId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Answer Options Management ---
+const createAnswerOption = async (answerOptionData) => {
+    const { data, error } = await db
+        .from('survey_answer_options')
+        .insert(answerOptionData)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const deleteAnswerOption = async (answerOptionId) => {
+    const { data, error } = await db
+        .from('survey_answer_options')
+        .delete()
+        .eq('id', answerOptionId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Answer Files Management ---
+const createAnswerFile = async (answerFileData) => {
+    const { data, error } = await db
+        .from('survey_answer_files')
+        .insert(answerFileData)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+const deleteAnswerFile = async (answerFileId) => {
+    const { data, error } = await db
+        .from('survey_answer_files')
+        .delete()
+        .eq('id', answerFileId)
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// --- Survey Statistics Management ---
+const updateSurveyStatistics = async (templateId) => {
+    // This function would typically be triggered by a database trigger or a background job
+    // For direct calls, it aggregates current data
+    const { data: totalResponsesData, error: trError } = await db
+        .from('survey_responses')
+        .select('count', { head: true, count: 'exact' })
+        .eq('survey_template_id', templateId);
+    if (trError) throw trError;
+
+    const totalResponses = totalResponsesData.count;
+
+    const { data: completedResponsesData, error: crError } = await db
+        .from('survey_responses')
+        .select('count', { head: true, count: 'exact' })
+        .eq('survey_template_id', templateId)
+        .eq('is_complete', true);
+    if (crError) throw crError;
+
+    const completedResponses = completedResponsesData.count;
+
+    const { data, error } = await db
+        .from('survey_statistics')
+        .upsert({
+            survey_template_id: templateId,
+            total_responses: totalResponses,
+            completed_responses: completedResponses,
+            last_updated: new Date().toISOString()
+        })
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+};
+
+// Export all functions
 module.exports = {
-    createSurvey,
-    addRatings,
-    upsertComments,
-    getSurveyWithDetails,
-    listSurveysByStudent,
-    updateSurvey,
-    replaceRatings,
-    deleteSurveyCascade,
-    adminListSurveys,
-    adminAggregateRatings,
-    // Attachments for surveys
-    addAttachmentForSurvey: async (surveyId, uploadedBy, fileUrl, originalName, mimeType) => {
-        const payload = {
-            uploaded_by: String(uploadedBy),
-            file_url: fileUrl,
-            entity_type: 'survey',
-            entity_id: String(surveyId),
-            original_name: originalName || null,
-            mime_type: mimeType || null,
-            uploaded_at: new Date().toISOString()
-        };
-        const { data, error } = await db
-            .from('attachments')
-            .insert([payload])
-            .select('*')
-            .single();
-        if (error) throw error;
-        return data;
-    }
+    createSurveyTemplate,
+    getSurveyTemplateDetails,
+    listSurveyTemplates,
+    updateSurveyTemplate,
+    deleteSurveyTemplateCascade,
+    createQuestion,
+    getQuestion,
+    updateQuestion,
+    deleteQuestion,
+    createQuestionOption,
+    updateQuestionOption,
+    deleteQuestionOption,
+    createResponse,
+    getResponseWithAnswers,
+    updateResponse,
+    createAnswer,
+    updateAnswer,
+    createAnswerOption,
+    deleteAnswerOption,
+    createAnswerFile,
+    deleteAnswerFile,
+    updateSurveyStatistics,
 };
 
 

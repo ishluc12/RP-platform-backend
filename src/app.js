@@ -41,9 +41,20 @@ app.use('/api/lecturer/availability', lecturerAvailabilityRoutes);
 const lecturerDashboardRoutes = require('./routes/lecturer/dashboard');
 app.use('/api/lecturer/dashboard', lecturerDashboardRoutes);
 
+const lecturerExceptionRoutes = require('./routes/lecturer/exceptions');
+app.use('/api/lecturer/exceptions', lecturerExceptionRoutes);
+
 // Student routes
 const studentAppointmentRoutes = require('./routes/student/appointments');
 app.use('/api/student/appointments', studentAppointmentRoutes);
+
+// Staff routes
+const staffAppointmentRoutes = require('./routes/staff/appointments');
+app.use('/api/staff/appointments', staffAppointmentRoutes);
+
+const staffExceptionRoutes = require('./routes/staff/exceptions');
+app.use('/api/staff/exceptions', staffExceptionRoutes);
+
 // Shared routes
 const sharedRoutes = require('./routes/shared/index');
 app.use('/api/shared', sharedRoutes);

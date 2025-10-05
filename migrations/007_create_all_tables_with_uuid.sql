@@ -58,11 +58,9 @@ CREATE TABLE users (
 -- Enhanced appointment status to include more admin-related statuses
 CREATE TYPE appointment_status AS ENUM (
     'pending',
-    'accepted',
-    'declined',
-    'completed',
-    'cancelled',
-    'rescheduled'
+    'approved',
+    'rejected',
+    'completed'
 );
 -- Enhanced appointments table to support all user roles
 CREATE TABLE appointments (

@@ -88,6 +88,10 @@ app.use('/api/shared/polls', pollsRoutes); // Polls Route
 app.use('/api/shared/comments', commentsRoutes); // Comments Route
 app.use('/api/shared/forums', forumsRoutes); // Forums Route
 
+// Staff routes
+const staffAppointmentRoutes = require('./src/routes/staff/appointments');
+app.use('/api/staff/appointments', staffAppointmentRoutes);
+
 // 404 handler (fixed, proper catch-all for unmatched routes)
 app.use(notFound);
 

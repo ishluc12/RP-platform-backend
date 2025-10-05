@@ -1,233 +1,434 @@
-const { supabase } = require('../../config/database');
 const StaffAvailability = require('../../models/StaffAvailability');
+const AvailabilityException = require('../../models/AvailabilityException');
 const { response, errorResponse } = require('../../utils/responseHandlers');
-const { logger } = require('../../utils/logger');
+const logger = require('../../utils/logger');
 
-// Create availability slot for the authenticated staff member
-const createAvailability = async (req, res) => {
-    try {
-        const staffId = req.user.id;
-        const { day_of_week, week_of_month, weeks, start_time, end_time, max_regular_students, max_emergency_students, allow_emergency, is_active } = req.body;
+class StaffAvailabilityController {
+    /**
+     * Create availability slot
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async createAvailability(req, res) {
+        try {
+            const {
+                day_of_week,
+                start_time,
+                end_time,
+                break_start_time,
+                break_end_time,
+                slot_duration_minutes,
+                max_appointments_per_slot,
+                buffer_time_minutes,
+                availability_type,
+                valid_from,
+                valid_to
+            } = req.body;
 
-        // Validation
-        if (!day_of_week || !start_time || !end_time) {
-            return errorResponse(res, 400, 'day_of_week, start_time, and end_time are required');
-        }
+            const staff_id = req.user.id;
 
-        // Validate day_of_week is between 1 and 7
-        const dayOfWeekNum = parseInt(day_of_week);
-        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 1 || dayOfWeekNum > 7) {
-            return errorResponse(res, 400, 'day_of_week must be between 1 and 7 (1=Monday, 7=Sunday)');
-        }
-
-        // Validate week_of_month if provided
-        let weekOfMonth = null;
-        if (week_of_month !== undefined) {
-            const weekNum = parseInt(week_of_month);
-            if (isNaN(weekNum) || weekNum < 1 || weekNum > 5) {
-                return errorResponse(res, 400, 'week_of_month must be between 1 and 5');
+            // Validate required fields
+            if (day_of_week === undefined || !start_time || !end_time) {
+                return errorResponse(res, 400, 'Missing required fields: day_of_week, start_time, end_time');
             }
-            weekOfMonth = weekNum;
-        }
 
-        // Handle weeks array for bulk creation
-        let weeksToCreate = [];
-        if (weeks && Array.isArray(weeks)) {
-            weeksToCreate = weeks.filter(w => {
-                const num = parseInt(w);
-                return !isNaN(num) && num >= 1 && num <= 5;
-            });
-            if (weeksToCreate.length === 0) {
-                return errorResponse(res, 400, 'weeks array must contain valid week numbers (1-5)');
+            // Validate day_of_week (0-6)
+            if (day_of_week < 0 || day_of_week > 6) {
+                return errorResponse(res, 400, 'day_of_week must be between 0 (Sunday) and 6 (Saturday)');
             }
-        } else if (weekOfMonth) {
-            weeksToCreate = [weekOfMonth];
-        } else {
-            // If no weeks specified, create for all weeks (backward compatibility)
-            weeksToCreate = [null];
-        }
 
-        // Format time properly - handle both HH:MM and HH:MM:SS
-        const formatTime = (time) => {
-            if (!time) return null;
-            const parts = time.split(':');
-            if (parts.length >= 3) {
-                // Take only HH:MM:SS
-                return parts.slice(0, 3).join(':');
-            }
-            if (parts.length === 2) {
-                // Append :00
-                return time + ':00';
-            }
-            // Invalid format
-            return null;
-        };
+            const availabilityData = {
+                staff_id,
+                day_of_week,
+                start_time,
+                end_time,
+                break_start_time,
+                break_end_time,
+                slot_duration_minutes,
+                max_appointments_per_slot,
+                buffer_time_minutes,
+                availability_type,
+                valid_from,
+                valid_to
+            };
 
-        const formattedStartTime = formatTime(start_time);
-        const formattedEndTime = formatTime(end_time);
-
-        // Validate times
-        if (!formattedStartTime || !formattedEndTime) {
-            return errorResponse(res, 400, 'Invalid time format. Use HH:MM or HH:MM:SS');
-        }
-
-        if (formattedStartTime >= formattedEndTime) {
-            return errorResponse(res, 400, 'End time must be after start time');
-        }
-
-        // Validate and sanitize student limits
-        const maxRegular = Math.max(0, Math.min(parseInt(max_regular_students) || 0, 10));
-        const maxEmergency = Math.max(0, Math.min(parseInt(max_emergency_students) || 0, 5));
-
-        // Create slots for each week
-        const createdSlots = [];
-        for (const week of weeksToCreate) {
-            const result = await StaffAvailability.create({
-                staff_id: staffId,
-                day_of_week: dayOfWeekNum,
-                week_of_month: week,
-                start_time: formattedStartTime,
-                end_time: formattedEndTime,
-                max_regular_students: maxRegular,
-                max_emergency_students: maxEmergency,
-                allow_emergency: allow_emergency !== undefined ? Boolean(allow_emergency) : false,
-                is_active: is_active !== undefined ? Boolean(is_active) : true,
-            });
+            const result = await StaffAvailability.create(availabilityData);
 
             if (!result.success) {
-                logger.error('Failed to create availability in DB:', result.error);
                 return errorResponse(res, 400, result.error);
             }
-            createdSlots.push(result.data);
+
+            logger.info(`Staff ${staff_id} created availability slot ${result.data.id}`);
+            response(res, 201, 'Availability slot created successfully', result.data);
+        } catch (error) {
+            logger.error('Error creating availability:', error);
+            errorResponse(res, 500, 'Internal server error');
         }
-
-        logger.info(`Availability slots created for staff_id: ${staffId}, role: ${req.user.role}, day: ${dayOfWeekNum}, weeks: ${weeksToCreate.join(', ')}`);
-        response(res, 201, 'Availability slots created successfully', createdSlots);
-    } catch (error) {
-        logger.error('Error creating availability:', error.message);
-        logger.error('Error stack:', error.stack);
-        errorResponse(res, 500, 'Internal server error', error.message);
     }
-};
 
-// Get all availability slots for the authenticated staff member
-const getMyAvailability = async (req, res) => {
+    /**
+     * Get staff's availability
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async getMyAvailability(req, res) {
     try {
         const staffId = req.user.id;
-        const { day_of_week } = req.query;
+            const { is_active, day_of_week, availability_type } = req.query;
 
-        let result;
-        if (day_of_week) {
-            // Validate day_of_week
-            const numericDayOfWeek = parseInt(day_of_week, 10);
-            if (isNaN(numericDayOfWeek) || numericDayOfWeek < 1 || numericDayOfWeek > 7) {
-                return errorResponse(res, 400, 'Invalid day_of_week. Must be a number between 1 and 7.');
+            const filters = {};
+            if (is_active !== undefined) filters.is_active = is_active === 'true';
+            if (day_of_week !== undefined) filters.day_of_week = parseInt(day_of_week);
+            if (availability_type) filters.availability_type = availability_type;
+
+            const result = await StaffAvailability.getByStaff(staffId, filters);
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
             }
-            result = await StaffAvailability.findByStaffIdAndDay(staffId, numericDayOfWeek);
-        } else {
-            result = await StaffAvailability.findByStaffId(staffId);
+
+            response(res, 200, 'Availability fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching availability:', error);
+            errorResponse(res, 500, 'Internal server error');
         }
+    }
+
+    /**
+     * Update availability slot
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async updateAvailability(req, res) {
+        try {
+            const { id } = req.params;
+            const updateData = req.body;
+            const staffId = req.user.id;
+
+            // First check if this availability belongs to the staff
+            const availabilityResult = await StaffAvailability.getByStaff(staffId);
+            if (!availabilityResult.success) {
+                return errorResponse(res, 500, availabilityResult.error);
+            }
+
+            const availability = availabilityResult.data.find(a => a.id === id);
+            if (!availability) {
+                return errorResponse(res, 404, 'Availability slot not found');
+            }
+
+            const result = await StaffAvailability.update(id, updateData);
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Staff ${staffId} updated availability slot ${id}`);
+            response(res, 200, 'Availability slot updated successfully', result.data);
+        } catch (error) {
+            logger.error('Error updating availability:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Delete availability slot
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async deleteAvailability(req, res) {
+        try {
+            const { id } = req.params;
+            const staffId = req.user.id;
+
+            // First check if this availability belongs to the staff
+            const availabilityResult = await StaffAvailability.getByStaff(staffId);
+            if (!availabilityResult.success) {
+                return errorResponse(res, 500, availabilityResult.error);
+            }
+
+            const availability = availabilityResult.data.find(a => a.id === id);
+            if (!availability) {
+                return errorResponse(res, 404, 'Availability slot not found');
+            }
+
+            const result = await StaffAvailability.delete(id);
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+        }
+
+            logger.info(`Staff ${staffId} deleted availability slot ${id}`);
+            response(res, 200, 'Availability slot deleted successfully');
+    } catch (error) {
+            logger.error('Error deleting availability:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Toggle availability active status
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async toggleAvailability(req, res) {
+        try {
+            const { id } = req.params;
+            const { is_active } = req.body;
+        const staffId = req.user.id;
+
+            // First check if this availability belongs to the staff
+            const availabilityResult = await StaffAvailability.getByStaff(staffId);
+            if (!availabilityResult.success) {
+                return errorResponse(res, 500, availabilityResult.error);
+            }
+
+            const availability = availabilityResult.data.find(a => a.id === id);
+            if (!availability) {
+                return errorResponse(res, 404, 'Availability slot not found');
+            }
+
+            const result = await StaffAvailability.toggleActive(id, is_active);
 
         if (!result.success) {
-            logger.error('Failed to fetch availability:', result.error);
-            throw new Error(result.error);
+                return errorResponse(res, 400, result.error);
         }
 
-        response(res, 200, 'Staff availability fetched successfully', result.data);
+            logger.info(`Staff ${staffId} toggled availability slot ${id} to ${is_active ? 'active' : 'inactive'}`);
+            response(res, 200, 'Availability status updated successfully', result.data);
     } catch (error) {
-        logger.error('Error fetching availability:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
+            logger.error('Error toggling availability:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
     }
-};
 
-// Update a specific availability slot owned by the authenticated staff member
-const updateAvailability = async (req, res) => {
+    /**
+     * Bulk create availability slots
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async bulkCreateAvailability(req, res) {
+        try {
+            const { slots } = req.body;
+        const staffId = req.user.id;
+
+            if (!slots || !Array.isArray(slots) || slots.length === 0) {
+                return errorResponse(res, 400, 'Slots array is required');
+            }
+
+            // Validate each slot
+            for (const slot of slots) {
+                if (slot.day_of_week === undefined || !slot.start_time || !slot.end_time) {
+                    return errorResponse(res, 400, 'Each slot must have day_of_week, start_time, and end_time');
+                }
+                if (slot.day_of_week < 0 || slot.day_of_week > 6) {
+                    return errorResponse(res, 400, 'day_of_week must be between 0 (Sunday) and 6 (Saturday)');
+                }
+            }
+
+            const result = await StaffAvailability.bulkCreate(staffId, slots);
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Staff ${staffId} bulk created ${slots.length} availability slots`);
+            response(res, 201, 'Availability slots created successfully', result.data);
+        } catch (error) {
+            logger.error('Error bulk creating availability:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Get availability summary
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async getAvailabilitySummary(req, res) {
+        try {
+            const staffId = req.user.id;
+            const result = await StaffAvailability.getSummary(staffId);
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Availability summary fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching availability summary:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Create availability exception
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async createException(req, res) {
+        try {
+            const {
+                exception_date,
+                exception_type,
+                start_time,
+                end_time,
+                reason,
+                is_recurring
+            } = req.body;
+
+            const staff_id = req.user.id;
+
+            // Validate required fields
+            if (!exception_date) {
+                return errorResponse(res, 400, 'Missing required field: exception_date');
+            }
+
+            const exceptionData = {
+                staff_id,
+                exception_date,
+                exception_type,
+                start_time,
+                end_time,
+                reason,
+                is_recurring
+            };
+
+            const result = await AvailabilityException.create(exceptionData);
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Staff ${staff_id} created availability exception ${result.data.id}`);
+            response(res, 201, 'Availability exception created successfully', result.data);
+        } catch (error) {
+            logger.error('Error creating availability exception:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Get availability exceptions
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async getExceptions(req, res) {
     try {
         const staffId = req.user.id;
-        const slotId = req.params.id;
-        const updates = req.body;
+            const { exception_type, start_date, end_date, is_recurring } = req.query;
 
-        if (!slotId) {
-            return errorResponse(res, 400, 'Invalid slot ID');
-        }
+            const filters = {};
+            if (exception_type) filters.exception_type = exception_type;
+            if (start_date) filters.start_date = start_date;
+            if (end_date) filters.end_date = end_date;
+            if (is_recurring !== undefined) filters.is_recurring = is_recurring === 'true';
 
-        // Format times if provided
-        if (updates.start_time) {
-            const parts = updates.start_time.split(':');
-            if (parts.length === 2) {
-                updates.start_time = updates.start_time + ':00';
+            const result = await AvailabilityException.getByStaff(staffId, filters);
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
             }
-        }
 
-        if (updates.end_time) {
-            const parts = updates.end_time.split(':');
-            if (parts.length === 2) {
-                updates.end_time = updates.end_time + ':00';
+            response(res, 200, 'Availability exceptions fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching availability exceptions:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Update availability exception
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async updateException(req, res) {
+        try {
+            const { id } = req.params;
+            const updateData = req.body;
+            const staffId = req.user.id;
+
+            // First check if this exception belongs to the staff
+            const exceptionResult = await AvailabilityException.getByStaff(staffId);
+            if (!exceptionResult.success) {
+                return errorResponse(res, 500, exceptionResult.error);
             }
-        }
 
-        // Validate times if both are provided
-        if (updates.start_time && updates.end_time && updates.start_time >= updates.end_time) {
-            return errorResponse(res, 400, 'End time must be after start time');
-        }
+            const exception = exceptionResult.data.find(e => e.id === id);
+            if (!exception) {
+                return errorResponse(res, 404, 'Availability exception not found');
+            }
 
-        const result = await StaffAvailability.update(slotId, updates);
-        if (!result.success) {
-            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
-        }
-
-        response(res, 200, 'Availability slot updated successfully', result.data);
-    } catch (error) {
-        logger.error('Error updating availability:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
-    }
-};
-
-// Delete a specific availability slot owned by the authenticated staff member
-const deleteAvailability = async (req, res) => {
-    try {
-        const staffId = req.user.id;
-        const slotId = req.params.id;
-
-        if (!slotId) {
-            return errorResponse(res, 400, 'Invalid slot ID');
-        }
-
-        const result = await StaffAvailability.delete(slotId);
-        if (!result.success) {
-            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
-        }
-
-        response(res, 200, 'Availability slot deleted successfully', result.data);
-    } catch (error) {
-        logger.error('Error deleting availability:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
-    }
-};
-
-// Get all active availability slots for students (no authentication required)
-const getLecturerAvailabilityForStudents = async (req, res) => {
-    try {
-        const result = await StaffAvailability.getAllActiveLecturerAvailability();
+            const result = await AvailabilityException.update(id, updateData);
 
         if (!result.success) {
-            logger.error('Failed to fetch lecturer availability:', result.error);
-            throw new Error(result.error);
+                return errorResponse(res, 400, result.error);
         }
 
-        response(res, 200, 'Lecturer availability fetched successfully', result.data);
+            logger.info(`Staff ${staffId} updated availability exception ${id}`);
+            response(res, 200, 'Availability exception updated successfully', result.data);
     } catch (error) {
-        logger.error('Error fetching lecturer availability for students:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
+            logger.error('Error updating availability exception:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
     }
-};
 
-module.exports = {
-    createAvailability,
-    getMyAvailability,
-    updateAvailability,
-    deleteAvailability,
-    getLecturerAvailabilityForStudents
-};
+    /**
+     * Delete availability exception
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async deleteException(req, res) {
+        try {
+            const { id } = req.params;
+            const staffId = req.user.id;
 
+            // First check if this exception belongs to the staff
+            const exceptionResult = await AvailabilityException.getByStaff(staffId);
+            if (!exceptionResult.success) {
+                return errorResponse(res, 500, exceptionResult.error);
+            }
 
+            const exception = exceptionResult.data.find(e => e.id === id);
+            if (!exception) {
+                return errorResponse(res, 404, 'Availability exception not found');
+            }
+
+            const result = await AvailabilityException.delete(id);
+
+        if (!result.success) {
+                return errorResponse(res, 400, result.error);
+        }
+
+            logger.info(`Staff ${staffId} deleted availability exception ${id}`);
+            response(res, 200, 'Availability exception deleted successfully');
+    } catch (error) {
+            logger.error('Error deleting availability exception:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Get upcoming exceptions
+     * @param {Object} req - Express request object
+     * @param {Object} res - Express response object
+     */
+    static async getUpcomingExceptions(req, res) {
+        try {
+            const staffId = req.user.id;
+            const { days = 30 } = req.query;
+
+            const result = await AvailabilityException.getUpcoming(staffId, parseInt(days));
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Upcoming exceptions fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching upcoming exceptions:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+}
+
+module.exports = StaffAvailabilityController;

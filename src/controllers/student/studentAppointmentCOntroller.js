@@ -1,95 +1,219 @@
 const Appointment = require('../../models/Appointment');
+const StaffAvailability = require('../../models/StaffAvailability');
 const { response, errorResponse } = require('../../utils/responseHandlers');
-const { logger } = require('../../utils/logger');
+const logger = require('../../utils/logger');
 
-module.exports = {
-    async create(req, res) {
+class StudentAppointmentController {
+    static async createAppointment(req, res) {
         try {
-            const requester_id = req.user.id; // Student ID is now requester_id
-            const { appointee_id, appointment_time, reason, location, meeting_type, meeting_link, duration_minutes, priority, appointment_type: type, notes } = req.body; // lecturer_id is now appointee_id, added new fields
+            const studentId = req.user.id;
+            const payload = req.body;
 
-            if (!appointee_id || !appointment_time || !reason) {
-                return errorResponse(res, 400, 'Appointee ID, appointment time, and reason are required');
+            // Validate payload
+            if (!payload.appointee_id || !payload.appointment_date || !payload.start_time || !payload.end_time || !payload.reason) {
+                return errorResponse(res, 400, 'Missing required fields');
             }
 
-            const parsedTime = new Date(appointment_time);
-            if (isNaN(parsedTime.getTime())) {
-                return errorResponse(res, 400, 'Invalid appointment time');
+            // Check if slot is available
+            const isAvailable = await StaffAvailability.isSlotAvailable(payload.appointee_id, payload.appointment_date, payload.start_time, payload.end_time);
+            if (!isAvailable) {
+                return errorResponse(res, 400, 'Selected slot is not available');
             }
 
             const result = await Appointment.create({
-                requester_id,
-                appointee_id,
-                appointment_time: parsedTime.toISOString(),
-                reason,
-                location,
-                meeting_type,
-                meeting_link,
-                duration_minutes,
-                priority,
-                appointment_type: type,
-                notes
+                requester_id: studentId,
+                ...payload,
+                status: 'pending'
             });
 
             if (!result.success) {
-                logger.error('Failed to create appointment:', result.error);
                 return errorResponse(res, 400, result.error);
             }
 
-            response(res, 201, 'Appointment created successfully', result.data);
+            response(res, 201, 'Appointment request created successfully', result.data);
         } catch (error) {
-            logger.error('Error creating appointment:', error.message);
-            errorResponse(res, 500, 'Internal server error', error.message);
+            logger.error('Error creating appointment:', error);
+            errorResponse(res, 500, 'Internal server error');
         }
-    },
+    }
 
-    async list(req, res) {
+    static async getMyAppointments(req, res) {
         try {
-            const result = await Appointment.listByRequester(req.user.id); // Changed to listByRequester
+            const studentId = req.user.id;
+            const result = await Appointment.getByUser(studentId, 'requester');
+
             if (!result.success) {
-                logger.error('Failed to fetch student appointments:', result.error);
-                return errorResponse(res, 400, result.error);
-            }
-            response(res, 200, 'Student appointments fetched successfully', result.data);
-        } catch (error) {
-            logger.error('Error fetching student appointments:', error.message);
-            errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    },
-
-    async getUpcoming(req, res) {
-        try {
-            const { page, limit } = req.query;
-            const result = await Appointment.findUpcomingAppointments(req.user.id, 'requester', { page: parseInt(page), limit: parseInt(limit) }); // Changed role to 'requester'
-            if (!result.success) {
-                logger.error('Failed to fetch upcoming student appointments:', result.error);
-                return errorResponse(res, 400, result.error);
-            }
-            response(res, 200, 'Upcoming student appointments fetched successfully', result.data);
-        } catch (error) {
-            logger.error('Error fetching upcoming student appointments:', error.message);
-            errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    },
-
-    async cancel(req, res) {
-        try {
-            const appointmentId = req.params.id; // Removed parseInt
-            if (!appointmentId) {
-                return errorResponse(res, 400, 'Invalid appointment ID');
+                return errorResponse(res, 500, result.error);
             }
 
-            const result = await Appointment.cancel(appointmentId, req.user.id);
+            response(res, 200, 'Appointments fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching appointments:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getUpcomingAppointments(req, res) {
+        try {
+            const studentId = req.user.id;
+            const result = await Appointment.getUpcoming(studentId, 'requester');
+
             if (!result.success) {
-                logger.error('Failed to cancel appointment:', result.error);
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Upcoming appointments fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching upcoming appointments:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getAppointmentDetails(req, res) {
+        try {
+            const { id } = req.params;
+            const studentId = req.user.id;
+
+            const result = await Appointment.getById(id);
+
+            if (!result.success) {
+                return errorResponse(res, 404, 'Appointment not found');
+            }
+
+            if (result.data.requester_id !== studentId) {
+                return errorResponse(res, 403, 'Unauthorized to view this appointment');
+            }
+
+            response(res, 200, 'Appointment details fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching appointment details:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async cancelAppointment(req, res) {
+        try {
+            const { id } = req.params;
+            const { reason } = req.body;
+            const studentId = req.user.id;
+
+            if (!reason) {
+                return errorResponse(res, 400, 'Cancellation reason is required');
+            }
+
+            const result = await Appointment.cancel(id, studentId, reason, 'requester');
+
+            if (!result.success) {
                 return errorResponse(res, 400, result.error);
             }
 
             response(res, 200, 'Appointment cancelled successfully', result.data);
         } catch (error) {
-            logger.error('Error canceling appointment:', error.message);
-            errorResponse(res, 500, 'Internal server error', error.message);
+            logger.error('Error cancelling appointment:', error);
+            errorResponse(res, 500, 'Internal server error');
         }
     }
-};
 
+    static async getAppointmentStats(req, res) {
+        try {
+            const studentId = req.user.id;
+            const result = await Appointment.getStats(studentId, 'requester');
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Appointment statistics fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching appointment stats:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getAppointmentHistory(req, res) {
+        try {
+            const { id } = req.params;
+            const studentId = req.user.id;
+
+            const appointmentResult = await Appointment.getById(id);
+            if (!appointmentResult.success) {
+                return errorResponse(res, 404, 'Appointment not found');
+            }
+
+            if (appointmentResult.data.requester_id !== studentId) {
+                return errorResponse(res, 403, 'Unauthorized to view this appointment');
+            }
+
+            const result = await Appointment.getHistory(id);
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Appointment history fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching appointment history:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getAvailableLecturers(req, res) {
+        try {
+            const { date, start_time, end_time } = req.query;
+
+            if (!date || !start_time || !end_time) {
+                return errorResponse(res, 400, 'Missing required parameters: date, start_time, end_time');
+            }
+
+            const result = await StaffAvailability.getAvailableStaff(date, start_time, end_time);
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Available lecturers fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching available lecturers:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getAvailableSlotsForLecturer(req, res) {
+        try {
+            const staffId = req.params.staffId;
+            const { date } = req.query;
+
+            if (!staffId || !date) {
+                return errorResponse(res, 400, 'Missing required parameters: staffId, date');
+            }
+
+            const result = await StaffAvailability.getAvailableSlots(staffId, date);
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Available slots fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching available slots:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getAllLecturers(req, res) {
+        try {
+            const result = await StaffAvailability.getAllLecturers();
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'All lecturers fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching all lecturers:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+}
+
+module.exports = StudentAppointmentController;

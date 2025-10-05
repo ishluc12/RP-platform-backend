@@ -6,14 +6,18 @@ class PostModel {
      * @param {Object} param0
      * @param {string} param0.user_id
      * @param {string} param0.content
+     * @param {string} [param0.description]
      * @param {string} [param0.image_url]
+     * @param {string} [param0.video_url]
+     * @param {string} [param0.media_type] - 'image', 'video', or null
+     * @param {string} [param0.sticker] - Sticker emoji or ID
      * @returns {Promise<Object>}
      */
-    static async create({ user_id, content, image_url = null }) {
+    static async create({ user_id, content, description = null, image_url = null, video_url = null, media_type = null, sticker = null }) {
         try {
             const { data, error } = await supabase
                 .from('posts')
-                .insert([{ user_id, content, image_url }])
+                .insert([{ user_id, content, description, image_url, video_url, media_type, sticker }])
                 .select('*')
                 .single();
 
@@ -25,24 +29,89 @@ class PostModel {
     }
 
     /**
-     * Get paginated feed of posts
+     * Get paginated feed of posts with user details, likes, and comments (Instagram-style)
      * @param {Object} param0
      * @param {number} [param0.page=1]
      * @param {number} [param0.limit=10]
+     * @param {string} [param0.currentUserId] - Current user's ID to check if they liked posts
      * @returns {Promise<Object>}
      */
-    static async feed({ page = 1, limit = 10 } = {}) {
+    static async feed({ page = 1, limit = 10, currentUserId = null } = {}) {
         try {
             const from = (page - 1) * limit;
             const to = from + limit - 1;
 
-            const { data, error } = await supabase
+            // Get posts with user details, like count, and comment count
+            const { data: posts, error } = await supabase
                 .from('posts')
-                .select('*')
+                .select(`
+                    id,
+                    content,
+                    description,
+                    image_url,
+                    video_url,
+                    media_type,
+                    sticker,
+                    created_at,
+                    user_id,
+                    users!posts_user_id_fkey (
+                        id,
+                        name,
+                        email,
+                        profile_picture,
+                        role,
+                        department
+                    )
+                `)
+                .order('created_at', { ascending: false })
                 .range(from, to);
 
             if (error) throw error;
-            return { success: true, data };
+
+            // Format the response to include like/comment counts
+            const formattedPosts = await Promise.all(posts.map(async (post) => {
+                // Get like count for this post
+                const { count: likesCount } = await supabase
+                    .from('post_likes')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('post_id', post.id);
+                
+                // Get comment count for this post
+                const { count: commentsCount } = await supabase
+                    .from('comments')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('post_id', post.id);
+                
+                // Check if current user liked this post
+                let isLikedByCurrentUser = false;
+                if (currentUserId) {
+                    const { data: userLike } = await supabase
+                        .from('post_likes')
+                        .select('id')
+                        .eq('post_id', post.id)
+                        .eq('user_id', currentUserId)
+                        .single();
+                    isLikedByCurrentUser = !!userLike;
+                }
+
+                return {
+                    id: post.id,
+                    content: post.content,
+                    description: post.description,
+                    image_url: post.image_url,
+                    video_url: post.video_url,
+                    media_type: post.media_type,
+                    sticker: post.sticker,
+                    created_at: post.created_at,
+                    user_id: post.user_id,
+                    user: post.users, // User data from the join
+                    likes_count: likesCount || 0,
+                    comments_count: commentsCount || 0,
+                    is_liked: isLikedByCurrentUser
+                };
+            }));
+
+            return { success: true, data: formattedPosts };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }

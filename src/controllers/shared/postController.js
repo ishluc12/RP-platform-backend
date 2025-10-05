@@ -9,8 +9,8 @@ const { response, errorResponse } = require('../../utils/responseHandlers');
 const createPost = async (req, res) => {
     try {
         const user_id = req.user.id;
-        const { content, image_url } = req.body;
-        const result = await Post.create({ user_id, content, image_url });
+        const { content, description, image_url, video_url, media_type, sticker } = req.body;
+        const result = await Post.create({ user_id, content, description, image_url, video_url, media_type, sticker });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 201, 'Post created successfully', result.data);
     } catch (error) {
@@ -19,14 +19,20 @@ const createPost = async (req, res) => {
 };
 
 /**
- * Get a paginated feed of posts.
+ * Get a paginated feed of posts (Instagram-style with user details, likes, comments).
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 const getFeed = async (req, res) => {
-    const { page, limit } = req.query;
+    const { page = 1, limit = 10 } = req.query;
+    const currentUserId = req.user?.id; // Get current user ID from auth token
+    
     try {
-        const result = await Post.feed({ page: parseInt(page), limit: parseInt(limit) });
+        const result = await Post.feed({ 
+            page: parseInt(page), 
+            limit: parseInt(limit),
+            currentUserId 
+        });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Posts fetched successfully', result.data);
     } catch (error) {

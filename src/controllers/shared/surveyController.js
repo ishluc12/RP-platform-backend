@@ -1,176 +1,220 @@
 const Survey = require('../../models/Survey');
 const { response, errorResponse } = require('../../utils/responseHandlers');
-const User = require('../../models/User'); // Needed to get student's department
+const User = require('../../models/User');
 
-// --- Survey Management ---
+// --- Survey Template Management ---
 
 /**
- * Create a new survey.
+ * Create a new survey template.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-const createSurvey = async (req, res) => {
-    const { module_code, module_name, academic_year, semester, department, program, class_name, module_leader_name } = req.body;
-    const student_id = req.user.id; // Assuming the creator is the student filling it out initially, or admin creates without student_id
+const createSurveyTemplate = async (req, res) => {
+    const { title, description, target_audience, is_active, is_anonymous, allow_multiple_submissions, start_date, end_date, header_image_url, footer_image_url } = req.body;
+    const created_by = req.user.id;
 
-    if (!module_code || !module_name) {
-        return errorResponse(res, 400, 'Module code and name are required.');
+    if (!title) {
+        return errorResponse(res, 400, 'Survey title is required.');
     }
 
     try {
-        const surveyData = {
-            module_code,
-            module_name,
-            academic_year,
-            semester,
-            department,
-            program,
-            class: class_name, // 'class' is a reserved keyword, use class_name
-            module_leader_name,
-            student_id
+        const templateData = {
+            title,
+            description,
+            created_by,
+            target_audience: target_audience || 'all',
+            is_active: is_active !== undefined ? is_active : true,
+            is_anonymous: is_anonymous !== undefined ? is_anonymous : false,
+            allow_multiple_submissions: allow_multiple_submissions !== undefined ? allow_multiple_submissions : false,
+            start_date,
+            end_date,
+            header_image_url,
+            footer_image_url
         };
-        const result = await Survey.createSurvey(surveyData);
-        response(res, 201, 'Survey created successfully', result);
+        const result = await Survey.createSurveyTemplate(templateData);
+        response(res, 201, 'Survey template created successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
 /**
- * Get a survey with its ratings and comments.
+ * Get a survey template with its questions and options.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-const getSurveyDetails = async (req, res) => {
+const getSurveyTemplateDetails = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const result = await Survey.getSurveyWithDetails(id);
-        if (!result.survey) return errorResponse(res, 404, 'Survey not found');
-        response(res, 200, 'Survey details fetched successfully', result);
+        const result = await Survey.getSurveyTemplateDetails(id);
+        if (!result.template) return errorResponse(res, 404, 'Survey template not found');
+        response(res, 200, 'Survey template details fetched successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
 /**
- * List surveys for the authenticated student.
+ * List survey templates for the authenticated user.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-const listStudentSurveys = async (req, res) => {
-    const studentId = req.user.id;
-    const { module_code, academic_year, semester } = req.query;
+const listSurveyTemplates = async (req, res) => {
+    const { title, target_audience, is_active, created_by } = req.query;
 
     try {
-        // Get student's department for broadcast surveys
-        const userResult = await User.findById(studentId);
-        if (!userResult.success) return errorResponse(res, 404, 'User not found');
-        const studentDepartment = userResult.data.department;
-
-        const filters = { module_code, academic_year, semester };
-        const result = await Survey.listSurveysByStudent(studentId, studentDepartment, filters);
-        response(res, 200, 'Student surveys fetched successfully', result);
+        const filters = { title, target_audience, is_active, created_by };
+        const result = await Survey.listSurveyTemplates(filters);
+        response(res, 200, 'Survey templates fetched successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
 /**
- * Update a survey's base fields.
+ * Update a survey template's base fields.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-const updateSurvey = async (req, res) => {
+const updateSurveyTemplate = async (req, res) => {
     const { id } = req.params;
-    const studentId = req.user.id;
     const updates = req.body;
 
     try {
-        // Ensure only the original creator (student_id) or an admin can update basic survey info
-        const survey = await Survey.getSurveyWithDetails(id);
-        if (!survey.survey) return errorResponse(res, 404, 'Survey not found');
+        // Ensure only the creator or an admin can update
+        const template = await Survey.getSurveyTemplateDetails(id);
+        if (!template.template) return errorResponse(res, 404, 'Survey template not found');
 
-        if (survey.survey.student_id !== studentId && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
-            return errorResponse(res, 403, 'Unauthorized to update this survey');
+        if (template.template.created_by !== req.user.id && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
+            return errorResponse(res, 403, 'Unauthorized to update this survey template');
         }
 
-        const result = await Survey.updateSurvey(id, updates);
-        response(res, 200, 'Survey updated successfully', result);
+        const result = await Survey.updateSurveyTemplate(id, updates);
+        response(res, 200, 'Survey template updated successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
 /**
- * Delete a survey and its associated data.
+ * Delete a survey template and its associated data.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-const deleteSurvey = async (req, res) => {
+const deleteSurveyTemplate = async (req, res) => {
     const { id } = req.params;
-    const studentId = req.user.id;
 
     try {
-        // Ensure only the original creator (student_id) or an admin can delete a survey
-        const survey = await Survey.getSurveyWithDetails(id);
-        if (!survey.survey) return errorResponse(res, 404, 'Survey not found');
+        // Ensure only the creator or an admin can delete
+        const template = await Survey.getSurveyTemplateDetails(id);
+        if (!template.template) return errorResponse(res, 404, 'Survey template not found');
 
-        if (survey.survey.student_id !== studentId && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
-            return errorResponse(res, 403, 'Unauthorized to delete this survey');
+        if (template.template.created_by !== req.user.id && req.user.role !== 'administrator' && req.user.role !== 'sys_admin') {
+            return errorResponse(res, 403, 'Unauthorized to delete this survey template');
         }
 
-        await Survey.deleteSurveyCascade(id);
-        response(res, 200, 'Survey and associated data deleted successfully');
+        await Survey.deleteSurveyTemplateCascade(id);
+        response(res, 200, 'Survey template and associated data deleted successfully');
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
-// --- Survey Ratings and Comments ---
+// --- Survey Response Management ---
 
 /**
- * Submit or update survey ratings and comments.
+ * Create a new survey response.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const createResponse = async (req, res) => {
+    const { survey_template_id, is_complete, ip_address, user_agent } = req.body;
+    const respondent_id = req.user.id;
+
+    if (!survey_template_id) {
+        return errorResponse(res, 400, 'Survey template ID is required.');
+    }
+
+    try {
+        const responseData = {
+            survey_template_id,
+            respondent_id,
+            is_complete: is_complete !== undefined ? is_complete : false,
+            ip_address,
+            user_agent
+        };
+        const result = await Survey.createResponse(responseData);
+        response(res, 201, 'Survey response created successfully', result);
+    } catch (error) {
+        errorResponse(res, 500, error.message);
+    }
+};
+
+/**
+ * Submit survey answers for a response.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 const submitSurveyResponse = async (req, res) => {
-    const { id } = req.params; // Survey ID
-    const { ratings, comments } = req.body;
-    const studentId = req.user.id; // User submitting the response
+    const { id } = req.params; // Survey template ID
+    const { answers } = req.body;
+    const respondent_id = req.user.id;
 
     try {
-        // Ensure survey exists and is either for this student or a broadcast survey
-        const surveyDetails = await Survey.getSurveyWithDetails(id);
-        if (!surveyDetails.survey) return errorResponse(res, 404, 'Survey not found');
+        // Ensure survey template exists
+        const template = await Survey.getSurveyTemplateDetails(id);
+        if (!template.template) return errorResponse(res, 404, 'Survey template not found');
 
-        // If survey is specific to a student, ensure it's for this student
-        if (surveyDetails.survey.student_id && surveyDetails.survey.student_id !== studentId) {
-            return errorResponse(res, 403, 'Unauthorized to respond to this survey');
-        }
+        // Create or get existing response
+        let response = await Survey.createResponse({
+            survey_template_id: id,
+            respondent_id,
+            is_complete: true
+        });
 
-        // If survey is a broadcast, ensure this student hasn't already filled it
-        if (!surveyDetails.survey.student_id) {
-            const existingResponse = await Survey.listSurveysByStudent(studentId, null, { id: id });
-            if (existingResponse && existingResponse.length > 0) {
-                return errorResponse(res, 400, 'You have already responded to this survey.');
+        // Process answers
+        if (answers && Array.isArray(answers)) {
+            for (const answer of answers) {
+                const answerData = {
+                    response_id: response.id,
+                    question_id: answer.question_id,
+                    text_answer: answer.text_answer,
+                    number_answer: answer.number_answer,
+                    date_answer: answer.date_answer,
+                    rating_answer: answer.rating_answer
+                };
+
+                const createdAnswer = await Survey.createAnswer(answerData);
+
+                // Handle multiple choice/checkbox options
+                if (answer.selected_options && Array.isArray(answer.selected_options)) {
+                    for (const optionId of answer.selected_options) {
+                        await Survey.createAnswerOption({
+                            answer_id: createdAnswer.id,
+                            option_id: optionId,
+                            custom_text: answer.custom_text
+                        });
+                    }
+                }
+
+                // Handle file uploads
+                if (answer.files && Array.isArray(answer.files)) {
+                    for (const file of answer.files) {
+                        await Survey.createAnswerFile({
+                            answer_id: createdAnswer.id,
+                            file_url: file.url,
+                            file_name: file.name,
+                            file_type: file.type,
+                            file_size_bytes: file.size
+                        });
+                    }
+                }
             }
         }
 
-        // Add/replace ratings
-        if (ratings && Array.isArray(ratings)) {
-            await Survey.replaceRatings(id, ratings);
-        }
-
-        // Upsert comments
-        if (comments) {
-            await Survey.upsertComments(id, comments);
-        }
-
-        // Mark survey as filled by this student if it was a broadcast survey
-        if (!surveyDetails.survey.student_id) {
-            await Survey.updateSurvey(id, { student_id: studentId, filled_at: new Date().toISOString() });
-        }
+        // Update survey statistics
+        await Survey.updateSurveyStatistics(id);
 
         response(res, 200, 'Survey response submitted successfully');
     } catch (error) {
@@ -181,44 +225,50 @@ const submitSurveyResponse = async (req, res) => {
 // --- Admin Survey Operations ---
 
 /**
- * Admin: List surveys with filters.
+ * Admin: List survey templates with filters.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 const adminListSurveys = async (req, res) => {
-    const filters = req.query; // Filters can be module_code, academic_year, etc.
+    const filters = req.query;
 
     try {
-        const result = await Survey.adminListSurveys(filters);
-        response(res, 200, 'Admin surveys fetched successfully', result);
+        const result = await Survey.listSurveyTemplates(filters);
+        response(res, 200, 'Admin survey templates fetched successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
 /**
- * Admin: Aggregate ratings for surveys based on filters.
+ * Admin: Get survey statistics.
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
 const adminAggregateRatings = async (req, res) => {
-    const filters = req.query; // Filters can be module_code, academic_year, etc.
+    const { templateId } = req.params;
 
     try {
-        const result = await Survey.adminAggregateRatings(filters);
-        response(res, 200, 'Survey ratings aggregated successfully', result);
+        const result = await Survey.updateSurveyStatistics(templateId);
+        response(res, 200, 'Survey statistics updated successfully', result);
     } catch (error) {
         errorResponse(res, 500, error.message);
     }
 };
 
 module.exports = {
-    createSurvey,
-    getSurveyDetails,
-    listStudentSurveys,
-    updateSurvey,
-    deleteSurvey,
+    // Survey Template Management
+    createSurveyTemplate,
+    getSurveyTemplateDetails,
+    listSurveyTemplates,
+    updateSurveyTemplate,
+    deleteSurveyTemplate,
+
+    // Survey Response Management
+    createResponse,
     submitSurveyResponse,
+
+    // Admin Operations
     adminListSurveys,
     adminAggregateRatings
 };

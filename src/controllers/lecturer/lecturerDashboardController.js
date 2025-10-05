@@ -13,8 +13,8 @@ class StaffDashboardController { // Renamed class
             const staffId = req.user.id; // Renamed lecturerId to staffId
 
             const [totalAppointmentsResult, upcomingAppointmentsResult, createdEventsResult, upcomingEventsResult] = await Promise.all([
-                Appointment.listByAppointee(staffId), // Renamed listByStaff to listByAppointee
-                Appointment.findUpcomingAppointments(staffId, 'appointee'), // Renamed 'staff' role to 'appointee'
+                Appointment.getByUser(staffId, 'appointee'), // Use existing getByUser method
+                Appointment.getUpcoming(staffId, 'appointee'), // Use existing getUpcoming method
                 Event.findByCreator(staffId, 1, 1, {}),
                 Event.findAll(1, 1, { created_by: staffId, event_date_from: new Date().toISOString() })
             ]);
@@ -42,7 +42,7 @@ class StaffDashboardController { // Renamed class
             const staffId = req.user.id; // Renamed lecturerId to staffId
             const limit = parseInt(req.query.limit) || 5;
 
-            const allAppointmentsResult = await Appointment.listByAppointee(staffId); // Renamed listByStaff to listByAppointee
+            const allAppointmentsResult = await Appointment.getByUser(staffId, 'appointee'); // Use existing getByUser method
             if (!allAppointmentsResult.success) throw new Error(allAppointmentsResult.error);
 
             const sortedAppointments = (allAppointmentsResult.data || []).sort((a, b) => {
@@ -64,7 +64,7 @@ class StaffDashboardController { // Renamed class
             const staffId = req.user.id; // Renamed lecturerId to staffId
             const limit = parseInt(req.query.limit) || 5;
 
-            const allAppointmentsResult = await Appointment.listByAppointee(staffId); // Renamed listByStaff to listByAppointee
+            const allAppointmentsResult = await Appointment.getByUser(staffId, 'appointee'); // Use existing getByUser method
             if (!allAppointmentsResult.success) throw new Error(allAppointmentsResult.error);
 
             const studentIds = [...new Set((allAppointmentsResult.data || []).map(appt => appt.requester_id))]; // Changed student_id to requester_id

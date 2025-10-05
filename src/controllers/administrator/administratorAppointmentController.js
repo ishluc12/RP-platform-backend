@@ -34,8 +34,9 @@ module.exports = {
 
     async updateStatus(req, res) {
         try {
-            const { status } = req.body; // 'accepted' | 'declined' | 'completed' | 'cancelled'
-            if (!['accepted', 'declined', 'completed', 'cancelled'].includes(status)) {
+            const { status } = req.body;
+            // Updated to match database enum values (normalization handled by database trigger)
+            if (!['pending', 'accepted', 'declined', 'completed', 'cancelled', 'rescheduled', 'approved', 'rejected'].includes(status)) {
                 return errorResponse(res, 400, 'Invalid status');
             }
 

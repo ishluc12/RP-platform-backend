@@ -5,7 +5,7 @@ const { logger } = require('../../utils/logger');
 module.exports = {
     async list(req, res) {
         try {
-            const result = await Appointment.listByAppointee(req.user.id); // Renamed listByStaff to listByAppointee
+            const result = await Appointment.getByUser(req.user.id, 'appointee'); // Use existing getByUser method
             if (!result.success) {
                 logger.error('Failed to fetch staff appointments:', result.error);
                 return errorResponse(res, 400, result.error);
@@ -20,7 +20,7 @@ module.exports = {
     async getUpcoming(req, res) {
         try {
             const { page, limit } = req.query;
-            const result = await Appointment.findUpcomingAppointments(req.user.id, 'appointee', { page: parseInt(page), limit: parseInt(limit) }); // Renamed 'lecturer' role to 'appointee'
+            const result = await Appointment.getUpcoming(req.user.id, 'appointee'); // Use existing getUpcoming method
             if (!result.success) {
                 logger.error('Failed to fetch upcoming staff appointments:', result.error);
                 return errorResponse(res, 400, result.error);
@@ -32,11 +32,27 @@ module.exports = {
         }
     },
 
+    async getPending(req, res) {
+        try {
+            const result = await Appointment.getPendingForStaff(req.user.id);
+            if (!result.success) {
+                logger.error('Failed to fetch pending appointments:', result.error);
+                return errorResponse(res, 400, result.error);
+            }
+            response(res, 200, 'Pending appointments fetched successfully', result.data);
+        } catch (err) {
+            logger.error('Error fetching pending appointments:', err.message);
+            errorResponse(res, 500, 'Internal server error', err.message);
+        }
+    },
+
     async updateStatus(req, res) {
         try {
-            const { status } = req.body; // 'accepted' | 'declined' | 'completed' | 'cancelled'
-            if (!['accepted', 'declined', 'completed', 'cancelled'].includes(status)) {
-                return errorResponse(res, 400, 'Invalid status');
+            const { status } = req.body;
+
+            // Validate status against the allowed enum values
+            if (status && !['pending', 'accepted', 'declined', 'completed', 'cancelled', 'rescheduled'].includes(status)) {
+                return errorResponse(res, 400, 'Invalid status value.');
             }
 
             const apptId = req.params.id;
@@ -44,7 +60,9 @@ module.exports = {
                 return errorResponse(res, 400, 'Invalid appointment ID');
             }
 
-            const result = await Appointment.update(apptId, { status });
+            // Pass the entire request body to the model's updateStatus function
+            const result = await Appointment.updateStatus(apptId, req.body);
+
             if (!result.success) {
                 logger.error('Failed to update appointment status:', result.error);
                 return errorResponse(res, 400, result.error);

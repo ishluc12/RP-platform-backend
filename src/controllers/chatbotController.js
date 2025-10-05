@@ -102,6 +102,13 @@ class ChatbotController {
             } else if (['lecturer', 'administrator', 'admin', 'sys_admin'].includes(user.role)) {
                 const result = await Appointment.listByAppointee(user.id);
                 appointments = result.data || [];
+            } else {
+                return {
+                    response: "You don't have permission to view appointments.",
+                    data: []
+                };
+            }
+                appointments = result.data || [];
             }
 
             const total = appointments.length;

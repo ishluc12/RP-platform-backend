@@ -7,44 +7,21 @@ const { logger } = require('../../utils/logger');
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
-        const { day_of_week, week_of_month, weeks, start_time, end_time, max_regular_students, max_emergency_students, allow_emergency, is_active } = req.body;
+        const { day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot = 1, slot_duration_minutes = 30, availability_type = 'regular', valid_from, valid_to, is_active = true } = req.body;
+
+        // Normalize valid_from and valid_to to null if not provided or empty
+        const normalizedValidFrom = valid_from === '' ? null : valid_from;
+        const normalizedValidTo = valid_to === '' ? null : valid_to;
 
         // Validation
         if (!day_of_week || !start_time || !end_time) {
             return errorResponse(res, 400, 'day_of_week, start_time, and end_time are required');
         }
 
-        // Validate day_of_week is between 1 and 7
+        // Validate day_of_week is between 0 and 6
         const dayOfWeekNum = parseInt(day_of_week);
-        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 1 || dayOfWeekNum > 7) {
-            return errorResponse(res, 400, 'day_of_week must be between 1 and 7 (1=Monday, 7=Sunday)');
-        }
-
-        // Validate week_of_month if provided
-        let weekOfMonth = null;
-        if (week_of_month !== undefined) {
-            const weekNum = parseInt(week_of_month);
-            if (isNaN(weekNum) || weekNum < 1 || weekNum > 5) {
-                return errorResponse(res, 400, 'week_of_month must be between 1 and 5');
-            }
-            weekOfMonth = weekNum;
-        }
-
-        // Handle weeks array for bulk creation
-        let weeksToCreate = [];
-        if (weeks && Array.isArray(weeks)) {
-            weeksToCreate = weeks.filter(w => {
-                const num = parseInt(w);
-                return !isNaN(num) && num >= 1 && num <= 5;
-            });
-            if (weeksToCreate.length === 0) {
-                return errorResponse(res, 400, 'weeks array must contain valid week numbers (1-5)');
-            }
-        } else if (weekOfMonth) {
-            weeksToCreate = [weekOfMonth];
-        } else {
-            // If no weeks specified, create for all weeks (backward compatibility)
-            weeksToCreate = [null];
+        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 0 || dayOfWeekNum > 6) {
+            return errorResponse(res, 400, 'day_of_week must be between 0 and 6 (0=Sunday, 6=Saturday)');
         }
 
         // Format time properly - handle both HH:MM and HH:MM:SS
@@ -52,57 +29,80 @@ const createAvailability = async (req, res) => {
             if (!time) return null;
             const parts = time.split(':');
             if (parts.length >= 3) {
-                // Take only HH:MM:SS
                 return parts.slice(0, 3).join(':');
             }
             if (parts.length === 2) {
-                // Append :00
                 return time + ':00';
             }
-            // Invalid format
             return null;
         };
 
         const formattedStartTime = formatTime(start_time);
         const formattedEndTime = formatTime(end_time);
+        const formattedBreakStart = break_start_time ? formatTime(break_start_time) : null;
+        const formattedBreakEnd = break_end_time ? formatTime(break_end_time) : null;
 
         // Validate times
         if (!formattedStartTime || !formattedEndTime) {
-            return errorResponse(res, 400, 'Invalid time format. Use HH:MM or HH:MM:SS');
+            return errorResponse(res, 400, 'Invalid time format for start_time or end_time. Use HH:MM or HH:MM:SS');
         }
 
         if (formattedStartTime >= formattedEndTime) {
             return errorResponse(res, 400, 'End time must be after start time');
         }
 
-        // Validate and sanitize student limits
-        const maxRegular = Math.max(0, Math.min(parseInt(max_regular_students) || 0, 10));
-        const maxEmergency = Math.max(0, Math.min(parseInt(max_emergency_students) || 0, 5));
-
-        // Create slots for each week
-        const createdSlots = [];
-        for (const week of weeksToCreate) {
-            const result = await StaffAvailability.create({
-                staff_id: staffId,
-                day_of_week: dayOfWeekNum,
-                week_of_month: week,
-                start_time: formattedStartTime,
-                end_time: formattedEndTime,
-                max_regular_students: maxRegular,
-                max_emergency_students: maxEmergency,
-                allow_emergency: allow_emergency !== undefined ? Boolean(allow_emergency) : false,
-                is_active: is_active !== undefined ? Boolean(is_active) : true,
-            });
-
-            if (!result.success) {
-                logger.error('Failed to create availability in DB:', result.error);
-                return errorResponse(res, 400, result.error);
+        if (formattedBreakStart && formattedBreakEnd) {
+            if (formattedBreakStart >= formattedBreakEnd) {
+                return errorResponse(res, 400, 'Break end time must be after break start time');
             }
-            createdSlots.push(result.data);
+            if (formattedBreakStart < formattedStartTime || formattedBreakEnd > formattedEndTime) {
+                return errorResponse(res, 400, 'Break times must be within start and end times');
+            }
+        } else if (formattedBreakStart || formattedBreakEnd) {
+            return errorResponse(res, 400, 'Both break_start_time and break_end_time must be provided if using break');
         }
 
-        logger.info(`Availability slots created for staff_id: ${staffId}, role: ${req.user.role}, day: ${dayOfWeekNum}, weeks: ${weeksToCreate.join(', ')}`);
-        response(res, 201, 'Availability slots created successfully', createdSlots);
+        // Validate valid_from and valid_to if provided
+        if (valid_from && valid_to) {
+            const fromDate = new Date(valid_from);
+            const toDate = new Date(valid_to);
+            if (fromDate >= toDate) {
+                return errorResponse(res, 400, 'valid_to must be after valid_from');
+            }
+        }
+
+        // Validate max_appointments_per_slot and slot_duration_minutes
+        const maxAppts = parseInt(max_appointments_per_slot);
+        const slotDuration = parseInt(slot_duration_minutes);
+        if (isNaN(maxAppts) || maxAppts < 1) {
+            return errorResponse(res, 400, 'max_appointments_per_slot must be at least 1');
+        }
+        if (isNaN(slotDuration) || slotDuration < 1) {
+            return errorResponse(res, 400, 'slot_duration_minutes must be at least 1');
+        }
+
+        const result = await StaffAvailability.create({
+            staff_id: staffId,
+            day_of_week: dayOfWeekNum,
+            start_time: formattedStartTime,
+            end_time: formattedEndTime,
+            break_start_time: formattedBreakStart,
+            break_end_time: formattedBreakEnd,
+            max_appointments_per_slot: maxAppts,
+            slot_duration_minutes: slotDuration,
+            availability_type,
+            valid_from: normalizedValidFrom,
+            valid_to: normalizedValidTo,
+            is_active: Boolean(is_active)
+        });
+
+        if (!result.success) {
+            logger.error('Failed to create availability in DB:', result.error);
+            return errorResponse(res, 400, result.error);
+        }
+
+        logger.info(`Availability slot created for staff_id: ${staffId}, role: ${req.user.role}, day: ${dayOfWeekNum}`);
+        response(res, 201, 'Availability slot created successfully', result.data);
     } catch (error) {
         logger.error('Error creating availability:', error.message);
         logger.error('Error stack:', error.stack);
@@ -209,7 +209,7 @@ const deleteAvailability = async (req, res) => {
 const getLecturerAvailabilityForStudents = async (req, res) => {
     try {
         // Fetch all active staff availability (includes both lecturers and administrators)
-        const result = await StaffAvailability.getAllActiveLecturerAvailability();
+        const result = await StaffAvailability.getAllActiveStaffAvailability();
 
         if (!result.success) {
             logger.error('Failed to fetch staff availability:', result.error);

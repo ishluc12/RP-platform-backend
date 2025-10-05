@@ -7,44 +7,17 @@ const { logger } = require('../../utils/logger');
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
-        const { day_of_week, week_of_month, weeks, start_time, end_time, max_regular_students, max_emergency_students, allow_emergency, is_active } = req.body;
+        const { day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot, slot_duration_minutes, availability_type, valid_from, valid_to, is_active } = req.body;
 
         // Validation
         if (!day_of_week || !start_time || !end_time) {
             return errorResponse(res, 400, 'day_of_week, start_time, and end_time are required');
         }
 
-        // Validate day_of_week is between 1 and 7
+        // Validate day_of_week is between 0 and 6
         const dayOfWeekNum = parseInt(day_of_week);
-        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 1 || dayOfWeekNum > 7) {
-            return errorResponse(res, 400, 'day_of_week must be between 1 and 7 (1=Monday, 7=Sunday)');
-        }
-
-        // Validate week_of_month if provided
-        let weekOfMonth = null;
-        if (week_of_month !== undefined) {
-            const weekNum = parseInt(week_of_month);
-            if (isNaN(weekNum) || weekNum < 1 || weekNum > 5) {
-                return errorResponse(res, 400, 'week_of_month must be between 1 and 5');
-            }
-            weekOfMonth = weekNum;
-        }
-
-        // Handle weeks array for bulk creation
-        let weeksToCreate = [];
-        if (weeks && Array.isArray(weeks)) {
-            weeksToCreate = weeks.filter(w => {
-                const num = parseInt(w);
-                return !isNaN(num) && num >= 1 && num <= 5;
-            });
-            if (weeksToCreate.length === 0) {
-                return errorResponse(res, 400, 'weeks array must contain valid week numbers (1-5)');
-            }
-        } else if (weekOfMonth) {
-            weeksToCreate = [weekOfMonth];
-        } else {
-            // If no weeks specified, create for all weeks (backward compatibility)
-            weeksToCreate = [null];
+        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 0 || dayOfWeekNum > 6) {
+            return errorResponse(res, 400, 'day_of_week must be between 0 and 6 (0=Sunday, 6=Saturday)');
         }
 
         // Format time properly - handle both HH:MM and HH:MM:SS
@@ -65,6 +38,8 @@ const createAvailability = async (req, res) => {
 
         const formattedStartTime = formatTime(start_time);
         const formattedEndTime = formatTime(end_time);
+        const formattedBreakStart = formatTime(break_start_time);
+        const formattedBreakEnd = formatTime(break_end_time);
 
         // Validate times
         if (!formattedStartTime || !formattedEndTime) {
@@ -75,34 +50,69 @@ const createAvailability = async (req, res) => {
             return errorResponse(res, 400, 'End time must be after start time');
         }
 
-        // Validate and sanitize student limits
-        const maxRegular = Math.max(0, Math.min(parseInt(max_regular_students) || 0, 10));
-        const maxEmergency = Math.max(0, Math.min(parseInt(max_emergency_students) || 0, 5));
-
-        // Create slots for each week
-        const createdSlots = [];
-        for (const week of weeksToCreate) {
-            const result = await StaffAvailability.create({
-                staff_id: staffId,
-                day_of_week: dayOfWeekNum,
-                week_of_month: week,
-                start_time: formattedStartTime,
-                end_time: formattedEndTime,
-                max_regular_students: maxRegular,
-                max_emergency_students: maxEmergency,
-                allow_emergency: allow_emergency !== undefined ? Boolean(allow_emergency) : false,
-                is_active: is_active !== undefined ? Boolean(is_active) : true,
-            });
-
-            if (!result.success) {
-                logger.error('Failed to create availability in DB:', result.error);
-                return errorResponse(res, 400, result.error);
+        // Validate break times if provided
+        if (formattedBreakStart && formattedBreakEnd) {
+            if (formattedBreakStart >= formattedBreakEnd) {
+                return errorResponse(res, 400, 'Break end time must be after break start time');
             }
-            createdSlots.push(result.data);
+            if (formattedBreakStart < formattedStartTime || formattedBreakEnd > formattedEndTime) {
+                return errorResponse(res, 400, 'Break must be within availability period');
+            }
+        } else if (formattedBreakStart || formattedBreakEnd) {
+            return errorResponse(res, 400, 'Both break_start_time and break_end_time must be provided if using breaks');
         }
 
-        logger.info(`Availability slots created for administrator: ${staffId}, day: ${dayOfWeekNum}, weeks: ${weeksToCreate.join(', ')}`);
-        response(res, 201, 'Availability slots created successfully', createdSlots);
+        // Validate and sanitize other fields
+        const maxAppointments = Math.max(1, parseInt(max_appointments_per_slot) || 1);
+        const slotDuration = Math.max(15, parseInt(slot_duration_minutes) || 30); // Minimum 15 minutes
+
+        const availType = availability_type || 'regular';
+        if (!['regular', 'temporary', 'special'].includes(availType)) {
+            return errorResponse(res, 400, 'Invalid availability_type');
+        }
+
+        let validFromDate = null;
+        if (valid_from) {
+            validFromDate = new Date(valid_from);
+            if (isNaN(validFromDate.getTime())) {
+                return errorResponse(res, 400, 'Invalid valid_from date');
+            }
+        }
+
+        let validToDate = null;
+        if (valid_to) {
+            validToDate = new Date(valid_to);
+            if (isNaN(validToDate.getTime())) {
+                return errorResponse(res, 400, 'Invalid valid_to date');
+            }
+            if (validFromDate && validToDate < validFromDate) {
+                return errorResponse(res, 400, 'valid_to must be after valid_from');
+            }
+        }
+
+        // Create the availability slot
+        const result = await StaffAvailability.create({
+            staff_id: staffId,
+            day_of_week: dayOfWeekNum,
+            start_time: formattedStartTime,
+            end_time: formattedEndTime,
+            break_start_time: formattedBreakStart,
+            break_end_time: formattedBreakEnd,
+            max_appointments_per_slot: maxAppointments,
+            slot_duration_minutes: slotDuration,
+            is_active: is_active !== undefined ? Boolean(is_active) : true,
+            availability_type: availType,
+            valid_from: validFromDate,
+            valid_to: validToDate,
+        });
+
+        if (!result.success) {
+            logger.error('Failed to create availability in DB:', result.error);
+            return errorResponse(res, 400, result.error);
+        }
+
+        logger.info(`Availability slot created for administrator: ${staffId}, day: ${dayOfWeekNum}`);
+        response(res, 201, 'Availability slot created successfully', result.data);
     } catch (error) {
         logger.error('Error creating availability:', error.message);
         logger.error('Error stack:', error.stack);
@@ -152,23 +162,67 @@ const updateAvailability = async (req, res) => {
         }
 
         // Format times if provided
-        if (updates.start_time) {
-            const parts = updates.start_time.split(':');
-            if (parts.length === 2) {
-                updates.start_time = updates.start_time + ':00';
+        const formatTime = (time) => {
+            if (!time) return null;
+            const parts = time.split(':');
+            if (parts.length >= 3) {
+                return parts.slice(0, 3).join(':');
             }
-        }
-
-        if (updates.end_time) {
-            const parts = updates.end_time.split(':');
             if (parts.length === 2) {
-                updates.end_time = updates.end_time + ':00';
+                return time + ':00';
             }
-        }
+            return null;
+        };
 
-        // Validate times if both are provided
+        if (updates.start_time) updates.start_time = formatTime(updates.start_time);
+        if (updates.end_time) updates.end_time = formatTime(updates.end_time);
+        if (updates.break_start_time) updates.break_start_time = formatTime(updates.break_start_time);
+        if (updates.break_end_time) updates.break_end_time = formatTime(updates.break_end_time);
+
+        // Validate times if both start and end are provided
         if (updates.start_time && updates.end_time && updates.start_time >= updates.end_time) {
             return errorResponse(res, 400, 'End time must be after start time');
+        }
+
+        // Validate break times if provided
+        if (updates.break_start_time && updates.break_end_time) {
+            if (updates.break_start_time >= updates.break_end_time) {
+                return errorResponse(res, 400, 'Break end time must be after break start time');
+            }
+        } else if (updates.break_start_time || updates.break_end_time) {
+            return errorResponse(res, 400, 'Both break_start_time and break_end_time must be provided if updating breaks');
+        }
+
+        // Validate other fields if provided
+        if (updates.max_appointments_per_slot) {
+            updates.max_appointments_per_slot = Math.max(1, parseInt(updates.max_appointments_per_slot));
+        }
+
+        if (updates.slot_duration_minutes) {
+            updates.slot_duration_minutes = Math.max(15, parseInt(updates.slot_duration_minutes));
+        }
+
+        if (updates.availability_type && !['regular', 'temporary', 'special'].includes(updates.availability_type)) {
+            return errorResponse(res, 400, 'Invalid availability_type');
+        }
+
+        if (updates.valid_from) {
+            const validFromDate = new Date(updates.valid_from);
+            if (isNaN(validFromDate.getTime())) {
+                return errorResponse(res, 400, 'Invalid valid_from date');
+            }
+            updates.valid_from = validFromDate;
+        }
+
+        if (updates.valid_to) {
+            const validToDate = new Date(updates.valid_to);
+            if (isNaN(validToDate.getTime())) {
+                return errorResponse(res, 400, 'Invalid valid_to date');
+            }
+            updates.valid_to = validToDate;
+            if (updates.valid_from && updates.valid_to < updates.valid_from) {
+                return errorResponse(res, 400, 'valid_to must be after valid_from');
+            }
         }
 
         const result = await StaffAvailability.update(slotId, updates);

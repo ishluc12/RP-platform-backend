@@ -13,6 +13,9 @@ router.get('/', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'),
 // Get upcoming lecturer appointments
 router.get('/upcoming', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'), lecturerAppointmentController.getUpcoming);
 
+// Get pending appointments (waiting for staff response)
+router.get('/pending', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'), lecturerAppointmentController.getPending);
+
 // Update appointment status (accept/decline/complete)
 router.put('/:id/status', requireRoles('lecturer', 'admin', 'administrator', 'sys_admin'), lecturerAppointmentController.updateStatus);
 

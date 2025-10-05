@@ -1,0 +1,137 @@
+{
+  "intents": {
+    "greeting": {
+      "examples": [
+        "hello",
+        "hi",
+        "hey there",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "hi there",
+        "hello there",
+        "greetings"
+      ],
+      "keywords": [
+        "hello",
+        "hi",
+        "hey",
+        "greetings"
+      ]
+    },
+    "appointments": {
+      "examples": [
+        "show my appointments",
+        "what appointments do I have",
+        "list my appointments",
+        "upcoming appointments",
+        "do I have any appointments",
+        "appointment schedule",
+        "my bookings",
+        "show my meetings",
+        "when is my next appointment"
+      ],
+      "keywords": [
+        "appointment",
+        "appointments",
+        "booking",
+        "schedule",
+        "meeting"
+      ]
+    },
+    "events": {
+      "examples": [
+        "show events",
+        "what events are coming up",
+        "list upcoming events",
+        "events this week",
+        "events today",
+        "any events happening",
+        "campus events",
+        "show me activities"
+      ],
+      "keywords": [
+        "event",
+        "events",
+        "activity",
+        "activities",
+        "workshop",
+        "seminar"
+      ]
+    },
+    "help": {
+      "examples": [
+        "help me",
+        "what can you do",
+        "how do I use this",
+        "show me how to",
+        "I need assistance",
+        "what commands do you know",
+        "give me help",
+        "how does this work"
+      ],
+      "keywords": [
+        "help",
+        "assist",
+        "guide",
+        "support",
+        "instructions"
+      ]
+    },
+    "surveys": {
+      "examples": [
+        "show my surveys",
+        "what surveys do I have",
+        "list available surveys",
+        "pending surveys",
+        "survey results",
+        "survey statistics",
+        "survey analytics",
+        "survey completion rate"
+      ],
+      "keywords": [
+        "survey",
+        "surveys",
+        "questionnaire",
+        "feedback",
+        "form"
+      ]
+    },
+    "profile": {
+      "examples": [
+        "show my profile",
+        "view my account",
+        "my user information",
+        "account settings",
+        "update my profile",
+        "change my details",
+        "profile picture"
+      ],
+      "keywords": [
+        "profile",
+        "account",
+        "settings",
+        "details",
+        "information"
+      ]
+    },
+    "notifications": {
+      "examples": [
+        "show my notifications",
+        "do I have any notifications",
+        "recent notifications",
+        "unread messages",
+        "alerts",
+        "what's new"
+      ],
+      "keywords": [
+        "notification",
+        "notifications",
+        "alert",
+        "alerts",
+        "message",
+        "messages"
+      ]
+    }
+  }
+}
