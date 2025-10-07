@@ -93,48 +93,47 @@ class ChatbotController {
      * Get all appointments for the user
      */
     static async getMyAppointments(user) {
-        try {
-            let appointments;
-            
-            if (user.role === 'student') {
-                const result = await Appointment.listByRequester(user.id);
-                appointments = result.data || [];
-            } else if (['lecturer', 'administrator', 'admin', 'sys_admin'].includes(user.role)) {
-                const result = await Appointment.listByAppointee(user.id);
-                appointments = result.data || [];
-            } else {
-                return {
-                    response: "You don't have permission to view appointments.",
-                    data: []
-                };
-            }
-                appointments = result.data || [];
-            }
-
-            const total = appointments.length;
-            const pending = appointments.filter(a => a.status === 'pending').length;
-            const accepted = appointments.filter(a => a.status === 'accepted').length;
-            const cancelled = appointments.filter(a => a.status === 'cancelled' || a.status === 'declined').length;
-
+    try {
+        let appointments;
+        
+        if (user.role === 'student') {
+            const result = await Appointment.listByRequester(user.id);
+            appointments = result.data || [];
+        } else if (['lecturer', 'administrator', 'admin', 'sys_admin'].includes(user.role)) {
+            const result = await Appointment.listByAppointee(user.id);
+            appointments = result.data || [];
+        } else {
             return {
-                response: `You have ${total} total appointment(s): ${pending} pending, ${accepted} accepted, ${cancelled} cancelled/declined.`,
-                data: {
-                    total,
-                    pending,
-                    accepted,
-                    cancelled,
-                    appointments: appointments.slice(0, 5) // Show first 5
-                },
-                suggestions: ['Show pending', 'Show accepted', 'Show cancelled', 'Upcoming appointments']
-            };
-        } catch (error) {
-            logger.error('Error fetching appointments:', error);
-            return {
-                response: 'Sorry, I could not fetch your appointments at this time.',
-                error: error.message
+                response: "You don't have permission to view appointments.",
+                data: []
             };
         }
+        // REMOVED THE DUPLICATE LINE HERE
+
+        const total = appointments.length;
+        const pending = appointments.filter(a => a.status === 'pending').length;
+        const accepted = appointments.filter(a => a.status === 'accepted').length;
+        const cancelled = appointments.filter(a => a.status === 'cancelled' || a.status === 'declined').length;
+
+        return {
+            response: `You have ${total} total appointment(s): ${pending} pending, ${accepted} accepted, ${cancelled} cancelled/declined.`,
+            data: {
+                total,
+                pending,
+                accepted,
+                cancelled,
+                appointments: appointments.slice(0, 5)
+            },
+            suggestions: ['Show pending', 'Show accepted', 'Show cancelled', 'Upcoming appointments']
+        };
+    } catch (error) {
+        logger.error('Error fetching appointments:', error);
+        return {
+            response: 'Sorry, I could not fetch your appointments at this time.',
+            error: error.message
+        };
     }
+}
 
     /**
      * Get user's availability (for staff only)

@@ -243,9 +243,10 @@ class StaffAvailability {
      * @param {string} startTime - Start time in HH:MM format
      * @param {string} endTime - End time in HH:MM format
      * @param {string} role - Optional staff role filter
+     * @param {string} availabilityType - Optional availability type filter (e.g. emergency)
      * @returns {Promise<Object>} - Success/error result
      */
-    static async getAvailableStaff(date, startTime, endTime, role = null) {
+    static async getAvailableStaff(date, startTime, endTime, role = null, availabilityType = null) {
         try {
             const dayOfWeek = new Date(date).getDay();
 
@@ -262,6 +263,9 @@ class StaffAvailability {
 
             if (role) {
                 query = query.eq('staff.role', role);
+            }
+            if (availabilityType) {
+                query = query.eq('availability_type', availabilityType);
             }
 
             const { data, error } = await query;
