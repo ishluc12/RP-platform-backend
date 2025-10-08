@@ -15,24 +15,24 @@ class StaffAvailability {
     static async findByStaffId(staffId, options = {}) {
         try {
             const { isActive, orderBy = 'day_of_week', orderDirection = 'asc' } = options;
-            
+
             let query = supabase
                 .from('staff_availability')
                 .select('*')
                 .eq('staff_id', staffId)
                 .order(orderBy, { ascending: orderDirection === 'asc' });
-                
+
             if (isActive !== undefined) {
                 query = query.eq('is_active', isActive);
             }
-            
+
             const { data, error } = await query;
-            
+
             if (error) {
                 logger.error('Error finding availability by staff ID:', error);
                 return { success: false, error: error.message };
             }
-            
+
             return { success: true, data };
         } catch (error) {
             logger.error('Error in findByStaffId:', error);
@@ -61,13 +61,19 @@ class StaffAvailability {
                 valid_to
             } = availabilityData;
 
+            // Normalize valid_from and valid_to to null if not provided or empty
+            const normalizedValidFrom = valid_from === '' ? null : valid_from;
+            const normalizedValidTo = valid_to === '' ? null : valid_to;
+
             // Validate required fields
             if (!staff_id || day_of_week === undefined || !start_time || !end_time) {
+                logger.error(`Validation Error: Missing required fields - staff_id: ${staff_id}, day_of_week: ${day_of_week}, start_time: ${start_time}, end_time: ${end_time}`);
                 throw new Error('Missing required fields: staff_id, day_of_week, start_time, end_time');
             }
 
             // Validate day_of_week (0-6)
             if (day_of_week < 0 || day_of_week > 6) {
+                logger.error(`Validation Error: Invalid day_of_week - ${day_of_week}`);
                 throw new Error('day_of_week must be between 0 (Sunday) and 6 (Saturday)');
             }
 
@@ -84,8 +90,8 @@ class StaffAvailability {
                     max_appointments_per_slot,
                     buffer_time_minutes,
                     availability_type,
-                    valid_from,
-                    valid_to,
+                    valid_from: normalizedValidFrom,
+                    valid_to: normalizedValidTo,
                     is_active: true
                 })
                 .select('*')

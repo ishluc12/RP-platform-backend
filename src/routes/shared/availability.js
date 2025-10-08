@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { requireStudentOrAdmin } = require('../../middleware/roleAuth');
+const { pgPool } = require('../../config/database');
 
 // Students can view a staff member's availability by staff ID (includes both lecturers and administrators)
 router.use(authenticateToken);

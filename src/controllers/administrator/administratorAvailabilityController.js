@@ -130,8 +130,8 @@ const getMyAvailability = async (req, res) => {
         if (day_of_week) {
             // Validate day_of_week
             const numericDayOfWeek = parseInt(day_of_week, 10);
-            if (isNaN(numericDayOfWeek) || numericDayOfWeek < 1 || numericDayOfWeek > 7) {
-                return errorResponse(res, 400, 'Invalid day_of_week. Must be a number between 1 and 7.');
+            if (isNaN(numericDayOfWeek) || numericDayOfWeek < 0 || numericDayOfWeek > 6) {
+                return errorResponse(res, 400, 'Invalid day_of_week. Must be a number between 0 and 6 (0=Sunday, 6=Saturday).');
             }
             result = await StaffAvailability.findByStaffIdAndDay(staffId, numericDayOfWeek);
         } else {

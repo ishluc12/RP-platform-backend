@@ -2,7 +2,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const path = require('path');
 const { authenticateToken } = require('../../middleware/auth');
-const MessageController = require('../../controllers/shared/messageController');
+const Message = require('../../models/Message');
 const cloudinary = require('../../config/cloudinary');
 const { v4: uuidv4 } = require('uuid');
 
@@ -12,7 +12,18 @@ const upload = multer({
     storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
     fileFilter: (req, file, cb) => {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'video/mp4'];
+        const allowedTypes = [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'application/pdf',
+            'video/mp4',
+            'text/plain',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
@@ -39,7 +50,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         }
 
         // Upload file buffer to Cloudinary
-        const uploadResult = await cloudinary.uploader.upload_stream({
+        const stream = cloudinary.uploader.upload_stream({
             resource_type: 'auto',
             folder: 'message_files',
             public_id: uuidv4(),
@@ -49,27 +60,34 @@ router.post('/', upload.single('file'), async (req, res) => {
                 return res.status(500).json({ error: 'File upload failed', details: error.message });
             }
 
-            // Create message with file URL as content and message_type as 'file'
+            // Create message with file metadata and message_type as 'file'
             const messageData = {
                 sender_id: senderId,
-                message: result.secure_url,
+                message: req.file.originalname, // keep a human-friendly label
                 is_group: !!groupId,
                 group_id: groupId || null,
                 receiver_id: receiverId || null,
                 message_type: 'file',
+                file_url: result.secure_url,
+                file_name: req.file.originalname,
+                file_size: req.file.size,
+                file_type: req.file.mimetype,
                 sent_at: new Date().toISOString()
             };
 
-            const createResult = await Message.create(messageData);
-            if (!createResult.success) {
-                return res.status(400).json({ error: createResult.error });
+            try {
+                const createResult = await Message.create(messageData);
+                if (!createResult.success) {
+                    return res.status(400).json({ error: createResult.error });
+                }
+                return res.status(201).json({ message: 'File message sent successfully', data: createResult.data });
+            } catch (e) {
+                console.error('Error creating file message record:', e);
+                return res.status(500).json({ error: 'Failed to save file message' });
             }
-
-            return res.status(201).json({ message: 'File message sent successfully', data: createResult.data });
         });
 
         // Pipe the file buffer to Cloudinary upload stream
-        const stream = uploadResult;
         stream.end(req.file.buffer);
 
     } catch (error) {

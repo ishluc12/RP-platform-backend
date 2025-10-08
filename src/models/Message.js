@@ -177,17 +177,79 @@ class Message {
 
     static async getUserGroupChats(userId) {
         try {
-            const { data, error } = await db
+            // Fetch groups the user is a member of
+            const { data: groupMembers, error: groupError } = await db
                 .from('group_members')
-                .select('group_id, chat_groups(*)')
+                .select('group_id')
                 .eq('user_id', userId);
 
-            if (error) {
-                logger.error('Error fetching user group chats from DB:', error);
-                return { success: false, error: error.message };
+            if (groupError) {
+                logger.error('Error fetching group memberships:', groupError);
+                return { success: false, error: groupError.message };
             }
 
-            return { success: true, data: data.map(gm => gm.chat_groups) };
+            if (!groupMembers || groupMembers.length === 0) {
+                return { success: true, data: [] };
+            }
+
+            const groupIds = groupMembers.map(gm => gm.group_id);
+
+            // Fetch group details
+            const { data: groups, error: groupsError } = await db
+                .from('chat_groups')
+                .select('*')
+                .in('id', groupIds);
+
+            if (groupsError) {
+                logger.error('Error fetching group details:', groupsError);
+                return { success: false, error: groupsError.message };
+            }
+
+            // Fetch last message for each group
+            const groupsWithLastMessage = await Promise.all(
+                groups.map(async (group) => {
+                    // Get last message
+                    const { data: messages, error: msgError } = await db
+                        .from('messages')
+                        .select('message, sent_at, sender_id')
+                        .eq('group_id', group.id)
+                        .eq('is_group', true)
+                        .order('sent_at', { ascending: false })
+                        .limit(1);
+
+                    const lastMessage = messages && messages.length > 0 ? messages[0] : null;
+
+                    // Get unread count
+                    const { count: unreadCount } = await db
+                        .from('messages')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('group_id', group.id)
+                        .eq('is_group', true)
+                        .neq('sender_id', userId)
+                        .eq('is_read', false);
+
+                    return {
+                        id: group.id,
+                        name: group.name,
+                        avatar: group.avatar,
+                        description: group.description,
+                        created_by: group.created_by,
+                        created_at: group.created_at,
+                        last_message_content: lastMessage?.message || 'No messages yet',
+                        last_message_sent_at: lastMessage?.sent_at || group.created_at,
+                        unread_count: unreadCount || 0
+                    };
+                })
+            );
+
+            // Sort by most recent message
+            groupsWithLastMessage.sort((a, b) => {
+                const timeA = new Date(a.last_message_sent_at).getTime();
+                const timeB = new Date(b.last_message_sent_at).getTime();
+                return timeB - timeA;
+            });
+
+            return { success: true, data: groupsWithLastMessage };
         } catch (error) {
             logger.error('Exception in getUserGroupChats:', error);
             return { success: false, error: error.message };
