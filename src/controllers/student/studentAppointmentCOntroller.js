@@ -90,6 +90,38 @@ class StudentAppointmentController {
         }
     }
 
+    static async getUpcomingAppointments(req, res) {
+        try {
+            const studentId = req.user.id;
+            const result = await Appointment.getUpcomingByUser(studentId, 'requester');
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Upcoming appointments fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching upcoming appointments:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    static async getAppointmentStats(req, res) {
+        try {
+            const studentId = req.user.id;
+            const result = await Appointment.getStats(studentId, 'requester');
+
+            if (!result.success) {
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Appointment statistics fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching appointment statistics:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
     static async getAvailableLecturers(req, res) {
         try {
             const { date, start_time, end_time, role, emergency, availability_type } = req.query;

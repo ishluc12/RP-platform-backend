@@ -15,7 +15,7 @@ class Appointment {
     static async listByAppointee(appointeeId, options = {}) {
         try {
             const { status, limit = 10, offset = 0, orderBy = 'appointment_date', orderDirection = 'asc' } = options;
-            
+
             let query = supabase
                 .from('appointments')
                 .select(`
@@ -26,25 +26,25 @@ class Appointment {
                 .eq('appointee_id', appointeeId)
                 .order(orderBy, { ascending: orderDirection === 'asc' })
                 .range(offset, offset + limit - 1);
-                
+
             if (status) {
                 query = query.eq('status', status);
             }
-            
+
             const { data, error } = await query;
-            
+
             if (error) {
                 logger.error('Error listing appointments by appointee:', error);
                 return { success: false, error: error.message };
             }
-            
+
             return { success: true, data };
         } catch (error) {
             logger.error('Error in listByAppointee:', error);
             return { success: false, error: error.message };
         }
     }
-    
+
     /**
      * Find upcoming appointments for a user
      * @param {string} userId - User ID
@@ -52,11 +52,11 @@ class Appointment {
      * @param {Object} options - Filter options
      * @returns {Promise<Object>} - Success/error result
      */
-    static async findUpcomingAppointments(userId, role = 'student', options = {}) {
+    static async getUpcomingByUser(userId, role = 'student', options = {}) {
         try {
             const { limit = 5, offset = 0 } = options;
             const today = new Date().toISOString().split('T')[0];
-            
+
             let query = supabase
                 .from('appointments')
                 .select(`
@@ -69,20 +69,20 @@ class Appointment {
                 .order('appointment_date', { ascending: true })
                 .order('start_time', { ascending: true })
                 .range(offset, offset + limit - 1);
-                
+
             if (role === 'student') {
                 query = query.eq('requester_id', userId);
             } else {
                 query = query.eq('appointee_id', userId);
             }
-            
+
             const { data, error } = await query;
-            
+
             if (error) {
                 logger.error('Error finding upcoming appointments:', error);
                 return { success: false, error: error.message };
             }
-            
+
             return { success: true, data };
         } catch (error) {
             logger.error('Error in findUpcomingAppointments:', error);
@@ -399,8 +399,8 @@ class Appointment {
             return { success: true, data };
         } catch (error) {
             console.error('Error cancelling appointment:', error);
-                return { success: false, error: error.message };
-            }
+            return { success: false, error: error.message };
+        }
     }
 
     /**
