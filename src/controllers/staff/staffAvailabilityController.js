@@ -155,18 +155,18 @@ class StaffAvailabilityController {
 
             if (!result.success) {
                 return errorResponse(res, 400, result.error);
-        }
+            }
 
             logger.info(`Staff ${staffId} deleted availability slot ${id}`);
             response(res, 200, 'Availability slot deleted successfully');
-    } catch (error) {
+        } catch (error) {
             logger.error('Error deleting availability:', error);
             errorResponse(res, 500, 'Internal server error');
         }
     }
 
     /**
-     * Toggle availability active status
+     * Toggle availability slot active status
      * @param {Object} req - Express request object
      * @param {Object} res - Express response object
      */
@@ -174,7 +174,7 @@ class StaffAvailabilityController {
         try {
             const { id } = req.params;
             const { is_active } = req.body;
-        const staffId = req.user.id;
+            const staffId = req.user.id;
 
             // First check if this availability belongs to the staff
             const availabilityResult = await StaffAvailability.getByStaff(staffId);
@@ -189,9 +189,9 @@ class StaffAvailabilityController {
 
             const result = await StaffAvailability.toggleActive(id, is_active);
 
-        if (!result.success) {
+            if (!result.success) {
                 return errorResponse(res, 400, result.error);
-        }
+            }
 
             logger.info(`Staff ${staffId} toggled availability slot ${id} to ${is_active ? 'active' : 'inactive'}`);
             response(res, 200, 'Availability status updated successfully', result.data);

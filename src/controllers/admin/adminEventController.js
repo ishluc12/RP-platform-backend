@@ -1,63 +1,42 @@
-const Event = require('../../models/Event');
-const { logger } = require('../../utils/logger');
-const { response, errorResponse } = require('../../utils/responseHandlers');
-const { supabase } = require('../../config/database');
-
+// AdminEventController.js - Fixed default value
 class AdminEventController {
-    // Get all events with admin privileges (no restrictions)
-    static async getAllEvents(req, res) {
-        try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 50; // Higher limit for admin
-            const filters = {};
-
-            // Apply filters from query parameters
-            if (req.query.title) filters.title = req.query.title;
-            if (req.query.location) filters.location = req.query.location;
-            if (req.query.created_by) filters.created_by = req.query.created_by;
-            if (req.query.event_date_from) filters.event_date_from = req.query.event_date_from;
-            if (req.query.event_date_to) filters.event_date_to = req.query.event_date_to;
-            if (req.query.status) filters.status = req.query.status;
-
-            const result = await Event.findAll(page, limit, filters);
-
-            if (!result.success) {
-                logger.error('Failed to fetch events:', result.error);
-                return errorResponse(res, 500, 'Failed to fetch events', result.error);
-            }
-
-            return response(res, 200, 'Events retrieved successfully', result.data, result.pagination);
-        } catch (error) {
-            logger.error('Error in admin getAllEvents:', error);
-            return errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Create new event (admin)
     static async createEvent(req, res) {
         try {
-            const { 
-                title, 
-                description, 
-                event_date, 
+            const {
+                title,
+                description,
+                event_date,
                 location,
-                max_participants, 
-                registration_required 
+                max_participants,
+                registration_required,
+                target_audience
             } = req.body;
 
-            // Get user ID from authenticated request
             const created_by = req.user?.id || req.user?.user_id;
 
             if (!created_by) {
                 return errorResponse(res, 401, 'User not authenticated');
             }
 
-            // Validate required fields
             if (!title || !event_date || !location) {
                 return errorResponse(res, 400, 'Title, event date, and location are required');
             }
 
-            // Create event data that matches your database schema
+            const validTargetAudiences = [
+                'all',
+                'Civil Engineering',
+                'Creative Arts',
+                'Mechanical Engineering',
+                'Electrical & Electronics Engineering',
+                'Information & Communication Technology (ICT)',
+                'Mining Engineering',
+                'Transport and Logistics'
+            ];
+
+            if (target_audience && !validTargetAudiences.includes(target_audience)) {
+                return errorResponse(res, 400, `Invalid target_audience. Must be one of: ${validTargetAudiences.join(', ')}.`);
+            }
+
             const eventData = {
                 title: title.trim(),
                 description: description?.trim() || null,
@@ -65,10 +44,10 @@ class AdminEventController {
                 location: location.trim(),
                 created_by,
                 max_participants: max_participants ? parseInt(max_participants) : null,
-                registration_required: !!registration_required
+                registration_required: !!registration_required,
+                target_audience: target_audience || 'all'  // Changed from 'both' to 'all'
             };
 
-            // Use direct Supabase insert to match your schema exactly
             const { data, error } = await supabase
                 .from('events')
                 .insert([eventData])
@@ -86,181 +65,302 @@ class AdminEventController {
             return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
+}
 
-    // Get event statistics for admin dashboard
-    static async getEventStats(req, res) {
+// LecturerEventController.js - Fixed default value and date validation
+class LecturerEventController {
+    static async createEvent(req, res) {
         try {
-            const { id } = req.params; // Optional event ID for specific stats
+            const {
+                title,
+                description,
+                event_date,
+                location,
+                max_participants,
+                registration_required,
+                target_audience
+            } = req.body;
+            const created_by = req.user.id;
 
-            const result = await Event.getEventStats(id || null);
+            if (!title || !event_date || !location) {
+                return errorResponse(res, 400, 'Title, event date, and location are required');
+            }
+
+            const validTargetAudiences = [
+                'all',
+                'Civil Engineering',
+                'Creative Arts',
+                'Mechanical Engineering',
+                'Electrical & Electronics Engineering',
+                'Information & Communication Technology (ICT)',
+                'Mining Engineering',
+                'Transport and Logistics'
+            ];
+
+            if (target_audience && !validTargetAudiences.includes(target_audience)) {
+                return errorResponse(res, 400, `Invalid target_audience. Must be one of: ${validTargetAudiences.join(', ')}.`);
+            }
+
+            const eventDate = new Date(event_date);
+            if (eventDate <= new Date()) {
+                return errorResponse(res, 400, 'Event date must be in the future');
+            }
+
+            const eventData = {
+                title: title.trim(),
+                description: description?.trim() || null,
+                event_date: eventDate.toISOString(),
+                location: location?.trim() || null,
+                created_by,
+                max_participants: max_participants ? parseInt(max_participants) : null,
+                registration_required: !!registration_required,
+                target_audience: target_audience || 'all'  // Changed from 'both' to 'all'
+            };
+
+            const result = await Event.create(eventData);
 
             if (!result.success) {
-                logger.error('Failed to fetch event statistics:', result.error);
-                return errorResponse(res, 500, 'Failed to fetch event statistics', result.error);
+                logger.error('Failed to create event:', result.error);
+                return errorResponse(res, 500, 'Failed to create event', result.error);
             }
 
-            return response(res, 200, 'Event statistics retrieved successfully', result.data);
+            return response(res, 201, 'Event created successfully', result.data);
         } catch (error) {
-            logger.error('Error in admin getEventStats:', error);
-            return errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Admin can update any event
-    static async updateEvent(req, res) {
-        try {
-            const { id } = req.params;
-            const eventId = id;
-            const updates = req.body; // Pass all updates directly
-
-            if (!eventId) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
-
-            // Admin is allowed to update any event, authorization will be handled by RLS if configured
-            const result = await Event.update(eventId, updates);
-
-            if (!result.success) {
-                logger.error('Failed to update event:', result.error);
-                return errorResponse(res, 500, 'Failed to update event', result.error);
-            }
-
-            return response(res, 200, 'Event updated successfully', result.data);
-        } catch (error) {
-            logger.error('Error in admin updateEvent:', error);
-            return errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Admin can delete any event
-    static async deleteEvent(req, res) {
-        try {
-            const { id } = req.params;
-            const eventId = id;
-
-            if (!eventId) {
-                return errorResponse(res, 400, 'Invalid event ID');
-            }
-
-            // Admin is allowed to delete any event, authorization will be handled by RLS if configured
-            const result = await Event.delete(eventId);
-
-            if (!result.success) {
-                logger.error('Failed to delete event:', result.error);
-                return errorResponse(res, 500, 'Failed to delete event', result.error);
-            }
-
-            return response(res, 200, 'Event deleted successfully', result.data);
-        } catch (error) {
-            logger.error('Error in admin deleteEvent:', error);
-            return errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get events by specific user (admin view)
-    static async getEventsByUser(req, res) {
-        try {
-            const { userId } = req.params;
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 20;
-            const creatorId = userId;
-
-            if (!creatorId) {
-                return errorResponse(res, 400, 'Invalid user ID');
-            }
-
-            const result = await Event.findByCreator(creatorId, page, limit);
-
-            if (!result.success) {
-                logger.error('Failed to fetch events by user:', result.error);
-                return errorResponse(res, 500, 'Failed to fetch events by user', result.error);
-            }
-
-            return response(res, 200, 'User events retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination
-            });
-        } catch (error) {
-            logger.error('Error in getEventsByUser:', error);
-            return errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Bulk delete events (admin only)
-    static async bulkDeleteEvents(req, res) {
-        try {
-            const { eventIds } = req.body;
-
-            if (!Array.isArray(eventIds) || eventIds.length === 0) {
-                return errorResponse(res, 400, 'Event IDs array is required');
-            }
-
-            const results = [];
-            let successCount = 0;
-            let errorCount = 0;
-
-            for (const eventId of eventIds) {
-                try {
-                    const result = await Event.delete(eventId);
-                    if (result.success) {
-                        successCount++;
-                        results.push({ id: eventId, status: 'deleted' });
-                    } else {
-                        errorCount++;
-                        results.push({ id: eventId, status: 'failed', error: result.error });
-                    }
-                } catch (error) {
-                    errorCount++;
-                    results.push({ id: eventId, status: 'failed', error: error.message });
-                }
-            }
-
-            return response(res, 200, 'Bulk delete operation completed', {
-                results,
-                summary: {
-                    total: eventIds.length,
-                    success: successCount,
-                    failed: errorCount
-                }
-            });
-        } catch (error) {
-            logger.error('Error in bulkDeleteEvents:', error);
-            return errorResponse(res, 500, 'Internal server error', error.message);
-        }
-    }
-
-    // Get events with advanced filtering for admin
-    static async getEventsWithAdvancedFilters(req, res) {
-        try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 50;
-            const filters = {};
-
-            // Apply all possible filters
-            if (req.query.title) filters.title = req.query.title;
-            if (req.query.location) filters.location = req.query.location;
-            if (req.query.created_by) filters.created_by = req.query.created_by;
-            if (req.query.event_date_from) filters.event_date_from = req.query.event_date_from;
-            if (req.query.event_date_to) filters.event_date_to = req.query.event_date_to;
-            if (req.query.department) filters.department = req.query.department;
-
-            const result = await Event.findAll(page, limit, filters);
-
-            if (!result.success) {
-                logger.error('Failed to fetch events with advanced filters:', result.error);
-                return errorResponse(res, 500, 'Failed to fetch events', result.error);
-            }
-
-            return response(res, 200, 'Events retrieved successfully', {
-                events: result.data,
-                pagination: result.pagination,
-                filters: filters
-            });
-        } catch (error) {
-            logger.error('Error in getEventsWithAdvancedFilters:', error);
+            logger.error('Error in lecturer createEvent:', error.message);
             return errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
 }
 
-module.exports = AdminEventController;
+// Updated Event Model - Added user department parameter
+class Event {
+    static async findAll(page = 1, limit = 10, filters = {}, userRole = null, userDepartment = null) {
+        try {
+            let query = db.from('events')
+                .select(`
+                    *,
+                    users!events_created_by_fkey(
+                        name,
+                        email
+                    )
+                `, { count: 'exact' });
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin' && userRole !== 'lecturer') {
+                if (userDepartment) {
+                    // Show events for 'all' or user's specific department
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    // If no department info, show only 'all' events
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+            // Lecturers and admins see all events
+
+            // Apply filters
+            if (filters.title) {
+                query = query.ilike('title', `%${filters.title}%`);
+            }
+            if (filters.location) {
+                query = query.ilike('location', `%${filters.location}%`);
+            }
+            if (filters.created_by) {
+                query = query.eq('created_by', filters.created_by);
+            }
+            if (filters.event_date_from) {
+                query = query.gte('event_date', filters.event_date_from);
+            }
+            if (filters.event_date_to) {
+                query = query.lte('event_date', filters.event_date_to);
+            }
+            if (filters.target_audience) {
+                query = query.eq('target_audience', filters.target_audience);
+            }
+
+            const offset = (page - 1) * limit;
+            query = query
+                .order('event_date', { ascending: true })
+                .range(offset, offset + limit - 1);
+
+            const { data, error, count } = await query;
+
+            if (error) {
+                logger.error('Supabase error finding all events:', error.message);
+                return { success: false, error: error.message };
+            }
+
+            return {
+                success: true,
+                data: data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    pages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            logger.error('Error finding all events:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Updated controller methods that need to pass userDepartment
+    static async getAllEvents(req, res) {
+        const { page, limit, title, location, created_by, event_date_from, event_date_to, target_audience } = req.query;
+        const userRole = req.user?.role;
+        const userDepartment = req.user?.department; // Get department from authenticated user
+
+        const filters = {};
+        if (title) filters.title = title;
+        if (location) filters.location = location;
+        if (created_by) filters.created_by = created_by;
+        if (event_date_from) filters.event_date_from = event_date_from;
+        if (event_date_to) filters.event_date_to = event_date_to;
+        if (target_audience) filters.target_audience = target_audience;
+
+        try {
+            const result = await Event.findAll(
+                parseInt(page) || 1,
+                parseInt(limit) || 10,
+                filters,
+                userRole,
+                userDepartment // Pass department
+            );
+
+            if (!result.success) {
+                logger.error('Error fetching all events in controller:', result.error);
+                return errorResponse(res, 400, result.error.message || 'Failed to fetch events');
+            }
+            response(res, 200, 'Events fetched successfully', result.data, result.pagination);
+        } catch (error) {
+            logger.error('Exception fetching all events:', error.message);
+            errorResponse(res, 500, error.message);
+        }
+    }
+
+    static async findUpcoming(limit = 10, userRole = null, userDepartment = null) {
+        try {
+            let query = supabase
+                .from('events')
+                .select(`
+                    *,
+                    users!events_created_by_fkey(
+                        name,
+                        email
+                    )
+                `)
+                .gte('event_date', new Date().toISOString());
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin' && userRole !== 'lecturer') {
+                if (userDepartment) {
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+
+            const { data, error } = await query
+                .order('event_date', { ascending: true })
+                .limit(limit);
+
+            if (error) {
+                logger.error('Supabase error finding upcoming events:', error.message);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            logger.error('Error finding upcoming events:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    static async findPast(limit = 10, userRole = null, userDepartment = null) {
+        try {
+            let query = supabase
+                .from('events')
+                .select(`
+                    *,
+                    users!events_created_by_fkey(
+                        name,
+                        email
+                    )
+                `)
+                .lt('event_date', new Date().toISOString());
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin' && userRole !== 'lecturer') {
+                if (userDepartment) {
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+
+            const { data, error } = await query
+                .order('event_date', { ascending: false })
+                .limit(limit);
+
+            if (error) {
+                logger.error('Supabase error finding past events:', error.message);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            logger.error('Error finding past events:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    static async searchEvents(searchTerm, page = 1, limit = 10, userRole = null, userDepartment = null) {
+        try {
+            const offset = (page - 1) * limit;
+
+            let query = supabase
+                .from('events')
+                .select(`
+                    *,
+                    users!events_created_by_fkey(
+                        name,
+                        email
+                    )
+                `, { count: 'exact' })
+                .or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%`);
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin' && userRole !== 'lecturer') {
+                if (userDepartment) {
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+
+            const { data, error, count } = await query
+                .order('event_date', { ascending: true })
+                .range(offset, offset + limit - 1);
+
+            if (error) {
+                logger.error('Supabase error searching events:', error.message);
+                return { success: false, error: error.message };
+            }
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    pages: Math.ceil(count / limit),
+                },
+            };
+        } catch (error) {
+            logger.error('Error searching events:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+}
