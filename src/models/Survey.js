@@ -316,9 +316,9 @@ const listVisibleTemplatesForUser = async (role) => {
         // Restrict by audience for non-admins
         let audiences = ['all', 'both', 'everyone'];
         if (role === 'student') {
-            audiences = audiences.concat(['students']);
+            audiences = audiences.concat(['student', 'students']); // Accept both singular and plural
         } else if (role === 'lecturer') {
-            audiences = audiences.concat(['lecturers', 'all_staff']);
+            audiences = audiences.concat(['lecturer', 'lecturers', 'all_staff']); // Accept both singular and plural
         } else {
             // Fallback: include role string as-is for any custom role naming
             audiences = audiences.concat([role]);
