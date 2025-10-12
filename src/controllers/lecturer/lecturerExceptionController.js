@@ -3,16 +3,29 @@ const AvailabilityException = require('../../models/AvailabilityException');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
+// Utility function to ensure time is in HH:MM:SS format
+const formatTime = (time) => {
+    if (!time) return null;
+    const parts = time.split(':');
+    if (parts.length >= 3) {
+        return parts.slice(0, 3).join(':');
+    }
+    if (parts.length === 2) {
+        return time + ':00';
+    }
+    return null;
+};
+
 // Create availability exception for the authenticated staff member
 const createException = async (req, res) => {
     try {
         const staffId = req.user.id;
-        const { 
-            exception_date, 
-            exception_type = 'unavailable', 
-            start_time, 
-            end_time, 
-            reason 
+        const {
+            exception_date,
+            exception_type = 'unavailable',
+            start_time,
+            end_time,
+            reason
         } = req.body;
 
         // Validation
@@ -32,24 +45,31 @@ const createException = async (req, res) => {
             return errorResponse(res, 400, 'Invalid exception_type. Must be one of: ' + validTypes.join(', '));
         }
 
-        // If exception_type is 'modified_hours' or 'extra_hours', start_time and end_time are required
-        if ((exception_type === 'modified_hours' || exception_type === 'extra_hours') && (!start_time || !end_time)) {
-            return errorResponse(res, 400, 'start_time and end_time are required for modified_hours and extra_hours exceptions');
-        }
+        // Normalize times
+        const formattedStartTime = start_time ? formatTime(start_time) : null;
+        const formattedEndTime = end_time ? formatTime(end_time) : null;
 
-        // Validate times if provided
-        if (start_time && end_time) {
-            if (start_time >= end_time) {
+        // If exception_type is 'modified_hours' or 'extra_hours', start_time and end_time are required and validated
+        if ((exception_type === 'modified_hours' || exception_type === 'extra_hours')) {
+            if (!formattedStartTime || !formattedEndTime) {
+                return errorResponse(res, 400, 'start_time and end_time are required for modified_hours and extra_hours exceptions');
+            }
+            if (formattedStartTime >= formattedEndTime) {
                 return errorResponse(res, 400, 'End time must be after start time');
             }
+        }
+
+        // If times are provided for 'unavailable' (e.g., partial day off), validate them
+        if (formattedStartTime && formattedEndTime && formattedStartTime >= formattedEndTime) {
+            return errorResponse(res, 400, 'End time must be after start time');
         }
 
         const result = await AvailabilityException.create({
             staff_id: staffId,
             exception_date: exception_date,
             exception_type,
-            start_time,
-            end_time,
+            start_time: formattedStartTime,
+            end_time: formattedEndTime,
             reason
         });
 
@@ -73,8 +93,9 @@ const getExceptions = async (req, res) => {
         const staffId = req.user.id;
         const { start_date, end_date, exception_type } = req.query;
 
-        let filters = { staff_id: staffId };
-        
+        // Note: The model should handle the staff_id filter internally based on the request
+        const filters = {};
+
         if (start_date) {
             filters.start_date = start_date;
         }
@@ -85,11 +106,15 @@ const getExceptions = async (req, res) => {
             filters.exception_type = exception_type;
         }
 
+        // The getByStaff method should filter by the staffId passed here
         const result = await AvailabilityException.getByStaff(staffId, filters);
 
         if (!result.success) {
             logger.error('Failed to fetch exceptions:', result.error);
-            throw new Error(result.error);
+            // Throwing a new Error here is redundant if errorResponse is used later, 
+            // but is acceptable if your flow relies on the outer catch block.
+            // Keeping it simple: don't throw, just return the error response.
+            return errorResponse(res, 500, result.error);
         }
 
         response(res, 200, 'Exceptions fetched successfully', result.data);
@@ -109,7 +134,7 @@ const getUpcomingExceptions = async (req, res) => {
 
         if (!result.success) {
             logger.error('Failed to fetch upcoming exceptions:', result.error);
-            throw new Error(result.error);
+            return errorResponse(res, 500, result.error);
         }
 
         response(res, 200, 'Upcoming exceptions fetched successfully', result.data);
@@ -130,6 +155,23 @@ const updateException = async (req, res) => {
             return errorResponse(res, 400, 'Invalid exception ID');
         }
 
+        // CRITICAL FIX: Ensure ownership before attempting to update. 
+        // We need to fetch the existing record to get its type/times for validation.
+        const existingResult = await AvailabilityException.getByIdAndStaff(exceptionId, staffId);
+        if (!existingResult.success || !existingResult.data) {
+            return errorResponse(res, 404, 'Exception not found or unauthorized');
+        }
+        const existingException = existingResult.data;
+
+        // Determine the effective exception type and times for validation
+        const effectiveType = updates.exception_type || existingException.exception_type;
+        let effectiveStartTime = updates.start_time ? formatTime(updates.start_time) : existingException.start_time;
+        let effectiveEndTime = updates.end_time ? formatTime(updates.end_time) : existingException.end_time;
+
+        // Update the body with formatted times
+        if (updates.start_time) updates.start_time = effectiveStartTime;
+        if (updates.end_time) updates.end_time = effectiveEndTime;
+
         // Validate exception_type if provided
         if (updates.exception_type) {
             const validTypes = ['unavailable', 'modified_hours', 'extra_hours'];
@@ -138,12 +180,22 @@ const updateException = async (req, res) => {
             }
         }
 
-        // Validate times if both are provided
-        if (updates.start_time && updates.end_time && updates.start_time >= updates.end_time) {
+        // Conditional Time Validation based on effective type
+        if ((effectiveType === 'modified_hours' || effectiveType === 'extra_hours')) {
+            if (!effectiveStartTime || !effectiveEndTime) {
+                return errorResponse(res, 400, `start_time and end_time are required for ${effectiveType} exceptions.`);
+            }
+            if (effectiveStartTime >= effectiveEndTime) {
+                return errorResponse(res, 400, 'End time must be after start time');
+            }
+        } else if (effectiveStartTime && effectiveEndTime && effectiveStartTime >= effectiveEndTime) {
+            // General time validation
             return errorResponse(res, 400, 'End time must be after start time');
         }
 
-        const result = await AvailabilityException.update(exceptionId, updates);
+        // The model's update method *must* filter by staff_id internally for final security.
+        const result = await AvailabilityException.update(exceptionId, updates, staffId);
+
         if (!result.success) {
             return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }
@@ -165,8 +217,11 @@ const deleteException = async (req, res) => {
             return errorResponse(res, 400, 'Invalid exception ID');
         }
 
-        const result = await AvailabilityException.delete(exceptionId);
+        // CRITICAL FIX: The Model's delete method MUST ensure the exception belongs to staffId
+        const result = await AvailabilityException.delete(exceptionId, staffId);
+
         if (!result.success) {
+            // Updated status code to be 404/403 based on the model's error message
             return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }
 

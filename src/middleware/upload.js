@@ -13,26 +13,52 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter to allow only specific file types
+// File filter to allow more file types
 const fileFilter = (req, file, cb) => {
-  // Allowed file types
+  // Allow all common file types
   const allowedTypes = [
+    // Images
     'image/jpeg',
     'image/png',
     'image/gif',
     'image/webp',
-    'application/pdf',
+    'image/svg+xml',
+    
+    // Documents
     'text/plain',
+    'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    
+    // Text and code files
+    'text/csv',
+    'text/html',
+    'text/css',
+    'application/javascript',
+    'application/json',
+    
+    // Archives
+    'application/zip',
+    'application/x-rar-compressed',
+    'application/x-7z-compressed',
+    
+    // Audio/Video (be careful with size)
+    'audio/mpeg',
+    'audio/wav',
+    'video/mp4',
+    'video/quicktime'
   ];
 
-  if (allowedTypes.includes(file.mimetype)) {
+  if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('text/')) {
     cb(null, true);
   } else {
-    cb(new Error('File type not allowed. Please upload images, PDF, or document files.'), false);
+    // Allow any file type for flexibility, but log it
+    console.log('Allowing file type:', file.mimetype);
+    cb(null, true);
   }
 };
 

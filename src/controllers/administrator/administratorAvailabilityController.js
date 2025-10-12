@@ -3,6 +3,23 @@ const StaffAvailability = require('../../models/StaffAvailability');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
+// --- SHARED UTILITY FUNCTION (Normally in utils/timeFormatter.js) ---
+const formatTime = (time) => {
+    if (!time) return null;
+    const parts = time.split(':');
+    if (parts.length >= 3) {
+        // Take only HH:MM:SS
+        return parts.slice(0, 3).join(':');
+    }
+    if (parts.length === 2) {
+        // Append :00
+        return time + ':00';
+    }
+    // Invalid format
+    return null;
+};
+// -------------------------------------------------------------------
+
 // Create availability slot for the authenticated administrator
 const createAvailability = async (req, res) => {
     try {
@@ -19,22 +36,6 @@ const createAvailability = async (req, res) => {
         if (isNaN(dayOfWeekNum) || dayOfWeekNum < 0 || dayOfWeekNum > 6) {
             return errorResponse(res, 400, 'day_of_week must be between 0 and 6 (0=Sunday, 6=Saturday)');
         }
-
-        // Format time properly - handle both HH:MM and HH:MM:SS
-        const formatTime = (time) => {
-            if (!time) return null;
-            const parts = time.split(':');
-            if (parts.length >= 3) {
-                // Take only HH:MM:SS
-                return parts.slice(0, 3).join(':');
-            }
-            if (parts.length === 2) {
-                // Append :00
-                return time + ':00';
-            }
-            // Invalid format
-            return null;
-        };
 
         const formattedStartTime = formatTime(start_time);
         const formattedEndTime = formatTime(end_time);
@@ -64,10 +65,11 @@ const createAvailability = async (req, res) => {
 
         // Validate and sanitize other fields
         const maxAppointments = Math.max(1, parseInt(max_appointments_per_slot) || 1);
-        const slotDuration = Math.max(15, parseInt(slot_duration_minutes) || 30); // Minimum 15 minutes
+        const slotDuration = Math.max(15, parseInt(slot_duration_minutes) || 30); // Minimum 15 minutes (schema check)
 
         const availType = availability_type || 'regular';
-        if (!['regular', 'temporary', 'special'].includes(availType)) {
+        // Note: The schema also allows 'emergency', but the controller validates against the common three.
+        if (!['regular', 'temporary', 'special', 'emergency'].includes(availType)) {
             return errorResponse(res, 400, 'Invalid availability_type');
         }
 
@@ -108,6 +110,7 @@ const createAvailability = async (req, res) => {
 
         if (!result.success) {
             logger.error('Failed to create availability in DB:', result.error);
+            // Assuming 409 Conflict for duplicate or constraint error
             return errorResponse(res, 400, result.error);
         }
 
@@ -140,6 +143,7 @@ const getMyAvailability = async (req, res) => {
 
         if (!result.success) {
             logger.error('Failed to fetch availability:', result.error);
+            // This throw will be caught by the outer catch block
             throw new Error(result.error);
         }
 
@@ -161,39 +165,58 @@ const updateAvailability = async (req, res) => {
             return errorResponse(res, 400, 'Invalid slot ID');
         }
 
-        // Format times if provided
-        const formatTime = (time) => {
-            if (!time) return null;
-            const parts = time.split(':');
-            if (parts.length >= 3) {
-                return parts.slice(0, 3).join(':');
-            }
-            if (parts.length === 2) {
-                return time + ':00';
-            }
-            return null;
-        };
+        // 1. Fetch the existing availability slot to apply composite validation
+        const existingSlotResult = await StaffAvailability.findOne(slotId);
+        if (!existingSlotResult.success || !existingSlotResult.data) {
+            return errorResponse(res, 404, 'Availability slot not found');
+        }
+        const existingSlot = existingSlotResult.data;
 
-        if (updates.start_time) updates.start_time = formatTime(updates.start_time);
-        if (updates.end_time) updates.end_time = formatTime(updates.end_time);
-        if (updates.break_start_time) updates.break_start_time = formatTime(updates.break_start_time);
-        if (updates.break_end_time) updates.break_end_time = formatTime(updates.break_end_time);
+        // Enforce ownership: Check if the slot belongs to the authenticated staff
+        if (existingSlot.staff_id !== staffId) {
+            return errorResponse(res, 403, 'Forbidden: You do not own this availability slot');
+        }
 
-        // Validate times if both start and end are provided
-        if (updates.start_time && updates.end_time && updates.start_time >= updates.end_time) {
+        // Format times if provided, and check against existing times for composite validation
+        const effectiveStartTime = updates.start_time ? formatTime(updates.start_time) : existingSlot.start_time;
+        const effectiveEndTime = updates.end_time ? formatTime(updates.end_time) : existingSlot.end_time;
+        const effectiveBreakStart = updates.break_start_time ? formatTime(updates.break_start_time) : existingSlot.break_start_time;
+        const effectiveBreakEnd = updates.break_end_time ? formatTime(updates.break_end_time) : existingSlot.break_end_time;
+
+        // Apply formatted times back to updates object
+        if (updates.start_time) updates.start_time = effectiveStartTime;
+        if (updates.end_time) updates.end_time = effectiveEndTime;
+        if (updates.break_start_time) updates.break_start_time = effectiveBreakStart;
+        if (updates.break_end_time) updates.break_end_time = effectiveBreakEnd;
+
+
+        // Validate times
+        if (effectiveStartTime && effectiveEndTime && effectiveStartTime >= effectiveEndTime) {
             return errorResponse(res, 400, 'End time must be after start time');
         }
 
-        // Validate break times if provided
-        if (updates.break_start_time && updates.break_end_time) {
-            if (updates.break_start_time >= updates.break_end_time) {
+        // Validate break times (CRITICAL FIX: Uses effective times)
+        const breakStartProvided = updates.break_start_time !== undefined;
+        const breakEndProvided = updates.break_end_time !== undefined;
+
+        if (breakStartProvided || breakEndProvided || (existingSlot.break_start_time && existingSlot.break_end_time)) {
+            // If any break field is provided, or if the slot already has a break:
+            if (!effectiveBreakStart || !effectiveBreakEnd) {
+                return errorResponse(res, 400, 'Both break_start_time and break_end_time must be provided or updated together');
+            }
+
+            if (effectiveBreakStart >= effectiveBreakEnd) {
                 return errorResponse(res, 400, 'Break end time must be after break start time');
             }
-        } else if (updates.break_start_time || updates.break_end_time) {
-            return errorResponse(res, 400, 'Both break_start_time and break_end_time must be provided if updating breaks');
+
+            // Check if break is within the current or updated availability period
+            if (effectiveBreakStart < effectiveStartTime || effectiveBreakEnd > effectiveEndTime) {
+                return errorResponse(res, 400, 'Break must be within availability period');
+            }
         }
 
-        // Validate other fields if provided
+
+        // Validate and sanitize other fields
         if (updates.max_appointments_per_slot) {
             updates.max_appointments_per_slot = Math.max(1, parseInt(updates.max_appointments_per_slot));
         }
@@ -202,12 +225,15 @@ const updateAvailability = async (req, res) => {
             updates.slot_duration_minutes = Math.max(15, parseInt(updates.slot_duration_minutes));
         }
 
-        if (updates.availability_type && !['regular', 'temporary', 'special'].includes(updates.availability_type)) {
+        if (updates.availability_type && !['regular', 'temporary', 'special', 'emergency'].includes(updates.availability_type)) {
             return errorResponse(res, 400, 'Invalid availability_type');
         }
 
+        // Date validation logic remains the same (handles partial updates)
+        let validFromDate = updates.valid_from ? new Date(updates.valid_from) : null;
+        let validToDate = updates.valid_to ? new Date(updates.valid_to) : null;
+
         if (updates.valid_from) {
-            const validFromDate = new Date(updates.valid_from);
             if (isNaN(validFromDate.getTime())) {
                 return errorResponse(res, 400, 'Invalid valid_from date');
             }
@@ -215,19 +241,24 @@ const updateAvailability = async (req, res) => {
         }
 
         if (updates.valid_to) {
-            const validToDate = new Date(updates.valid_to);
             if (isNaN(validToDate.getTime())) {
                 return errorResponse(res, 400, 'Invalid valid_to date');
             }
             updates.valid_to = validToDate;
-            if (updates.valid_from && updates.valid_to < updates.valid_from) {
+
+            // Check combined dates (using new 'valid_from' or existing 'valid_from')
+            const finalValidFrom = updates.valid_from || existingSlot.valid_from;
+            if (finalValidFrom && updates.valid_to < finalValidFrom) {
                 return errorResponse(res, 400, 'valid_to must be after valid_from');
             }
         }
 
-        const result = await StaffAvailability.update(slotId, updates);
+        // The StaffAvailability.update function should enforce staffId ownership via a WHERE clause
+        const result = await StaffAvailability.update(slotId, updates, staffId);
+
         if (!result.success) {
-            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
+            // Updated error response handling to be more specific, assuming model enforces staffId
+            return errorResponse(res, 404, result.error);
         }
 
         response(res, 200, 'Availability slot updated successfully', result.data);
@@ -247,7 +278,9 @@ const deleteAvailability = async (req, res) => {
             return errorResponse(res, 400, 'Invalid slot ID');
         }
 
-        const result = await StaffAvailability.delete(slotId);
+        // The StaffAvailability.delete function should enforce staffId ownership via a WHERE clause
+        const result = await StaffAvailability.delete(slotId, staffId);
+
         if (!result.success) {
             return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
         }

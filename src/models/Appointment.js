@@ -6,21 +6,41 @@ class Appointment {
      */
     static async create(appointmentData) {
         try {
+            // Create appointment_time from appointment_date and start_time
+            const appointmentTime = `${appointmentData.appointment_date}T${appointmentData.start_time}`;
+            
             const { data, error } = await supabase
                 .from('appointments')
                 .insert([{
                     ...appointmentData,
+                    appointment_time: appointmentTime,
                     requested_at: new Date().toISOString()
                 }])
-                .select(`
-                    *,
-                    requester:requester_id(id, name, email, student_id, role),
-                    appointee:appointee_id(id, name, email, staff_id, department, role)
-                `)
+                .select('*')
                 .single();
 
             if (error) throw error;
-            return { success: true, data };
+
+            // Fetch user details separately
+            const { data: requesterData } = await supabase
+                .from('users')
+                .select('id, name, email, student_id, role')
+                .eq('id', data.requester_id)
+                .single();
+
+            const { data: appointeeData } = await supabase
+                .from('users')
+                .select('id, name, email, staff_id, department, role')
+                .eq('id', data.appointee_id)
+                .single();
+
+            const enrichedData = {
+                ...data,
+                requester: requesterData,
+                appointee: appointeeData
+            };
+
+            return { success: true, data: enrichedData };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -58,11 +78,7 @@ class Appointment {
 
             let query = supabase
                 .from('appointments')
-                .select(`
-                    *,
-                    requester:requester_id(id, name, email, student_id, role),
-                    appointee:appointee_id(id, name, email, staff_id, department, role)
-                `)
+                .select('*')
                 .eq(field, userId)
                 .is('deleted_at', null);
 
@@ -89,7 +105,29 @@ class Appointment {
             const { data, error } = await query.order('appointment_date', { ascending: true });
 
             if (error) throw error;
-            return { success: true, data: data || [] };
+
+            // Enrich with user details
+            const enrichedData = await Promise.all((data || []).map(async (appointment) => {
+                const { data: requesterData } = await supabase
+                    .from('users')
+                    .select('id, name, email, student_id, role')
+                    .eq('id', appointment.requester_id)
+                    .single();
+
+                const { data: appointeeData } = await supabase
+                    .from('users')
+                    .select('id, name, email, staff_id, department, role')
+                    .eq('id', appointment.appointee_id)
+                    .single();
+
+                return {
+                    ...appointment,
+                    requester: requesterData,
+                    appointee: appointeeData
+                };
+            }));
+
+            return { success: true, data: enrichedData };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -129,11 +167,7 @@ class Appointment {
 
             const { data, error } = await supabase
                 .from('appointments')
-                .select(`
-                    *,
-                    requester:requester_id(id, name, email, student_id, role),
-                    appointee:appointee_id(id, name, email, staff_id, department, role)
-                `)
+                .select('*')
                 .eq(field, userId)
                 .gte('appointment_date', today)
                 .in('status', ['pending', 'accepted'])
@@ -275,17 +309,28 @@ class Appointment {
      */
     static async isSlotAvailable(staffId, date, startTime, endTime, excludeAppointmentId = null) {
         try {
-            const { data, error } = await supabase
-                .rpc('is_slot_available', {
-                    p_staff_id: staffId,
-                    p_date: date,
-                    p_start_time: startTime,
-                    p_end_time: endTime,
-                    p_exclude_appointment_id: excludeAppointmentId
-                });
+            // Check for overlapping appointments
+            let query = supabase
+                .from('appointments')
+                .select('id')
+                .eq('appointee_id', staffId)
+                .eq('appointment_date', date)
+                .in('status', ['pending', 'accepted', 'rescheduled'])
+                .is('deleted_at', null);
+
+            // Check for time overlap: new slot overlaps if it starts before existing ends AND ends after existing starts
+            query = query.or(`and(start_time.lt.${endTime},end_time.gt.${startTime})`);
+
+            if (excludeAppointmentId) {
+                query = query.neq('id', excludeAppointmentId);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
-            return data; // Returns boolean
+            
+            // If no overlapping appointments found, slot is available
+            return data.length === 0;
         } catch (error) {
             console.error('Error checking slot availability:', error);
             return false;
@@ -297,14 +342,9 @@ class Appointment {
      */
     static async getAvailableSlots(staffId, date) {
         try {
-            const { data, error } = await supabase
-                .rpc('get_available_slots', {
-                    p_staff_id: staffId,
-                    p_date: date
-                });
-
-            if (error) throw error;
-            return { success: true, data: data || [] };
+            // This method is handled by the controller using StaffAvailability model
+            // Return empty array as fallback - controller should use StaffAvailability.getByStaff instead
+            return { success: true, data: [] };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -400,6 +440,32 @@ class Appointment {
             return { success: false, error: error.message };
         }
     }
+    static async cancel(appointmentId, staffId, reason) {
+        try {
+            const { data, error } = await supabase
+                .from('appointments')
+                .update({
+                    status: 'cancelled',
+                    cancellation_reason: reason,
+                    cancelled_by: staffId,
+                    cancelled_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appointmentId)
+                .select(`
+                    *,
+                    requester:requester_id(id, name, email, student_id, role),
+                    appointee:appointee_id(id, name, email, staff_id, department, role)
+                `)
+                .single();
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
 
     /**
      * Count appointments
@@ -410,7 +476,6 @@ class Appointment {
                 .from('appointments')
                 .select('id', { count: 'exact', head: true })
                 .is('deleted_at', null);
-
             if (filters.status) query = query.eq('status', filters.status);
 
             const { count, error } = await query;
@@ -420,6 +485,23 @@ class Appointment {
         } catch (error) {
             return { success: false, error: error.message };
         }
+    }
+
+    // Alias methods for backward compatibility
+    static async getUpcomingByUser(userId, userType = 'requester') {
+        return this.getUpcoming(userId, userType);
+    }
+
+    static async getByAppointee(appointeeId, filters = {}) {
+        return this.getByUser(appointeeId, 'appointee', filters);
+    }
+
+    static async getByAppointeeAndStatus(appointeeId, status) {
+        return this.getByUser(appointeeId, 'appointee', { status });
+    }
+
+    static async getUpcomingForLecturer(lecturerId) {
+        return this.getUpcoming(lecturerId, 'appointee');
     }
 }
 

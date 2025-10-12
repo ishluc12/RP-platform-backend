@@ -47,10 +47,63 @@ class StaffAvailability {
                 query = query.eq('availability_type', filters.availability_type);
             }
 
-            const { data, error } = await query.order('day_of_week').order('start_time');
+            // Add specific_date filter if provided
+            if (filters.specific_date) {
+                query = query.eq('specific_date', filters.specific_date);
+            }
+
+            // Filter by date range if provided
+            if (filters.from_date) {
+                query = query.gte('specific_date', filters.from_date);
+            }
+            if (filters.to_date) {
+                query = query.lte('specific_date', filters.to_date);
+            }
+
+            const { data, error } = await query.order('specific_date', { nullsFirst: false }).order('day_of_week').order('start_time');
 
             if (error) throw error;
             return { success: true, data: data || [] };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get availability by staff ID (alias for getByStaff)
+     */
+    static async findByStaffId(staffId) {
+        return this.getByStaff(staffId);
+    }
+
+    /**
+     * Get availability by staff ID and day
+     */
+    static async findByStaffIdAndDay(staffId, dayOfWeek) {
+        return this.getByStaff(staffId, { day_of_week: dayOfWeek });
+    }
+
+    /**
+     * Find one availability slot by ID
+     */
+    static async findOne(slotId) {
+        try {
+            const { data, error } = await supabase
+                .from('staff_availability')
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
+                .eq('id', slotId)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    return { success: false, error: 'Availability slot not found' };
+                }
+                throw error;
+            }
+            return { success: true, data };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -243,6 +296,93 @@ class StaffAvailability {
             if (error) throw error;
             return { success: true, data: data || [] };
         } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get available staff for a specific date/time slot
+     */
+    static async getAvailableStaff(date, startTime, endTime, role = null, availabilityType = null) {
+        try {
+            const dayOfWeek = new Date(date).getDay();
+            
+            let query = supabase
+                .from('staff_availability')
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
+                .eq('is_active', true)
+                .eq('day_of_week', dayOfWeek)
+                .lte('start_time', startTime)
+                .gte('end_time', endTime);
+
+            if (availabilityType) {
+                query = query.eq('availability_type', availabilityType);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            // Filter by role if specified
+            let staffList = data || [];
+            if (role) {
+                staffList = staffList.filter(slot => slot.staff?.role === role);
+            }
+
+            // Get unique staff members
+            const uniqueStaff = [];
+            const staffIds = new Set();
+            
+            for (const slot of staffList) {
+                if (slot.staff && !staffIds.has(slot.staff.id)) {
+                    staffIds.add(slot.staff.id);
+                    uniqueStaff.push(slot.staff);
+                }
+            }
+
+            return { success: true, data: uniqueStaff };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Delete past availability slots (cleanup)
+     * Removes slots with specific_date that are in the past
+     * Also removes old recurring slots (without specific_date)
+     */
+    static async deletePastSlots() {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Delete past date-specific slots
+            const { data: pastSlots, error: pastError } = await supabase
+                .from('staff_availability')
+                .delete()
+                .lt('specific_date', today)
+                .not('specific_date', 'is', null)
+                .select();
+
+            if (pastError) throw pastError;
+            
+            // Delete old recurring slots (without specific_date) - we don't use them anymore
+            const { data: recurringSlots, error: recurringError } = await supabase
+                .from('staff_availability')
+                .delete()
+                .is('specific_date', null)
+                .select();
+
+            if (recurringError) throw recurringError;
+            
+            const totalDeleted = (pastSlots?.length || 0) + (recurringSlots?.length || 0);
+            console.log(`🗑️ Deleted ${pastSlots?.length || 0} past slots + ${recurringSlots?.length || 0} recurring slots = ${totalDeleted} total`);
+            
+            return { success: true, data: [...(pastSlots || []), ...(recurringSlots || [])], count: totalDeleted };
+        } catch (error) {
+            console.error('Error deleting past slots:', error);
             return { success: false, error: error.message };
         }
     }

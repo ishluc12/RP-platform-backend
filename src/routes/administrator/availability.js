@@ -2,27 +2,25 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { requireRoles } = require('../../middleware/roleAuth');
-const {
-    createAvailability,
-    getMyAvailability,
-    updateAvailability,
-    deleteAvailability
-} = require('../../controllers/administrator/administratorAvailabilityController');
+const administratorAvailabilityController = require('../../controllers/administrator/administratorAvailabilityController');
 
-// All routes require authentication and administrator role
+const ADMIN_ROLES = ['administrator', 'admin', 'sys_admin'];
+
+// All routes require authentication
 router.use(authenticateToken);
-router.use(requireRoles('administrator', 'admin', 'sys_admin'));
 
-// Create/update availability slots (bulk)
-router.post('/', createAvailability);
+// --- AVAILABILITY ROUTES ---
 
-// View own availability
-router.get('/', getMyAvailability);
+// Create availability slot
+router.post('/', requireRoles(ADMIN_ROLES), administratorAvailabilityController.createAvailability);
 
-// Update a slot
-router.put('/:id', updateAvailability);
+// Get all availability slots
+router.get('/', requireRoles(ADMIN_ROLES), administratorAvailabilityController.getMyAvailability);
 
-// Delete a slot
-router.delete('/:id', deleteAvailability);
+// Update a specific availability slot
+router.put('/:id', requireRoles(ADMIN_ROLES), administratorAvailabilityController.updateAvailability);
+
+// Delete a specific availability slot
+router.delete('/:id', requireRoles(ADMIN_ROLES), administratorAvailabilityController.deleteAvailability);
 
 module.exports = router;

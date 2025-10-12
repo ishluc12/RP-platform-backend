@@ -13,9 +13,13 @@ exports.getAllAppointments = async (req, res) => {
       filters.status = status;
     }
     if (date) {
+      // Apply date filter for the entire day
       filters.appointment_time_from = `${date}T00:00:00Z`;
       filters.appointment_time_to = `${date}T23:59:59Z`;
     }
+
+    // Note on Improvement: The filters 'lecturer', 'student', and 'q' should ideally be passed 
+    // to Appointment.findAll to filter in the database, not in memory after pagination.
 
     // Get appointments using the model's findAll method
     const result = await Appointment.findAll(parseInt(page), parseInt(limit), filters);
@@ -39,6 +43,7 @@ exports.getAllAppointments = async (req, res) => {
     // Fetch user details
     let usersMap = {};
     if (userIds.length > 0) {
+      // NOTE: Assumes 'users' table has 'first_name', 'last_name', and 'role'
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select('id, first_name, last_name, role')
@@ -81,6 +86,7 @@ exports.getAllAppointments = async (req, res) => {
         _id: apt.id,
         lecturer_name,
         student_name,
+        // Split appointment_time (ISO string) for display
         date: apt.appointment_time?.split('T')[0] || apt.appointment_time,
         time: apt.appointment_time?.split('T')[1]?.split('.')[0] || '',
         appointment_time: apt.appointment_time,
@@ -100,7 +106,7 @@ exports.getAllAppointments = async (req, res) => {
       };
     });
 
-    // Apply frontend filters if specified
+    // Apply in-memory frontend filters (applied to the current page only)
     if (lecturer) {
       transformedAppointments = transformedAppointments.filter(apt =>
         apt.lecturer_name.toLowerCase().includes(lecturer.toLowerCase())
@@ -166,15 +172,19 @@ exports.updateAppointmentStatus = async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
 
-    const validStatuses = ['pending', 'accepted', 'declined', 'completed', 'cancelled', 'rescheduled', 'approved', 'rejected'];
+    // CRITICAL FIX: The validStatuses list must strictly match the database's 
+    // appointment_status enum: 'pending', 'accepted', 'declined', 'completed', 'cancelled', 'rescheduled'.
+    const validStatuses = ['pending', 'accepted', 'declined', 'completed', 'cancelled', 'rescheduled'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status value'
+        message: `Invalid status value. Must be one of: ${validStatuses.join(', ')}`
       });
     }
 
+    // NOTE: Admin has system-wide update permission, so no 'appointee_id' check is needed here, 
+    // unlike the staff controller.
     const result = await Appointment.update(id, { status });
 
     if (!result.success) {
@@ -203,6 +213,7 @@ exports.updateAppointmentStatus = async (req, res) => {
 // Delete appointment
 exports.deleteAppointment = async (req, res) => {
   try {
+    // NOTE: Direct Supabase call bypasses the Appointment model (acceptable for admin delete)
     const { data, error } = await supabase
       .from('appointments')
       .delete()

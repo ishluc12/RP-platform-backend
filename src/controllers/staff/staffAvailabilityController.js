@@ -72,8 +72,8 @@ class StaffAvailabilityController {
      * @param {Object} res - Express response object
      */
     static async getMyAvailability(req, res) {
-    try {
-        const staffId = req.user.id;
+        try {
+            const staffId = req.user.id;
             const { is_active, day_of_week, availability_type } = req.query;
 
             const filters = {};
@@ -81,6 +81,7 @@ class StaffAvailabilityController {
             if (day_of_week !== undefined) filters.day_of_week = parseInt(day_of_week);
             if (availability_type) filters.availability_type = availability_type;
 
+            // FIX: Use getByStaff, not findByStaffId
             const result = await StaffAvailability.getByStaff(staffId, filters);
 
             if (!result.success) {
@@ -195,7 +196,7 @@ class StaffAvailabilityController {
 
             logger.info(`Staff ${staffId} toggled availability slot ${id} to ${is_active ? 'active' : 'inactive'}`);
             response(res, 200, 'Availability status updated successfully', result.data);
-    } catch (error) {
+        } catch (error) {
             logger.error('Error toggling availability:', error);
             errorResponse(res, 500, 'Internal server error');
         }
@@ -209,7 +210,7 @@ class StaffAvailabilityController {
     static async bulkCreateAvailability(req, res) {
         try {
             const { slots } = req.body;
-        const staffId = req.user.id;
+            const staffId = req.user.id;
 
             if (!slots || !Array.isArray(slots) || slots.length === 0) {
                 return errorResponse(res, 400, 'Slots array is required');
@@ -313,8 +314,8 @@ class StaffAvailabilityController {
      * @param {Object} res - Express response object
      */
     static async getExceptions(req, res) {
-    try {
-        const staffId = req.user.id;
+        try {
+            const staffId = req.user.id;
             const { exception_type, start_date, end_date, is_recurring } = req.query;
 
             const filters = {};
@@ -360,13 +361,13 @@ class StaffAvailabilityController {
 
             const result = await AvailabilityException.update(id, updateData);
 
-        if (!result.success) {
+            if (!result.success) {
                 return errorResponse(res, 400, result.error);
-        }
+            }
 
             logger.info(`Staff ${staffId} updated availability exception ${id}`);
             response(res, 200, 'Availability exception updated successfully', result.data);
-    } catch (error) {
+        } catch (error) {
             logger.error('Error updating availability exception:', error);
             errorResponse(res, 500, 'Internal server error');
         }
@@ -395,13 +396,13 @@ class StaffAvailabilityController {
 
             const result = await AvailabilityException.delete(id);
 
-        if (!result.success) {
+            if (!result.success) {
                 return errorResponse(res, 400, result.error);
-        }
+            }
 
             logger.info(`Staff ${staffId} deleted availability exception ${id}`);
             response(res, 200, 'Availability exception deleted successfully');
-    } catch (error) {
+        } catch (error) {
             logger.error('Error deleting availability exception:', error);
             errorResponse(res, 500, 'Internal server error');
         }
