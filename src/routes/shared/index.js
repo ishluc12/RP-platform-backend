@@ -10,6 +10,7 @@ const forumRoutes = require('./forums');
 const chatGroupRoutes = require('./chatGroups');
 const availabilityRoutes = require('./availability');
 const surveyRoutes = require('./surveys');
+const surveyFileUploadRoutes = require('./surveyFileUpload');
 const eventRoutes = require('./events');
 const lecturerAvailabilityRoutes = require('./lecturerAvailability');
 
@@ -23,6 +24,7 @@ router.use('/forums', forumRoutes);
 router.use('/chat-groups', chatGroupRoutes);
 router.use('/availability', availabilityRoutes);
 router.use('/surveys', surveyRoutes);
+router.use('/surveys', surveyFileUploadRoutes);
 router.use('/events', eventRoutes);
 router.use('/lecturer-availability', lecturerAvailabilityRoutes);
 

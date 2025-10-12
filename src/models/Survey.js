@@ -246,37 +246,132 @@ const deleteAnswerFile = async (answerFileId) => {
 
 // --- Survey Statistics Management ---
 const updateSurveyStatistics = async (templateId) => {
-    // This function would typically be triggered by a database trigger or a background job
-    // For direct calls, it aggregates current data
-    const { data: totalResponsesData, error: trError } = await db
+    // Aggregate totals
+    const { count: totalCount, error: trError } = await db
         .from('survey_responses')
-        .select('count', { head: true, count: 'exact' })
+        .select('*', { head: true, count: 'exact' })
         .eq('survey_template_id', templateId);
     if (trError) throw trError;
 
-    const totalResponses = totalResponsesData.count;
-
-    const { data: completedResponsesData, error: crError } = await db
+    const { count: completedCount, error: crError } = await db
         .from('survey_responses')
-        .select('count', { head: true, count: 'exact' })
+        .select('*', { head: true, count: 'exact' })
         .eq('survey_template_id', templateId)
         .eq('is_complete', true);
     if (crError) throw crError;
 
-    const completedResponses = completedResponsesData.count;
+    let averageCompletionTimeSeconds = null;
+    // Compute average completion time for completed responses
+    const { data: completedRows, error: rowsErr } = await db
+        .from('survey_responses')
+        .select('started_at, completed_at')
+        .eq('survey_template_id', templateId)
+        .eq('is_complete', true)
+        .not('completed_at', 'is', null);
+    if (rowsErr) throw rowsErr;
+    if (completedRows && completedRows.length > 0) {
+        let totalSecs = 0;
+        let n = 0;
+        for (const r of completedRows) {
+            const start = r.started_at ? new Date(r.started_at).getTime() : null;
+            const end = r.completed_at ? new Date(r.completed_at).getTime() : null;
+            if (start && end && end >= start) {
+                totalSecs += Math.floor((end - start) / 1000);
+                n += 1;
+            }
+        }
+        if (n > 0) averageCompletionTimeSeconds = Math.round(totalSecs / n);
+    }
 
     const { data, error } = await db
         .from('survey_statistics')
         .upsert({
             survey_template_id: templateId,
-            total_responses: totalResponses,
-            completed_responses: completedResponses,
+            total_responses: totalCount || 0,
+            completed_responses: completedCount || 0,
+            average_completion_time_seconds: averageCompletionTimeSeconds,
             last_updated: new Date().toISOString()
         })
         .select('*')
         .single();
     if (error) throw error;
     return data;
+};
+
+// --- Visibility and helper queries ---
+const listVisibleTemplatesForUser = async (role) => {
+    let query = db
+        .from('survey_templates')
+        .select('*')
+        .eq('is_active', true);
+
+    const now = new Date().toISOString();
+    // start_date is null or <= now
+    query = query.or(`start_date.is.null,start_date.lte.${now}`);
+    // end_date is null or >= now
+    query = query.or(`end_date.is.null,end_date.gte.${now}`);
+
+    const adminRoles = ['admin', 'administrator', 'sys_admin'];
+    if (!adminRoles.includes(role)) {
+        // Restrict by audience for non-admins
+        let audiences = ['all', 'both', 'everyone'];
+        if (role === 'student') {
+            audiences = audiences.concat(['students']);
+        } else if (role === 'lecturer') {
+            audiences = audiences.concat(['lecturers', 'all_staff']);
+        } else {
+            // Fallback: include role string as-is for any custom role naming
+            audiences = audiences.concat([role]);
+        }
+        query = query.in('target_audience', audiences);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+};
+
+const hasUserCompletedResponse = async (templateId, userId) => {
+    const { data, error } = await db
+        .from('survey_responses')
+        .select('id')
+        .eq('survey_template_id', templateId)
+        .eq('respondent_id', userId)
+        .eq('is_complete', true)
+        .limit(1);
+    if (error) throw error;
+    return Array.isArray(data) && data.length > 0;
+};
+
+const getResponsesByTemplate = async (templateId, onlyComplete = true) => {
+    let q = db
+        .from('survey_responses')
+        .select('*')
+        .eq('survey_template_id', templateId);
+    if (onlyComplete) q = q.eq('is_complete', true);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+};
+
+const getAnswersByResponseIds = async (responseIds) => {
+    if (!responseIds || responseIds.length === 0) return [];
+    const { data, error } = await db
+        .from('survey_answers')
+        .select('*')
+        .in('response_id', responseIds);
+    if (error) throw error;
+    return data || [];
+};
+
+const getAnswerOptionsByAnswerIds = async (answerIds) => {
+    if (!answerIds || answerIds.length === 0) return [];
+    const { data, error } = await db
+        .from('survey_answer_options')
+        .select('*')
+        .in('answer_id', answerIds);
+    if (error) throw error;
+    return data || [];
 };
 
 // Export all functions
@@ -303,6 +398,11 @@ module.exports = {
     createAnswerFile,
     deleteAnswerFile,
     updateSurveyStatistics,
+    listVisibleTemplatesForUser,
+    hasUserCompletedResponse,
+    getResponsesByTemplate,
+    getAnswersByResponseIds,
+    getAnswerOptionsByAnswerIds,
 };
 
 
