@@ -41,7 +41,7 @@ app.use(cors({
         if (!origin) return callback(null, true);
         const dynamicOrigins = [...allowedOrigins];
         // Add the dynamically assigned server port to allowed origins for Socket.IO
-        const serverPort = 5000; // Fixed to 5000
+        const serverPort = 4000; // Fixed to 4000
         dynamicOrigins.push(`http://localhost:${serverPort}`);
 
         if (dynamicOrigins.includes(origin)) {
@@ -64,8 +64,30 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files
-app.use('/uploads', express.static('uploads'));
+// Static files with proper headers for downloads
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res, path, stat) => {
+    // Only force download for non-previewable files
+    const ext = path.toLowerCase().split('.').pop();
+    const previewableExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf', 'txt'];
+    
+    if (!previewableExtensions.includes(ext)) {
+      res.setHeader('Content-Disposition', 'attachment');
+    } else {
+      // For previewable files, allow inline viewing
+      res.setHeader('Content-Disposition', 'inline');
+    }
+    
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    
+    // Add CORS headers for file access
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Content-Disposition');
+  }
+}));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -74,6 +96,38 @@ app.get('/health', (req, res) => {
         message: 'P-Community Backend is running',
         timestamp: new Date().toISOString()
     });
+});
+
+// Force download endpoint for files
+app.get('/download/:filename', (req, res) => {
+    const path = require('path');
+    const fs = require('fs');
+    
+    const filename = req.params.filename;
+    
+    // Try different possible paths
+    const possiblePaths = [
+        path.join(__dirname, 'uploads', filename),
+        path.join(__dirname, 'uploads', 'messages', filename),
+        path.join(__dirname, 'uploads', 'profiles', filename)
+    ];
+    
+    let filePath = null;
+    for (const possiblePath of possiblePaths) {
+        if (fs.existsSync(possiblePath)) {
+            filePath = possiblePath;
+            break;
+        }
+    }
+    
+    if (!filePath) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+    
+    // Force download with proper headers
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.sendFile(filePath);
 });
 
 // API routes

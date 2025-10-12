@@ -339,6 +339,136 @@ const markAsRead = async (req, res) => {
     }
 };
 
+/**
+ * Download a file from a message
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const downloadFile = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const userId = req.user.id;
+
+        // Validate messageId
+        if (!messageId) {
+            return errorResponse(res, 400, 'Message ID is required');
+        }
+
+        // Fetch message details from the database
+        const messageResult = await Message.getById(messageId);
+
+        if (!messageResult.success || !messageResult.data) {
+            return errorResponse(res, 404, 'Message not found');
+        }
+
+        const message = messageResult.data;
+
+        // Security check: Ensure the user is part of the conversation
+        let isUserInConversation = false;
+        
+        if (message.sender_id === userId || message.receiver_id === userId) {
+            isUserInConversation = true;
+        } else if (message.is_group && message.group_id) {
+            isUserInConversation = await Message.isUserInGroup(userId, message.group_id);
+        }
+
+        if (!isUserInConversation) {
+            return errorResponse(res, 403, 'You do not have access to this file');
+        }
+
+        // Check if it's a file message
+        if (message.message_type !== 'file' || !message.file_url) {
+            return errorResponse(res, 400, 'This message does not contain a downloadable file');
+        }
+
+        // Validate file exists and is not empty
+        if (!message.file_name || message.file_name.trim() === '') {
+            return errorResponse(res, 400, 'File name is missing or invalid');
+        }
+
+        // Check file size to prevent downloading empty files
+        if (message.file_size !== null && message.file_size <= 0) {
+            return errorResponse(res, 400, 'Cannot download empty file');
+        }
+
+        // If it's a Cloudinary URL, redirect directly
+        if (message.file_url.includes('cloudinary.com')) {
+            // Validate Cloudinary URL is accessible
+            try {
+                const https = require('https');
+                const http = require('http');
+                const client = message.file_url.startsWith('https') ? https : http;
+                
+                // Make a HEAD request to check if file exists
+                const checkRequest = client.request(message.file_url, { method: 'HEAD' }, (checkRes) => {
+                    if (checkRes.statusCode >= 200 && checkRes.statusCode < 300) {
+                        // File exists, redirect to it
+                        return res.redirect(message.file_url);
+                    } else {
+                        logger.error(`Cloudinary file not found: ${message.file_url}, status: ${checkRes.statusCode}`);
+                        return errorResponse(res, 404, 'File not found on storage');
+                    }
+                });
+                
+                checkRequest.on('error', (error) => {
+                    logger.error('Error checking Cloudinary file:', error);
+                    return errorResponse(res, 500, 'Error accessing file');
+                });
+                
+                checkRequest.setTimeout(5000, () => {
+                    checkRequest.destroy();
+                    return errorResponse(res, 504, 'File access timeout');
+                });
+                
+                checkRequest.end();
+            } catch (error) {
+                logger.error('Error validating Cloudinary URL:', error);
+                return errorResponse(res, 500, 'Error validating file');
+            }
+        } else {
+            // For local files, serve them directly
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Construct the full file path
+            const fullPath = path.join(__dirname, '../../../', message.file_url);
+            
+            // Check if file exists and get stats
+            if (!fs.existsSync(fullPath)) {
+                logger.error('File not found on disk:', fullPath);
+                return errorResponse(res, 404, 'File not found on server');
+            }
+
+            // Get file stats to check size
+            const stats = fs.statSync(fullPath);
+            if (stats.size <= 0) {
+                logger.error('Empty file detected:', fullPath);
+                return errorResponse(res, 400, 'Cannot download empty file');
+            }
+
+            // Set appropriate headers for file download
+            res.setHeader('Content-Disposition', `attachment; filename="${message.file_name}"`);
+            res.setHeader('Content-Type', message.file_type || 'application/octet-stream');
+            res.setHeader('Content-Length', stats.size);
+            
+            // Stream the file
+            const fileStream = fs.createReadStream(fullPath);
+            fileStream.pipe(res);
+            
+            fileStream.on('error', (error) => {
+                logger.error('Error streaming file:', error);
+                if (!res.headersSent) {
+                    errorResponse(res, 500, 'Error streaming file');
+                }
+            });
+        }
+        
+    } catch (error) {
+        logger.error('Error downloading file:', error.message);
+        errorResponse(res, 500, 'Internal server error', error.message);
+    }
+};
+
 module.exports = {
     sendMessage,
     sendFile,
@@ -346,5 +476,6 @@ module.exports = {
     getDirectMessageThread,
     getUserConversations,
     getUserGroupChats,
-    markAsRead
+    markAsRead,
+    downloadFile
 };

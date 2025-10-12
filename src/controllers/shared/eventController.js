@@ -15,8 +15,8 @@ const { logger } = require('../../utils/logger');
 const createEvent = async (req, res) => {
     const userRole = req.user.role;
 
-    // Only allow lecturers and administrators to create events
-    if (userRole !== 'lecturer' && userRole !== 'administrator') {
+    // Allow lecturers, administrators, and sys-admin to create events
+    if (userRole !== 'lecturer' && userRole !== 'administrator' && userRole !== 'sys_admin') {
         return errorResponse(res, 403, 'You are not authorized to create events.');
     }
 

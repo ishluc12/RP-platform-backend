@@ -166,6 +166,166 @@ class LecturerAppointmentController {
             errorResponse(res, 500, 'Internal server error', error.message);
         }
     }
+
+    /**
+     * Accept an appointment (convenience method that calls updateStatus)
+     */
+    static async acceptAppointment(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can accept appointments');
+            }
+            const { id } = req.params;
+            const lecturerId = req.user.id;
+            const { response_message } = req.body;
+
+            // Verify appointment belongs to this lecturer
+            const appointmentResult = await Appointment.getById(id);
+            if (!appointmentResult.success || !appointmentResult.data) {
+                return errorResponse(res, 404, 'Appointment not found');
+            }
+
+            if (appointmentResult.data.appointee_id !== lecturerId) {
+                return errorResponse(res, 403, 'Unauthorized to accept this appointment');
+            }
+
+            const result = await Appointment.updateStatus(id, {
+                status: 'accepted',
+                response_message: response_message || 'Appointment accepted',
+                responded_at: new Date().toISOString()
+            });
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Lecturer ${lecturerId} accepted appointment ${id}`);
+            response(res, 200, 'Appointment accepted successfully', result.data);
+        } catch (error) {
+            logger.error('Error accepting appointment:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Decline an appointment (convenience method that calls updateStatus)
+     */
+    static async declineAppointment(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can decline appointments');
+            }
+            const { id } = req.params;
+            const lecturerId = req.user.id;
+            const { response_message } = req.body;
+
+            // Verify appointment belongs to this lecturer
+            const appointmentResult = await Appointment.getById(id);
+            if (!appointmentResult.success || !appointmentResult.data) {
+                return errorResponse(res, 404, 'Appointment not found');
+            }
+
+            if (appointmentResult.data.appointee_id !== lecturerId) {
+                return errorResponse(res, 403, 'Unauthorized to decline this appointment');
+            }
+
+            const result = await Appointment.updateStatus(id, {
+                status: 'declined',
+                response_message: response_message || 'Appointment declined',
+                responded_at: new Date().toISOString()
+            });
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Lecturer ${lecturerId} declined appointment ${id}`);
+            response(res, 200, 'Appointment declined successfully', result.data);
+        } catch (error) {
+            logger.error('Error declining appointment:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Complete an appointment (convenience method that calls updateStatus)
+     */
+    static async completeAppointment(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can complete appointments');
+            }
+            const { id } = req.params;
+            const lecturerId = req.user.id;
+            const { notes } = req.body;
+
+            // Verify appointment belongs to this lecturer
+            const appointmentResult = await Appointment.getById(id);
+            if (!appointmentResult.success || !appointmentResult.data) {
+                return errorResponse(res, 404, 'Appointment not found');
+            }
+
+            if (appointmentResult.data.appointee_id !== lecturerId) {
+                return errorResponse(res, 403, 'Unauthorized to complete this appointment');
+            }
+
+            const result = await Appointment.updateStatus(id, {
+                status: 'completed',
+                staff_notes: notes,
+                completed_at: new Date().toISOString()
+            });
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Lecturer ${lecturerId} completed appointment ${id}`);
+            response(res, 200, 'Appointment completed successfully', result.data);
+        } catch (error) {
+            logger.error('Error completing appointment:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    /**
+     * Cancel an appointment (convenience method that calls updateStatus)
+     */
+    static async cancelAppointment(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can cancel appointments');
+            }
+            const { id } = req.params;
+            const lecturerId = req.user.id;
+            const { response_message } = req.body;
+
+            // Verify appointment belongs to this lecturer
+            const appointmentResult = await Appointment.getById(id);
+            if (!appointmentResult.success || !appointmentResult.data) {
+                return errorResponse(res, 404, 'Appointment not found');
+            }
+
+            if (appointmentResult.data.appointee_id !== lecturerId) {
+                return errorResponse(res, 403, 'Unauthorized to cancel this appointment');
+            }
+
+            const result = await Appointment.updateStatus(id, {
+                status: 'cancelled',
+                response_message: response_message || 'Appointment cancelled by lecturer',
+                cancelled_at: new Date().toISOString()
+            });
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Lecturer ${lecturerId} cancelled appointment ${id}`);
+            response(res, 200, 'Appointment cancelled successfully', result.data);
+        } catch (error) {
+            logger.error('Error cancelling appointment:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
 }
 
 module.exports = LecturerAppointmentController;

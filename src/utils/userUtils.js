@@ -118,7 +118,7 @@ export const getInitials = (name) => {
  */
 export const getProfilePicture = (data, name = 'Unknown User') => {
     if (!data) {
-        return `https://ui-avatars.io/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff&size=128`;
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff&size=128`;
     }
 
     // Try all possible profile picture fields
@@ -132,12 +132,12 @@ export const getProfilePicture = (data, name = 'Unknown User') => {
         data.image;
 
     // If picture exists and is not already a ui-avatars URL, return it
-    if (picture && !picture.includes('ui-avatars.io')) {
+    if (picture && !picture.includes('ui-avatars.io') && !picture.includes('ui-avatars.com')) {
         return picture;
     }
 
-    // Generate fallback avatar
-    return `https://ui-avatars.io/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff&size=128`;
+    // Generate fallback avatar using working service
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff&size=128`;
 };
 
 /**

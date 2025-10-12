@@ -23,7 +23,13 @@ router.get('/', isLecturer, LecturerAppointmentController.list);
 // Get upcoming appointments for lecturer
 router.get('/upcoming', isLecturer, LecturerAppointmentController.getUpcoming);
 
-// Update status of an appointment (support both PUT and PATCH)
+// Dedicated endpoints for common actions (convenience methods)
+router.put('/:id/accept', isLecturer, LecturerAppointmentController.acceptAppointment);
+router.put('/:id/decline', isLecturer, LecturerAppointmentController.declineAppointment);
+router.put('/:id/complete', isLecturer, LecturerAppointmentController.completeAppointment);
+router.put('/:id/cancel', isLecturer, LecturerAppointmentController.cancelAppointment);
+
+// Update status of an appointment (support both PUT and PATCH) - generic method
 router.put('/:id/status', isLecturer, LecturerAppointmentController.updateStatus);
 router.patch('/:id/status', isLecturer, LecturerAppointmentController.updateStatus);
 

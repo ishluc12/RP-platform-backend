@@ -370,7 +370,7 @@ class AuthController {
             }
 
             // Upload file buffer to Cloudinary
-            const cloudinary = require('../config/cloudinary').cloudinary;
+            const cloudinary = require('../../config/cloudinary').cloudinary;
             const stream = cloudinary.uploader.upload_stream({
                 resource_type: 'image',
                 folder: 'p-community/profile-pictures',

@@ -59,7 +59,16 @@ const uploadImage = async (file, options = {}) => {
             ...options
         };
 
-        const result = await cloudinary.uploader.upload(file, uploadOptions);
+        let uploadFile = file;
+        
+        // If file is a Buffer, convert it to a data URI
+        if (Buffer.isBuffer(file)) {
+            // For images, we'll assume it's a generic image format
+            // Cloudinary will detect the actual format
+            uploadFile = `data:image/jpeg;base64,${file.toString('base64')}`;
+        }
+
+        const result = await cloudinary.uploader.upload(uploadFile, uploadOptions);
         return {
             success: true,
             url: result.secure_url,

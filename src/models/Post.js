@@ -313,6 +313,226 @@ class PostModel {
             return { success: false, error: error.message || 'Unknown error' };
         }
     }
+
+    /**
+     * Find a post by ID without user restrictions (for moderation)
+     * @param {string} postId
+     * @returns {Promise<Object>}
+     */
+    static async findById(postId) {
+        try {
+            const { data, error } = await supabase
+                .from('posts')
+                .select(`
+                    *,
+                    users (id, name, email, profile_picture, role)
+                `)
+                .eq('id', postId)
+                .single();
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Update a post (for moderation - bypasses user restrictions)
+     * @param {string} postId
+     * @param {Object} updates
+     * @returns {Promise<Object>}
+     */
+    static async update(postId, updates) {
+        try {
+            const { data, error } = await supabase
+                .from('posts')
+                .update(updates)
+                .eq('id', postId)
+                .select('*')
+                .single();
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Get all posts for moderation (sys-admin only)
+     * @param {number} page
+     * @param {number} limit
+     * @param {Object} filters
+     * @returns {Promise<Object>}
+     */
+    static async getAllForModeration(page = 1, limit = 20, filters = {}) {
+        try {
+            let query = supabase
+                .from('posts')
+                .select(`
+                    *,
+                    users (id, name, email, profile_picture, role)
+                `, { count: 'exact' })
+                .order('created_at', { ascending: false });
+
+            // Apply filters
+            if (filters.status) {
+                query = query.eq('status', filters.status);
+            }
+            if (filters.search) {
+                query = query.or(`content.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+            }
+
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error, count } = await query.range(from, to);
+            if (error) throw error;
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    totalPages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Get flagged posts for review
+     * @param {number} page
+     * @param {number} limit
+     * @returns {Promise<Object>}
+     */
+    static async getFlagged(page = 1, limit = 20) {
+        try {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error, count } = await supabase
+                .from('posts')
+                .select(`
+                    *,
+                    users (id, name, email, profile_picture, role)
+                `, { count: 'exact' })
+                .eq('is_flagged', true)
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            if (error) throw error;
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    totalPages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Get moderation statistics
+     * @param {number} days
+     * @returns {Promise<Object>}
+     */
+    static async getModerationStats(days = 30) {
+        try {
+            const dateFrom = new Date();
+            dateFrom.setDate(dateFrom.getDate() - days);
+
+            // Get total posts
+            const { count: totalPosts } = await supabase
+                .from('posts')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', dateFrom.toISOString());
+
+            // Get flagged posts
+            const { count: flaggedPosts } = await supabase
+                .from('posts')
+                .select('*', { count: 'exact', head: true })
+                .eq('is_flagged', true)
+                .gte('created_at', dateFrom.toISOString());
+
+            // Get moderated posts
+            const { count: moderatedPosts } = await supabase
+                .from('posts')
+                .select('*', { count: 'exact', head: true })
+                .not('moderated_at', 'is', null)
+                .gte('created_at', dateFrom.toISOString());
+
+            // Get removed posts
+            const { count: removedPosts } = await supabase
+                .from('posts')
+                .select('*', { count: 'exact', head: true })
+                .in('status', ['removed', 'rejected'])
+                .gte('created_at', dateFrom.toISOString());
+
+            return {
+                success: true,
+                data: {
+                    totalPosts: totalPosts || 0,
+                    flaggedPosts: flaggedPosts || 0,
+                    moderatedPosts: moderatedPosts || 0,
+                    removedPosts: removedPosts || 0,
+                    timeframe: `${days} days`
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Get posts by a specific user
+     * @param {string} userId
+     * @param {number} page
+     * @param {number} limit
+     * @returns {Promise<Object>}
+     */
+    static async getUserPosts(userId, page = 1, limit = 20) {
+        try {
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+
+            const { data, error, count } = await supabase
+                .from('posts')
+                .select(`
+                    *,
+                    users (id, name, email, profile_picture, role)
+                `, { count: 'exact' })
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            if (error) throw error;
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count,
+                    totalPages: Math.ceil(count / limit)
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
 }
 
 module.exports = PostModel;

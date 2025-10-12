@@ -121,6 +121,27 @@ const requireLecturerOrAdmin = (req, res, next) => {
 };
 
 /**
+ * Check if user has sys-admin privileges (highest level)
+ */
+const requireSysAdmin = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({
+            success: false,
+            message: 'Authentication required'
+        });
+    }
+
+    if (req.user.role !== 'sys_admin') {
+        return res.status(403).json({
+            success: false,
+            message: 'System administrator privileges required'
+        });
+    }
+
+    next();
+};
+
+/**
  * Generic role check - pass in allowed roles
  */
 const requireRoles = (...allowedRoles) => {
@@ -152,5 +173,6 @@ module.exports = {
     requireStudent,
     requireStudentOrAdmin,
     requireLecturerOrAdmin,
+    requireSysAdmin,
     requireRoles
 };

@@ -82,4 +82,43 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 });
 
+// Route to download a file from a message
+router.get('/download/:messageId', async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const userId = req.user.id;
+
+        // Fetch message details from the database
+        const messageResult = await Message.getById(messageId);
+
+        if (!messageResult.success || !messageResult.data) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+
+        const message = messageResult.data;
+
+        // Security check: Ensure the user is part of the conversation
+        const isUserInConversation =
+            message.sender_id === userId ||
+            message.receiver_id === userId ||
+            (message.is_group && (await Message.isUserInGroup(userId, message.group_id)));
+
+        if (!isUserInConversation) {
+            return res.status(403).json({ error: 'You do not have access to this file' });
+        }
+
+        // Check if it's a file message
+        if (message.message_type !== 'file' || !message.file_url) {
+            return res.status(400).json({ error: 'This message does not contain a downloadable file' });
+        }
+
+        // Redirect to the Cloudinary URL for download
+        return res.redirect(message.file_url);
+
+    } catch (error) {
+        console.error('Error downloading file:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+});
+
 module.exports = router;

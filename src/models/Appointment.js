@@ -158,6 +158,49 @@ class Appointment {
     }
 
     /**
+     * Get upcoming appointments with pagination support
+     */
+    static async findUpcomingAppointments(userId, userType = 'requester', options = {}) {
+        try {
+            const { page = 1, limit = 10 } = options;
+            const field = userType === 'requester' ? 'requester_id' : 'appointee_id';
+            const today = new Date().toISOString().split('T')[0];
+
+            // Calculate offset for pagination
+            const offset = (page - 1) * limit;
+
+            const { data, error } = await supabase
+                .from('appointments')
+                .select(`
+                    *,
+                    requester:requester_id(id, name, email, student_id, role),
+                    appointee:appointee_id(id, name, email, staff_id, department, role)
+                `)
+                .eq(field, userId)
+                .gte('appointment_date', today)
+                .in('status', ['pending', 'accepted'])
+                .is('deleted_at', null)
+                .order('appointment_date', { ascending: true })
+                .order('start_time', { ascending: true })
+                .range(offset, offset + limit - 1);
+
+            if (error) throw error;
+            
+            return { 
+                success: true, 
+                data: data || [],
+                pagination: {
+                    page,
+                    limit,
+                    total: data ? data.length : 0
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Get upcoming appointments
      */
     static async getUpcoming(userId, userType = 'requester') {
