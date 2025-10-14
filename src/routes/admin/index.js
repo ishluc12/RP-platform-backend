@@ -19,8 +19,6 @@ router.get('/dashboard/summary', AdminDashboardController.getDashboardSummary);
 router.get('/dashboard/recent-activity', AdminDashboardController.getRecentActivity);
 router.get('/dashboard/top-creators', AdminDashboardController.getTopCreators);
 router.get('/dashboard/recent-registrations', AdminDashboardController.getRecentRegistrations);
-const express = require('express');
-const router = express.Router();
 
 const userRoutes = require('./users');
 const eventRoutes = require('./events');
