@@ -7,13 +7,14 @@ class Comment {
      * @param {string} params.post_id
      * @param {string} params.user_id
      * @param {string} params.content
+     * @param {string} [params.sticker] - Optional sticker emoji
      * @returns {Promise<Object>}
      */
-    static async create({ post_id, user_id, content }) {
+    static async create({ post_id, user_id, content, sticker = null }) {
         try {
-            const { data, error } = await supabase
+            const { data, error} = await supabase
                 .from('comments')
-                .insert([{ post_id, user_id, content }])
+                .insert([{ post_id, user_id, content, sticker }])
                 .select('*')
                 .single();
 
@@ -40,8 +41,19 @@ class Comment {
             const { data, error } = await supabase
                 .from('comments')
                 .select(`
-                    *,
-                    users (id, name, profile_picture)
+                    id,
+                    content,
+                    sticker,
+                    created_at,
+                    user_id,
+                    post_id,
+                    users!comments_user_id_fkey (
+                        id,
+                        name,
+                        profile_picture,
+                        email,
+                        role
+                    )
                 `)
                 .eq('post_id', postId)
                 .order('created_at', { ascending: false })
@@ -49,12 +61,13 @@ class Comment {
 
             if (error) throw error;
 
-            const formattedComments = data.map(comment => ({
+            // Format to have user object at top level
+            const formattedData = data.map(comment => ({
                 ...comment,
                 user: comment.users
             }));
 
-            return { success: true, data: formattedComments };
+            return { success: true, data: formattedData };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }

@@ -9,16 +9,9 @@ const net = require('net');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:3000",
-        methods: ["GET", "POST"]
-    }
-});
-
-// Import middleware
+const { createSocketServer } = require('./src/config/socket');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
-const { setupSocketHandlers } = require('./src/sockets/socketService');
+const io = createSocketServer(server);
 
 // Import routes
 const authRoutes = require('./src/routes/auth');
@@ -26,6 +19,8 @@ const sharedRoutes = require('./src/routes/shared');
 const studentRoutes = require('./src/routes/student');
 const lecturerRoutes = require('./src/routes/lecturer');
 const adminRoutes = require('./src/routes/admin');
+const chatbotRoutes = require('./src/routes/chatbot');
+const administratorRoutes = require('./src/routes/administrator');
 const pollsRoutes = require('./src/routes/shared/polls');
 const commentsRoutes = require('./src/routes/shared/comments');
 const forumsRoutes = require('./src/routes/shared/forums');
@@ -34,11 +29,22 @@ const forumsRoutes = require('./src/routes/shared/forums');
 app.use(helmet());
 const allowedOrigins = [
     "http://localhost:5173",
-    "http://localhost:5174"
+    "http://localhost:5174",
+    "http://localhost:3000" // Added for consistency with Socket.IO default
 ];
+if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+}
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        const dynamicOrigins = [...allowedOrigins];
+        // Add the dynamically assigned server port to allowed origins for Socket.IO
+        const serverPort = 5000; // Fixed to 5000
+        dynamicOrigins.push(`http://localhost:${serverPort}`);
+
+        if (dynamicOrigins.includes(origin)) {
             return callback(null, true);
         }
         return callback(new Error('Not allowed by CORS'));
@@ -49,7 +55,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    max: 5000, // Increased limit for debugging purposes
     message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
@@ -76,9 +82,15 @@ app.use('/api/shared', sharedRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/lecturer', lecturerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/administrator', administratorRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/shared/polls', pollsRoutes); // Polls Route
 app.use('/api/shared/comments', commentsRoutes); // Comments Route
 app.use('/api/shared/forums', forumsRoutes); // Forums Route
+
+// Staff routes
+const staffAppointmentRoutes = require('./src/routes/staff/appointments');
+app.use('/api/staff/appointments', staffAppointmentRoutes);
 
 // 404 handler (fixed, proper catch-all for unmatched routes)
 app.use(notFound);
@@ -87,7 +99,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Setup Socket.io handlers
-setupSocketHandlers(io);
+
 
 const PORT = process.env.PORT || 5000;
 
@@ -108,15 +120,13 @@ function findAvailablePort(currentPort) {
     });
 }
 
-findAvailablePort(parseInt(PORT)).then(availablePort => {
-    server.listen(availablePort, () => {
-        console.log(`🚀 P-Community Backend server running on port ${availablePort}`);
-        console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`🔗 Health check: http://localhost:${availablePort}/health`);
-    });
-}).catch(err => {
-    console.error('Failed to find an available port:', err);
-    process.exit(1);
+const fixedPort = 5000; // Define a fixed port
+
+server.listen(fixedPort, () => {
+    console.log(`🚀 P-Community Backend server running on fixed port ${fixedPort}`);
+    io.opts.cors.origin = [...allowedOrigins, `http://localhost:${fixedPort}`];
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 Health check: http://localhost:${fixedPort}/health`);
 });
 
 // Graceful shutdown
@@ -128,4 +138,3 @@ process.on('SIGTERM', () => {
 });
 
 module.exports = app;
-

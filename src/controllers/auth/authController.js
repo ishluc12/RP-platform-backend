@@ -35,7 +35,7 @@ class AuthController {
             const hashedPassword = await hashPassword(password);
 
             // Prevent public registration of elevated roles, except allow up to 2 sys_admins total
-            const requestedRole = (role || 'student');
+            const requestedRole = role;
             const elevatedRoles = ['administrator', 'sys_admin'];
 
             if (elevatedRoles.includes(requestedRole)) {
@@ -126,7 +126,6 @@ class AuthController {
             }
 
             const user = result.data;
-            console.log('User data from DB:', user); // Added log
             const isPasswordValid = await comparePassword(password, user.password_hash);
             if (!isPasswordValid) {
                 console.error('comparePassword error (login): Invalid password for user', email);

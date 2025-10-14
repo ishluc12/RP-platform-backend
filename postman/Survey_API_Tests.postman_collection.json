@@ -1,0 +1,770 @@
+{
+	"info": {
+		"_postman_id": "survey-api-collection-2025",
+		"name": "Survey API - Complete Test Collection",
+		"description": "Complete collection of all Survey-related API endpoints for testing",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{auth_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "survey_template_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "question_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "option_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "response_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "0. Authentication",
+			"item": [
+				{
+					"name": "Login as Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set('auth_token', jsonData.data.token);",
+									"        console.log('Token saved:', jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"admin123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login to get authentication token. Update email/password as needed."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Student",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set('auth_token', jsonData.data.token);",
+									"        console.log('Token saved:', jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"student@example.com\",\n    \"password\": \"student123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login as student to test student-specific endpoints"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "1. Survey Template Management",
+			"item": [
+				{
+					"name": "Create Survey Template",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set('survey_template_id', jsonData.data.id);",
+									"        console.log('Survey Template ID saved:', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Student Satisfaction Survey 2025\",\n    \"description\": \"Annual survey to gather student feedback on courses and facilities\",\n    \"target_audience\": \"student\",\n    \"is_active\": true,\n    \"is_anonymous\": false,\n    \"allow_multiple_submissions\": false,\n    \"start_date\": \"2025-01-01\",\n    \"end_date\": \"2025-12-31\",\n    \"header_image_url\": \"https://example.com/header.jpg\",\n    \"footer_image_url\": \"https://example.com/footer.jpg\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys"]
+						},
+						"description": "Create a new survey template (Admin only)"
+					},
+					"response": []
+				},
+				{
+					"name": "List All Survey Templates",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys"]
+						},
+						"description": "List all survey templates. Admins see all, others see role-specific templates."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Visible Templates for User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/visible",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "visible"]
+						},
+						"description": "Get survey templates visible to the current user based on their role"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Survey Template Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}"]
+						},
+						"description": "Get detailed information about a specific survey template including questions and options"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Survey Template",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Updated Student Satisfaction Survey 2025\",\n    \"description\": \"Updated description for the survey\",\n    \"is_active\": true,\n    \"end_date\": \"2025-12-31\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}"]
+						},
+						"description": "Update a survey template (Admin or creator only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Survey Template",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}"]
+						},
+						"description": "Delete a survey template and all associated data (Admin or creator only)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Survey Response Management",
+			"item": [
+				{
+					"name": "Get Survey Status (Has User Submitted)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}", "status"]
+						},
+						"description": "Check if the current user has already submitted this survey"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Survey Response",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set('response_id', jsonData.data.id);",
+									"        console.log('Response ID saved:', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"survey_template_id\": \"{{survey_template_id}}\",\n    \"is_complete\": false,\n    \"ip_address\": \"192.168.1.1\",\n    \"user_agent\": \"Mozilla/5.0\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}/responses",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}", "responses"]
+						},
+						"description": "Create a new survey response (draft)"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Survey Response (Complete)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"answers\": [\n        {\n            \"question_id\": 1,\n            \"text_answer\": \"The course was excellent and well-structured\"\n        },\n        {\n            \"question_id\": 2,\n            \"rating_answer\": 5\n        },\n        {\n            \"question_id\": 3,\n            \"selected_options\": [1, 2],\n            \"custom_text\": \"Additional feedback here\"\n        },\n        {\n            \"question_id\": 4,\n            \"number_answer\": 85\n        },\n        {\n            \"question_id\": 5,\n            \"date_answer\": \"2025-01-15\"\n        },\n        {\n            \"question_id\": 6,\n            \"files\": [\n                {\n                    \"url\": \"https://example.com/file1.pdf\",\n                    \"name\": \"feedback.pdf\",\n                    \"type\": \"application/pdf\",\n                    \"size\": 102400\n                }\n            ]\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}/response",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}", "response"]
+						},
+						"description": "Submit complete survey response with all answers"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Survey Reports & Analytics",
+			"item": [
+				{
+					"name": "Get Survey Report",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}/report",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}", "report"]
+						},
+						"description": "Generate aggregated report for a survey with statistics and summaries"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Admin - Survey Management",
+			"item": [
+				{
+					"name": "Admin - List All Surveys",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys"]
+						},
+						"description": "Admin endpoint to list all survey templates with optional filters"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - List Surveys with Filters",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys?title=Student&target_audience=student&is_active=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys"],
+							"query": [
+								{
+									"key": "title",
+									"value": "Student"
+								},
+								{
+									"key": "target_audience",
+									"value": "student"
+								},
+								{
+									"key": "is_active",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Filter surveys by title, target_audience, is_active, or created_by"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Get Survey Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "{{survey_template_id}}"]
+						},
+						"description": "Admin endpoint to get survey template details"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Get Survey Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/statistics/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "statistics", "{{survey_template_id}}"]
+						},
+						"description": "Get and update survey statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Get Survey Responses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/responses/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "responses", "{{survey_template_id}}"]
+						},
+						"description": "Get all responses for a survey (without answers)"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Get Survey Responses with Answers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/responses/{{survey_template_id}}?includeAnswers=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "responses", "{{survey_template_id}}"],
+							"query": [
+								{
+									"key": "includeAnswers",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get all responses for a survey including detailed answers and options"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Admin - Question Management",
+			"item": [
+				{
+					"name": "Admin - Create Question",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set('question_id', jsonData.data.id);",
+									"        console.log('Question ID saved:', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question_text\": \"How would you rate the overall course quality?\",\n    \"question_type\": \"rating\",\n    \"is_required\": true,\n    \"order_position\": 1,\n    \"help_text\": \"Rate from 1 (poor) to 5 (excellent)\",\n    \"min_value\": 1,\n    \"max_value\": 5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/templates/{{survey_template_id}}/questions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "templates", "{{survey_template_id}}", "questions"]
+						},
+						"description": "Create a new question for a survey template"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Update Question",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question_text\": \"How would you rate the overall course quality? (Updated)\",\n    \"is_required\": false,\n    \"help_text\": \"Please provide honest feedback\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/questions/{{question_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "questions", "{{question_id}}"]
+						},
+						"description": "Update an existing question"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Delete Question",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/questions/{{question_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "questions", "{{question_id}}"]
+						},
+						"description": "Delete a question from a survey template"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "6. Admin - Question Options Management",
+			"item": [
+				{
+					"name": "Admin - Create Option",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set('option_id', jsonData.data.id);",
+									"        console.log('Option ID saved:', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"option_text\": \"Excellent\",\n    \"order_position\": 1,\n    \"has_custom_input\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/questions/{{question_id}}/options",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "questions", "{{question_id}}", "options"]
+						},
+						"description": "Create a new option for a multiple choice or checkbox question"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Update Option",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"option_text\": \"Excellent (Updated)\",\n    \"order_position\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/options/{{option_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "options", "{{option_id}}"]
+						},
+						"description": "Update an existing option"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin - Delete Option",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/options/{{option_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "options", "{{option_id}}"]
+						},
+						"description": "Delete an option from a question"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "7. Complete Survey Flow Example",
+			"item": [
+				{
+					"name": "Step 1 - Create Full Survey",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set('survey_template_id', jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Complete Course Feedback Survey\",\n    \"description\": \"Comprehensive feedback on course delivery and content\",\n    \"target_audience\": \"student\",\n    \"is_active\": true,\n    \"is_anonymous\": false,\n    \"allow_multiple_submissions\": false,\n    \"start_date\": \"2025-01-01\",\n    \"end_date\": \"2025-12-31\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2 - Add Rating Question",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question_text\": \"Rate the course overall\",\n    \"question_type\": \"rating\",\n    \"is_required\": true,\n    \"order_position\": 1,\n    \"min_value\": 1,\n    \"max_value\": 5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/templates/{{survey_template_id}}/questions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "templates", "{{survey_template_id}}", "questions"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 3 - Add Text Question",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question_text\": \"What did you like most about the course?\",\n    \"question_type\": \"text\",\n    \"is_required\": true,\n    \"order_position\": 2,\n    \"max_length\": 500\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/surveys/templates/{{survey_template_id}}/questions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "surveys", "templates", "{{survey_template_id}}", "questions"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 4 - Student Views Survey",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 5 - Student Submits Response",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"answers\": [\n        {\n            \"question_id\": 1,\n            \"rating_answer\": 5\n        },\n        {\n            \"question_id\": 2,\n            \"text_answer\": \"The interactive sessions and practical examples were excellent!\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}/response",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}", "response"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Step 6 - Admin Views Report",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/shared/surveys/{{survey_template_id}}/report",
+							"host": ["{{base_url}}"],
+							"path": ["api", "shared", "surveys", "{{survey_template_id}}", "report"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

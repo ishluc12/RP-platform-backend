@@ -15,7 +15,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TYPE appointment_status AS ENUM ('pending', 'accepted', 'declined', 'completed');
+CREATE TYPE appointment_status AS ENUM ('pending', 'approved', 'rejected', 'completed');
 CREATE TABLE appointments (
     id SERIAL PRIMARY KEY,
     student_id INTEGER REFERENCES users(id),

@@ -8,6 +8,9 @@ router.use(authenticateToken);
 // Get notifications for the authenticated user
 router.get('/', notificationController.getUserNotifications);
 
+// Get unread notifications for the authenticated user
+router.get('/unread', notificationController.getUnreadNotifications);
+
 // Mark a specific notification as read
 router.put('/:id/read', notificationController.markNotificationAsRead);
 

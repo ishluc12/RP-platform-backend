@@ -1,0 +1,537 @@
+{
+    "survey_templates": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440001",
+            "title": "Student Satisfaction Survey",
+            "description": "Comprehensive survey to gather feedback on academic services, facilities, and overall student experience",
+            "target_audience": "students",
+            "is_active": true,
+            "is_anonymous": false,
+            "allow_multiple_submissions": false,
+            "start_date": "2024-01-15T00:00:00Z",
+            "end_date": "2024-12-31T23:59:59Z",
+            "header_image_url": "https://example.com/survey-header.png",
+            "footer_image_url": "https://example.com/survey-footer.png",
+            "created_by": "550e8400-e29b-41d4-a716-446655440010",
+            "created_at": "2024-01-10T10:00:00Z",
+            "updated_at": "2024-01-10T10:00:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440002",
+            "title": "Course Feedback Survey",
+            "description": "Detailed feedback on specific courses, teaching methods, and learning outcomes",
+            "target_audience": "students",
+            "is_active": true,
+            "is_anonymous": true,
+            "allow_multiple_submissions": true,
+            "start_date": "2024-02-01T00:00:00Z",
+            "end_date": "2024-06-30T23:59:59Z",
+            "header_image_url": null,
+            "footer_image_url": null,
+            "created_by": "550e8400-e29b-41d4-a716-446655440011",
+            "created_at": "2024-01-15T14:30:00Z",
+            "updated_at": "2024-01-15T14:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440003",
+            "title": "Staff Performance Evaluation",
+            "description": "Internal survey for evaluating staff performance and professional development needs",
+            "target_audience": "staff",
+            "is_active": true,
+            "is_anonymous": true,
+            "allow_multiple_submissions": false,
+            "start_date": "2024-03-01T00:00:00Z",
+            "end_date": "2024-03-31T23:59:59Z",
+            "header_image_url": null,
+            "footer_image_url": null,
+            "created_by": "550e8400-e29b-41d4-a716-446655440012",
+            "created_at": "2024-02-20T09:15:00Z",
+            "updated_at": "2024-02-20T09:15:00Z"
+        }
+    ],
+    "survey_questions": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440101",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440001",
+            "question_text": "How would you rate the overall quality of academic services?",
+            "question_type": "rating",
+            "is_required": true,
+            "order_index": 1,
+            "created_at": "2024-01-10T10:05:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440102",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440001",
+            "question_text": "Which areas need the most improvement? (Select all that apply)",
+            "question_type": "multiple_choice",
+            "is_required": true,
+            "order_index": 2,
+            "created_at": "2024-01-10T10:05:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440103",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440001",
+            "question_text": "Please provide any additional comments or suggestions:",
+            "question_type": "text",
+            "is_required": false,
+            "order_index": 3,
+            "created_at": "2024-01-10T10:05:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440104",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440002",
+            "question_text": "Rate the course content relevance (1-5 scale)",
+            "question_type": "rating",
+            "is_required": true,
+            "order_index": 1,
+            "created_at": "2024-01-15T14:35:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440105",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440002",
+            "question_text": "What teaching methods were most effective?",
+            "question_type": "single_choice",
+            "is_required": true,
+            "order_index": 2,
+            "created_at": "2024-01-15T14:35:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440106",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440003",
+            "question_text": "Rate your overall job satisfaction (1-10 scale)",
+            "question_type": "rating",
+            "is_required": true,
+            "order_index": 1,
+            "created_at": "2024-02-20T09:20:00Z"
+        }
+    ],
+    "survey_question_options": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440201",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "option_text": "1 - Poor",
+            "option_value": "1",
+            "order_index": 1,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440202",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "option_text": "2 - Below Average",
+            "option_value": "2",
+            "order_index": 2,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440203",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "option_text": "3 - Average",
+            "option_value": "3",
+            "order_index": 3,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440204",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "option_text": "4 - Good",
+            "option_value": "4",
+            "order_index": 4,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440205",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "option_text": "5 - Excellent",
+            "option_value": "5",
+            "order_index": 5,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440206",
+            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+            "option_text": "Library Services",
+            "option_value": "library",
+            "order_index": 1,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440207",
+            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+            "option_text": "IT Support",
+            "option_value": "it_support",
+            "order_index": 2,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440208",
+            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+            "option_text": "Student Services",
+            "option_value": "student_services",
+            "order_index": 3,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440209",
+            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+            "option_text": "Cafeteria",
+            "option_value": "cafeteria",
+            "order_index": 4,
+            "created_at": "2024-01-10T10:06:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440210",
+            "question_id": "550e8400-e29b-41d4-a716-446655440105",
+            "option_text": "Lectures",
+            "option_value": "lectures",
+            "order_index": 1,
+            "created_at": "2024-01-15T14:36:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440211",
+            "question_id": "550e8400-e29b-41d4-a716-446655440105",
+            "option_text": "Group Discussions",
+            "option_value": "group_discussions",
+            "order_index": 2,
+            "created_at": "2024-01-15T14:36:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440212",
+            "question_id": "550e8400-e29b-41d4-a716-446655440105",
+            "option_text": "Practical Sessions",
+            "option_value": "practical_sessions",
+            "order_index": 3,
+            "created_at": "2024-01-15T14:36:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440213",
+            "question_id": "550e8400-e29b-41d4-a716-446655440105",
+            "option_text": "Online Materials",
+            "option_value": "online_materials",
+            "order_index": 4,
+            "created_at": "2024-01-15T14:36:00Z"
+        }
+    ],
+    "survey_responses": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440301",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440001",
+            "respondent_id": "550e8400-e29b-41d4-a716-446655440020",
+            "is_complete": true,
+            "ip_address": "192.168.1.100",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "submitted_at": "2024-01-20T15:30:00Z",
+            "created_at": "2024-01-20T15:25:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440302",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440001",
+            "respondent_id": "550e8400-e29b-41d4-a716-446655440021",
+            "is_complete": true,
+            "ip_address": "192.168.1.101",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "submitted_at": "2024-01-21T10:15:00Z",
+            "created_at": "2024-01-21T10:10:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440303",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440002",
+            "respondent_id": "550e8400-e29b-41d4-a716-446655440022",
+            "is_complete": true,
+            "ip_address": "192.168.1.102",
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15",
+            "submitted_at": "2024-02-15T14:45:00Z",
+            "created_at": "2024-02-15T14:40:00Z"
+        }
+    ],
+    "survey_answers": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440401",
+            "response_id": "550e8400-e29b-41d4-a716-446655440301",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "text_answer": null,
+            "number_answer": 4,
+            "date_answer": null,
+            "rating_answer": 4,
+            "created_at": "2024-01-20T15:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440402",
+            "response_id": "550e8400-e29b-41d4-a716-446655440301",
+            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+            "text_answer": null,
+            "number_answer": null,
+            "date_answer": null,
+            "rating_answer": null,
+            "created_at": "2024-01-20T15:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440403",
+            "response_id": "550e8400-e29b-41d4-a716-446655440301",
+            "question_id": "550e8400-e29b-41d4-a716-446655440103",
+            "text_answer": "The library hours could be extended during exam periods. Overall, the services are quite good.",
+            "number_answer": null,
+            "date_answer": null,
+            "rating_answer": null,
+            "created_at": "2024-01-20T15:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440404",
+            "response_id": "550e8400-e29b-41d4-a716-446655440302",
+            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+            "text_answer": null,
+            "number_answer": 3,
+            "date_answer": null,
+            "rating_answer": 3,
+            "created_at": "2024-01-21T10:15:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440405",
+            "response_id": "550e8400-e29b-41d4-a716-446655440302",
+            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+            "text_answer": null,
+            "number_answer": null,
+            "date_answer": null,
+            "rating_answer": null,
+            "created_at": "2024-01-21T10:15:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440406",
+            "response_id": "550e8400-e29b-41d4-a716-446655440303",
+            "question_id": "550e8400-e29b-41d4-a716-446655440104",
+            "text_answer": null,
+            "number_answer": 5,
+            "date_answer": null,
+            "rating_answer": 5,
+            "created_at": "2024-02-15T14:45:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440407",
+            "response_id": "550e8400-e29b-41d4-a716-446655440303",
+            "question_id": "550e8400-e29b-41d4-a716-446655440105",
+            "text_answer": null,
+            "number_answer": null,
+            "date_answer": null,
+            "rating_answer": null,
+            "created_at": "2024-02-15T14:45:00Z"
+        }
+    ],
+    "survey_answer_options": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440501",
+            "answer_id": "550e8400-e29b-41d4-a716-446655440402",
+            "option_id": "550e8400-e29b-41d4-a716-446655440206",
+            "custom_text": null,
+            "created_at": "2024-01-20T15:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440502",
+            "answer_id": "550e8400-e29b-41d4-a716-446655440402",
+            "option_id": "550e8400-e29b-41d4-a716-446655440208",
+            "custom_text": null,
+            "created_at": "2024-01-20T15:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440503",
+            "answer_id": "550e8400-e29b-41d4-a716-446655440405",
+            "option_id": "550e8400-e29b-41d4-a716-446655440207",
+            "custom_text": null,
+            "created_at": "2024-01-21T10:15:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440504",
+            "answer_id": "550e8400-e29b-41d4-a716-446655440405",
+            "option_id": "550e8400-e29b-41d4-a716-446655440209",
+            "custom_text": null,
+            "created_at": "2024-01-21T10:15:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440505",
+            "answer_id": "550e8400-e29b-41d4-a716-446655440407",
+            "option_id": "550e8400-e29b-41d4-a716-446655440211",
+            "custom_text": null,
+            "created_at": "2024-02-15T14:45:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440506",
+            "answer_id": "550e8400-e29b-41d4-a716-446655440407",
+            "option_id": "550e8400-e29b-41d4-a716-446655440212",
+            "custom_text": null,
+            "created_at": "2024-02-15T14:45:00Z"
+        }
+    ],
+    "survey_statistics": [
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440601",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440001",
+            "total_responses": 2,
+            "completed_responses": 2,
+            "completion_rate": 100.0,
+            "average_rating": 3.5,
+            "last_updated": "2024-01-21T10:15:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440602",
+            "survey_template_id": "550e8400-e29b-41d4-a716-446655440002",
+            "total_responses": 1,
+            "completed_responses": 1,
+            "completion_rate": 100.0,
+            "average_rating": 5.0,
+            "last_updated": "2024-02-15T14:45:00Z"
+        }
+    ],
+    "api_endpoints": {
+        "survey_templates": {
+            "create": {
+                "method": "POST",
+                "url": "/api/shared/surveys",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>",
+                    "Content-Type": "application/json"
+                },
+                "body": {
+                    "title": "New Survey Template",
+                    "description": "Survey description",
+                    "target_audience": "students",
+                    "is_active": true,
+                    "is_anonymous": false,
+                    "allow_multiple_submissions": false,
+                    "start_date": "2024-01-01T00:00:00Z",
+                    "end_date": "2024-12-31T23:59:59Z"
+                }
+            },
+            "list": {
+                "method": "GET",
+                "url": "/api/shared/surveys",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>"
+                }
+            },
+            "get_details": {
+                "method": "GET",
+                "url": "/api/shared/surveys/{id}",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>"
+                }
+            },
+            "update": {
+                "method": "PUT",
+                "url": "/api/shared/surveys/{id}",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>",
+                    "Content-Type": "application/json"
+                },
+                "body": {
+                    "title": "Updated Survey Title",
+                    "is_active": false
+                }
+            },
+            "delete": {
+                "method": "DELETE",
+                "url": "/api/shared/surveys/{id}",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>"
+                }
+            }
+        },
+        "survey_responses": {
+            "create_response": {
+                "method": "POST",
+                "url": "/api/shared/surveys/{id}/responses",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>",
+                    "Content-Type": "application/json"
+                },
+                "body": {
+                    "is_complete": false,
+                    "ip_address": "192.168.1.100",
+                    "user_agent": "Mozilla/5.0..."
+                }
+            },
+            "submit_response": {
+                "method": "POST",
+                "url": "/api/shared/surveys/{id}/response",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>",
+                    "Content-Type": "application/json"
+                },
+                "body": {
+                    "answers": [
+                        {
+                            "question_id": "550e8400-e29b-41d4-a716-446655440101",
+                            "rating_answer": 4
+                        },
+                        {
+                            "question_id": "550e8400-e29b-41d4-a716-446655440102",
+                            "selected_options": [
+                                "550e8400-e29b-41d4-a716-446655440206",
+                                "550e8400-e29b-41d4-a716-446655440208"
+                            ]
+                        },
+                        {
+                            "question_id": "550e8400-e29b-41d4-a716-446655440103",
+                            "text_answer": "Additional comments here"
+                        }
+                    ]
+                }
+            }
+        },
+        "admin_operations": {
+            "list_all": {
+                "method": "GET",
+                "url": "/api/shared/surveys/admin/list",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>"
+                }
+            },
+            "get_statistics": {
+                "method": "GET",
+                "url": "/api/shared/surveys/admin/statistics/{templateId}",
+                "headers": {
+                    "Authorization": "Bearer <jwt_token>"
+                }
+            }
+        }
+    },
+    "frontend_integration": {
+        "authentication_required": true,
+        "role_based_access": {
+            "students": [
+                "create_response",
+                "submit_response"
+            ],
+            "lecturers": [
+                "create",
+                "list",
+                "get_details",
+                "update",
+                "delete",
+                "admin_list",
+                "admin_statistics"
+            ],
+            "administrators": [
+                "create",
+                "list",
+                "get_details",
+                "update",
+                "delete",
+                "admin_list",
+                "admin_statistics"
+            ],
+            "sys_admin": [
+                "create",
+                "list",
+                "get_details",
+                "update",
+                "delete",
+                "admin_list",
+                "admin_statistics"
+            ]
+        },
+        "frontend_components": {
+            "survey_list": "Displays available surveys for the user",
+            "survey_form": "Dynamic form generation based on survey template",
+            "survey_results": "Shows survey statistics and responses",
+            "survey_management": "Admin interface for creating and managing surveys"
+        }
+    }
+}

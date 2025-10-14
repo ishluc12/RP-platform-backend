@@ -258,6 +258,7 @@ class User {
                 }
             };
         } catch (error) {
+            console.error('Error in User.findByRole:', error);
             return { success: false, error: error.message || 'Unknown error' };
         }
     }

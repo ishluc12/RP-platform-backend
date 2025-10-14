@@ -186,6 +186,34 @@ class AdminDashboardController {
     }
 
     /**
+     * Get recent appointments for administrator (where they are the appointee)
+     */
+    static async getRecentAppointments(req, res) {
+        try {
+            const limit = parseInt(req.query.limit) || 10;
+            const userId = req.user.id;
+            
+            // Fetch appointments where the administrator is the appointee
+            const result = await Appointment.listByAppointee(userId);
+
+            if (!result.success) {
+                logger.error('Error fetching admin appointments:', result.error);
+                return errorResponse(res, 500, 'Failed to fetch appointments', result.error);
+            }
+
+            // Sort by appointment time and limit results
+            const sortedAppointments = (result.data || [])
+                .sort((a, b) => new Date(b.appointment_time) - new Date(a.appointment_time))
+                .slice(0, limit);
+
+            response(res, 200, 'Recent appointments retrieved successfully', sortedAppointments);
+        } catch (error) {
+            logger.error('Error fetching recent appointments:', error.message);
+            errorResponse(res, 500, 'Internal server error', error.message);
+        }
+    }
+
+    /**
      * Get a list of recently registered users.
      */
     static async getRecentRegistrations(req, res) {

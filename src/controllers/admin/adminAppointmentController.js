@@ -13,7 +13,8 @@ exports.getAllAppointments = async (req, res) => {
       filters.status = status;
     }
     if (date) {
-      filters.date = date;
+      filters.appointment_time_from = `${date}T00:00:00Z`;
+      filters.appointment_time_to = `${date}T23:59:59Z`;
     }
 
     // Get appointments using the model's findAll method
@@ -90,6 +91,8 @@ exports.getAllAppointments = async (req, res) => {
         meeting_link: apt.meeting_link,
         duration_minutes: apt.duration_minutes,
         notes: apt.notes,
+        priority: apt.priority,
+        appointment_type: apt.appointment_type,
         requester_id: apt.requester_id,
         appointee_id: apt.appointee_id,
         created_at: apt.created_at,
@@ -163,7 +166,7 @@ exports.updateAppointmentStatus = async (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
 
-    const validStatuses = ['pending', 'confirmed', 'active', 'completed', 'cancelled', 'declined'];
+    const validStatuses = ['pending', 'accepted', 'declined', 'completed', 'cancelled', 'rescheduled', 'approved', 'rejected'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({

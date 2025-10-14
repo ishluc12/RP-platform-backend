@@ -13,6 +13,13 @@ const { logger } = require('../../utils/logger');
  * @param {Object} res - Express response object.
  */
 const createEvent = async (req, res) => {
+    const userRole = req.user.role;
+
+    // Only allow lecturers and administrators to create events
+    if (userRole !== 'lecturer' && userRole !== 'administrator') {
+        return errorResponse(res, 403, 'You are not authorized to create events.');
+    }
+
     const { title, description, event_date, location, max_participants, registration_required } = req.body;
     const created_by = req.user.id;
 

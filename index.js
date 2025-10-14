@@ -1,4 +1,11 @@
 const express = require("express");
 const app = express();
+const availabilityRoutes = require('./src/routes/lecturer/availability');
 
-const PORT = process.env.PORT || 3000;
+app.use(express.json());
+
+app.use('/api/lecturer/availability', availabilityRoutes);
+
+const PORT = 5000;
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

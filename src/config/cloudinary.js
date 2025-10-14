@@ -1,18 +1,24 @@
 const cloudinary = require('cloudinary').v2;
 
 // Load Cloudinary credentials from environment variables
-const cloudinaryConfig = {
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-};
+if (process.env.CLOUDINARY_URL) {
+    // Configure using CLOUDINARY_URL
+    cloudinary.config({ CLOUDINARY_URL: process.env.CLOUDINARY_URL });
+} else {
+    // Fallback to individual variables
+    const cloudinaryConfig = {
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET
+    };
 
-if (!cloudinaryConfig.cloud_name || !cloudinaryConfig.api_key || !cloudinaryConfig.api_secret) {
-    throw new Error('Missing Cloudinary environment variables');
+    if (!cloudinaryConfig.cloud_name || !cloudinaryConfig.api_key || !cloudinaryConfig.api_secret) {
+        throw new Error('Missing Cloudinary environment variables');
+    }
+
+    // Configure Cloudinary
+    cloudinary.config(cloudinaryConfig);
 }
-
-// Configure Cloudinary
-cloudinary.config(cloudinaryConfig);
 
 /**
  * Upload an image to Cloudinary

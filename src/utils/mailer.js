@@ -5,12 +5,12 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: parseInt(process.env.MAIL_PORT) || 587,
+  host: process.env.MAIL_HOST || 'smtp.example.com',
+  port: 5000, // Fixed to 5000
   secure: false, // set to true if using port 465
   auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
+    user: process.env.MAIL_USER || 'user@example.com',
+    pass: process.env.MAIL_PASSWORD || 'password',
   },
 });
 

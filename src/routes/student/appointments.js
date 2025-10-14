@@ -1,21 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
-const studentAppointmentController = require('../../controllers/student/studentAppointmentCOntroller.js');
+const StudentAppointmentController = require('../../controllers/student/studentAppointmentController');
 
-// All routes require auth
 router.use(authenticateToken);
 
-// Create appointment
-router.post('/', studentAppointmentController.create);
+// Create appointment request
+router.post('/', StudentAppointmentController.createAppointment);
 
-// List student's appointments
-router.get('/', studentAppointmentController.list);
+// Get student's appointments
+router.get('/', StudentAppointmentController.getMyAppointments);
 
-// Get upcoming student appointments
-router.get('/upcoming', studentAppointmentController.getUpcoming);
+// Get upcoming appointments
+router.get('/upcoming', StudentAppointmentController.getUpcomingAppointments);
 
-// Cancel own appointment
-router.delete('/:id', studentAppointmentController.cancel);
+// Get appointment statistics
+router.get('/stats', StudentAppointmentController.getAppointmentStats);
+
+
+// Get available lecturers for booking
+router.get('/available-lecturers', StudentAppointmentController.getAvailableLecturers);
+
+// Get available slots for specific lecturer
+router.get('/available-slots-for-lecturer/:staffId', StudentAppointmentController.getAvailableSlotsForLecturer);
+
+
+
 
 module.exports = router;
