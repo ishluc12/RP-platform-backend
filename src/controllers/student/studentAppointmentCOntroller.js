@@ -2,6 +2,7 @@ const Appointment = require('../../models/Appointment');
 const StaffAvailability = require('../../models/StaffAvailability');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
+const { getTodayString } = require('../../utils/dateUtils');
 
 class StudentAppointmentController {
     static async createAppointment(req, res) {
@@ -173,25 +174,23 @@ class StudentAppointmentController {
                 });
             }
 
-            // Filter by specific_date matching the requested date
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const requestedDate = new Date(date);
-            requestedDate.setHours(0, 0, 0, 0);
+            // Fix: Filter by specific_date using string comparison (no timezone issues)
+            const todayStr = getTodayString();
+            const requestedDateStr = date; // Already a YYYY-MM-DD string from frontend
 
             const matchingSlots = availRes.data.filter(slot => {
                 // ONLY show slots with specific_date matching the requested date
                 if (slot.specific_date) {
-                    const slotDate = new Date(slot.specific_date);
-                    slotDate.setHours(0, 0, 0, 0);
+                    // Use string comparison to avoid timezone shifts
+                    const slotDateStr = slot.specific_date;
                     
-                    // Skip past dates
-                    if (slotDate < today) {
+                    // Skip past dates (string comparison works for YYYY-MM-DD format)
+                    if (slotDateStr < todayStr) {
                         return false;
                     }
                     
                     // Must match the requested date exactly
-                    return slotDate.getTime() === requestedDate.getTime();
+                    return slotDateStr === requestedDateStr;
                 }
                 
                 // Ignore recurring slots (old system)

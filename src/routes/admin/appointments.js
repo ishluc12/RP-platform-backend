@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/roleAuth');
 const adminAppointmentController = require('../../controllers/admin/adminAppointmentController');
+const SafeAdminController = require('../../controllers/admin/safeAdminController');
 
 // Apply auth middleware to all admin appointment routes
 router.use(authenticateToken);
@@ -10,6 +11,7 @@ router.use(requireAdmin);
 
 // GET /api/admin/appointments - Get all appointments with filters
 router.get('/', adminAppointmentController.getAllAppointments);
+router.get('/safe', SafeAdminController.getAppointmentsList);
 
 // GET /api/admin/appointments/stats - Get appointment statistics
 router.get('/stats', adminAppointmentController.getAppointmentStats);

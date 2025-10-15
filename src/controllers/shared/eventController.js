@@ -5,6 +5,50 @@ const User = require('../../models/User');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
+/**
+ * Send notifications to users based on event target audience
+ * @param {Object} event - The created event
+ * @param {string} createdBy - ID of the user who created the event
+ */
+const sendEventNotifications = async (event, createdBy) => {
+    try {
+        let targetUsers = [];
+
+        if (event.target_audience === 'all') {
+            // Notify all users
+            const allUsersResult = await User.findAll(1, 1000); // Get up to 1000 users
+            if (allUsersResult.success) {
+                targetUsers = allUsersResult.data;
+            }
+        } else {
+            // Notify users from specific department
+            const departmentUsersResult = await User.findAll(1, 1000, { department: event.target_audience });
+            if (departmentUsersResult.success) {
+                targetUsers = departmentUsersResult.data;
+            }
+        }
+
+        // Filter out the creator (they don't need to be notified about their own event)
+        targetUsers = targetUsers.filter(user => user.id !== createdBy);
+
+        // Create notifications for each target user
+        for (const user of targetUsers) {
+            await NotificationModel.createNotification({
+                user_id: user.id,
+                type: 'event_created',
+                content: `New event: ${event.title} on ${new Date(event.event_date).toLocaleDateString()}${event.target_audience !== 'all' ? ` (${event.target_audience})` : ''}`,
+                source_id: event.id,
+                source_table: 'events',
+            });
+        }
+
+        logger.info(`Sent event notifications to ${targetUsers.length} users for event: ${event.title} (target: ${event.target_audience})`);
+    } catch (error) {
+        logger.error('Error sending event notifications:', error.message);
+        // Don't throw error to avoid breaking event creation
+    }
+};
+
 // --- Event Management ---
 
 /**
@@ -52,7 +96,8 @@ const createEvent = async (req, res) => {
 
         const newEvent = result.data;
 
-        // Simplified notification logic - just log the event creation
+        // Send department-specific notifications
+        await sendEventNotifications(newEvent, created_by);
         logger.info(`New event created: ${newEvent.title} by user ${created_by}`);
 
         response(res, 201, 'Event created successfully', result.data);

@@ -12,47 +12,67 @@ class AdminDashboardController {
      */
     static async getDashboardSummary(req, res) {
         try {
-            const [totalUsersResult, newUsersLast30DaysResult, totalEventsResult, upcomingEventsResult, totalAppointmentsResult, pendingAppointmentsResult, totalForumsResult, totalPostsResult, totalStudentsResult, totalLecturersResult] = await Promise.all([
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const today = new Date().toISOString();
+
+            // Use Promise.allSettled to handle partial failures gracefully
+            const results = await Promise.allSettled([
                 User.findAll(1, 1, {}),
-                User.findAll(1, 1, { created_after: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() }),
+                User.findAll(1, 1, { created_after: thirtyDaysAgo }),
                 Event.findAll(1, 1, {}),
-                Event.findAll(1, 1, { event_date_from: new Date().toISOString() }),
+                Event.findAll(1, 1, { event_date_from: today }),
                 Appointment.findAll(1, 1, {}),
                 Appointment.findAll(1, 1, { status: 'pending' }),
-                Forum.getAll({ page: 1, limit: 99999 }),
+                Forum.getAll({ page: 1, limit: 1 }),
                 Post.findAll(1, 1, {}),
                 User.findAll(1, 1, { role: 'student' }),
                 User.findAll(1, 1, { role: 'lecturer' })
             ]);
 
             // Helper to safely get total from results
-            const getTotal = (result) => {
-                if (!result.success) {
-                    logger.error('Error in dashboard query:', result.error);
-                    return 0; // Return 0 or throw error based on desired behavior
+            const getTotal = (result, index, label) => {
+                if (result.status === 'rejected') {
+                    logger.error(`Error in dashboard query ${label}:`, result.reason);
+                    return 0;
                 }
+                
+                const value = result.value;
+                if (!value || !value.success) {
+                    logger.error(`Error in dashboard query ${label}:`, value?.error);
+                    return 0;
+                }
+                
                 // For models with pagination
-                if (result.pagination && typeof result.pagination.total === 'number') {
-                    return result.pagination.total;
+                if (value.pagination && typeof value.pagination.total === 'number') {
+                    return value.pagination.total;
                 }
                 // For models like Forum.getAll that return data array directly
-                if (Array.isArray(result.data)) {
-                    return result.data.length;
+                if (Array.isArray(value.data)) {
+                    return value.data.length;
+                }
+                if (typeof value.data === 'number') {
+                    return value.data;
                 }
                 return 0;
             };
 
+            const [
+                totalUsersResult, newUsersLast30DaysResult, totalEventsResult, upcomingEventsResult,
+                totalAppointmentsResult, pendingAppointmentsResult, totalForumsResult, totalPostsResult,
+                totalStudentsResult, totalLecturersResult
+            ] = results;
+
             const summary = {
-                totalUsers: getTotal(totalUsersResult),
-                totalStudents: getTotal(totalStudentsResult),
-                totalLecturers: getTotal(totalLecturersResult),
-                newUsersLast30Days: getTotal(newUsersLast30DaysResult),
-                totalEvents: getTotal(totalEventsResult),
-                upcomingEvents: getTotal(upcomingEventsResult),
-                totalAppointments: getTotal(totalAppointmentsResult),
-                pendingAppointments: getTotal(pendingAppointmentsResult),
-                totalForums: getTotal(totalForumsResult),
-                totalPosts: getTotal(totalPostsResult),
+                totalUsers: getTotal(totalUsersResult, 0, 'totalUsers'),
+                totalStudents: getTotal(totalStudentsResult, 8, 'totalStudents'),
+                totalLecturers: getTotal(totalLecturersResult, 9, 'totalLecturers'),
+                newUsersLast30Days: getTotal(newUsersLast30DaysResult, 1, 'newUsersLast30Days'),
+                totalEvents: getTotal(totalEventsResult, 2, 'totalEvents'),
+                upcomingEvents: getTotal(upcomingEventsResult, 3, 'upcomingEvents'),
+                totalAppointments: getTotal(totalAppointmentsResult, 4, 'totalAppointments'),
+                pendingAppointments: getTotal(pendingAppointmentsResult, 5, 'pendingAppointments'),
+                totalForums: getTotal(totalForumsResult, 6, 'totalForums'),
+                totalPosts: getTotal(totalPostsResult, 7, 'totalPosts'),
                 generatedAt: new Date().toISOString()
             };
 

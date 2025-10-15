@@ -24,17 +24,38 @@ const formatTime = (time) => {
 const createAvailability = async (req, res) => {
     try {
         const staffId = req.user.id;
-        const { day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot, slot_duration_minutes, availability_type, valid_from, valid_to, is_active } = req.body;
+        const { specific_date, day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot, slot_duration_minutes, availability_type, valid_from, valid_to, is_active, buffer_time_minutes } = req.body;
 
-        // Validation
-        if (!day_of_week || !start_time || !end_time) {
-            return errorResponse(res, 400, 'day_of_week, start_time, and end_time are required');
+        // Validation - require either specific_date OR day_of_week
+        if (!start_time || !end_time) {
+            return errorResponse(res, 400, 'start_time and end_time are required');
         }
 
-        // Validate day_of_week is between 0 and 6
-        const dayOfWeekNum = parseInt(day_of_week);
-        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 0 || dayOfWeekNum > 6) {
-            return errorResponse(res, 400, 'day_of_week must be between 0 and 6 (0=Sunday, 6=Saturday)');
+        let calculatedDayOfWeek = day_of_week;
+
+        // If specific_date is provided, validate it
+        if (specific_date) {
+            const selectedDate = new Date(specific_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            if (selectedDate < today) {
+                return errorResponse(res, 400, 'Cannot create availability for past dates');
+            }
+
+            calculatedDayOfWeek = selectedDate.getDay();
+            if (calculatedDayOfWeek === 0 || calculatedDayOfWeek === 6) {
+                return errorResponse(res, 400, 'Cannot create availability for weekends (Saturday/Sunday)');
+            }
+        } else if (day_of_week !== undefined) {
+            // Validate day_of_week for recurring slots
+            const dayOfWeekNum = parseInt(day_of_week);
+            if (isNaN(dayOfWeekNum) || dayOfWeekNum < 0 || dayOfWeekNum > 6) {
+                return errorResponse(res, 400, 'day_of_week must be between 0 and 6 (0=Sunday, 6=Saturday)');
+            }
+            calculatedDayOfWeek = dayOfWeekNum;
+        } else {
+            return errorResponse(res, 400, 'Either specific_date or day_of_week is required');
         }
 
         const formattedStartTime = formatTime(start_time);
@@ -95,17 +116,19 @@ const createAvailability = async (req, res) => {
         // Create the availability slot
         const result = await StaffAvailability.create({
             staff_id: staffId,
-            day_of_week: dayOfWeekNum,
+            specific_date: specific_date || null,
+            day_of_week: calculatedDayOfWeek,
             start_time: formattedStartTime,
             end_time: formattedEndTime,
             break_start_time: formattedBreakStart,
             break_end_time: formattedBreakEnd,
             max_appointments_per_slot: maxAppointments,
             slot_duration_minutes: slotDuration,
+            buffer_time_minutes: parseInt(buffer_time_minutes) || 5,
             is_active: is_active !== undefined ? Boolean(is_active) : true,
             availability_type: availType,
-            valid_from: validFromDate,
-            valid_to: validToDate,
+            valid_from: specific_date || validFromDate,
+            valid_to: specific_date || validToDate,
         });
 
         if (!result.success) {
@@ -126,20 +149,17 @@ const createAvailability = async (req, res) => {
 // Get all availability slots for the authenticated administrator
 const getMyAvailability = async (req, res) => {
     try {
+        // Auto-cleanup: Delete past slots before fetching
+        await StaffAvailability.deletePastSlots();
+        
         const staffId = req.user.id;
-        const { day_of_week } = req.query;
+        const { day_of_week, is_active, availability_type } = req.query;
+        const filters = {};
+        if (day_of_week !== undefined) filters.day_of_week = parseInt(day_of_week);
+        if (is_active !== undefined) filters.is_active = is_active === 'true';
+        if (availability_type) filters.availability_type = availability_type;
 
-        let result;
-        if (day_of_week) {
-            // Validate day_of_week
-            const numericDayOfWeek = parseInt(day_of_week, 10);
-            if (isNaN(numericDayOfWeek) || numericDayOfWeek < 0 || numericDayOfWeek > 6) {
-                return errorResponse(res, 400, 'Invalid day_of_week. Must be a number between 0 and 6 (0=Sunday, 6=Saturday).');
-            }
-            result = await StaffAvailability.findByStaffIdAndDay(staffId, numericDayOfWeek);
-        } else {
-            result = await StaffAvailability.findByStaffId(staffId);
-        }
+        const result = await StaffAvailability.getByStaff(staffId, filters);
 
         if (!result.success) {
             logger.error('Failed to fetch availability:', result.error);

@@ -1,4 +1,5 @@
 const { supabase } = require('../config/database');
+const { getTodayString } = require('../utils/dateUtils');
 
 class Appointment {
     /**
@@ -164,7 +165,7 @@ class Appointment {
         try {
             const { page = 1, limit = 10 } = options;
             const field = userType === 'requester' ? 'requester_id' : 'appointee_id';
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayString(); // Fix: Use local timezone date
 
             // Calculate offset for pagination
             const offset = (page - 1) * limit;
@@ -530,6 +531,95 @@ class Appointment {
         }
     }
 
+    /**
+     * Find all appointments with pagination (for admin use)
+     */
+    static async findAll(page = 1, limit = 10, filters = {}) {
+        try {
+            const offset = (page - 1) * limit;
+            
+            let query = supabase
+                .from('appointments')
+                .select(`
+                    *,
+                    requester:requester_id(id, name, email, student_id, role),
+                    appointee:appointee_id(id, name, email, staff_id, department, role)
+                `, { count: 'exact' })
+                .is('deleted_at', null);
+
+            // Apply filters
+            if (filters.status) {
+                query = query.eq('status', filters.status);
+            }
+            if (filters.appointment_type) {
+                query = query.eq('appointment_type', filters.appointment_type);
+            }
+            if (filters.priority) {
+                query = query.eq('priority', filters.priority);
+            }
+            if (filters.requester_id) {
+                query = query.eq('requester_id', filters.requester_id);
+            }
+            if (filters.appointee_id) {
+                query = query.eq('appointee_id', filters.appointee_id);
+            }
+            if (filters.start_date || filters.appointment_date_from) {
+                const startDate = filters.start_date || filters.appointment_date_from;
+                query = query.gte('appointment_date', startDate);
+            }
+            if (filters.end_date || filters.appointment_date_to) {
+                const endDate = filters.end_date || filters.appointment_date_to;
+                query = query.lte('appointment_date', endDate);
+            }
+            if (filters.appointment_time_from) {
+                query = query.gte('appointment_time', filters.appointment_time_from);
+            }
+            if (filters.appointment_time_to) {
+                query = query.lte('appointment_time', filters.appointment_time_to);
+            }
+            if (filters.created_after) {
+                query = query.gte('created_at', filters.created_after);
+            }
+            if (filters.role && filters.role === 'student') {
+                // Filter appointments where requester is a student
+                query = query.not('requester_id', 'is', null);
+            }
+            if (filters.role && filters.role === 'lecturer') {
+                // Filter appointments where appointee is a lecturer
+                query = query.not('appointee_id', 'is', null);
+            }
+
+            // Apply sorting
+            const sortBy = filters.sortBy || 'appointment_date';
+            const sortOrder = filters.sortOrder === 'desc' ? false : true;
+            query = query.order(sortBy, { ascending: sortOrder });
+
+            // Apply pagination
+            query = query.range(offset, offset + limit - 1);
+
+            const { data, error, count } = await query;
+
+            if (error) throw error;
+
+            const totalPages = Math.ceil(count / limit);
+
+            return {
+                success: true,
+                data: data || [],
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: count || 0,
+                    totalPages,
+                    hasNext: page < totalPages,
+                    hasPrev: page > 1
+                }
+            };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
     // Alias methods for backward compatibility
     static async getUpcomingByUser(userId, userType = 'requester') {
         return this.getUpcoming(userId, userType);
@@ -541,6 +631,10 @@ class Appointment {
 
     static async getByAppointeeAndStatus(appointeeId, status) {
         return this.getByUser(appointeeId, 'appointee', { status });
+    }
+
+    static async listByAppointee(appointeeId, filters = {}) {
+        return this.getByUser(appointeeId, 'appointee', filters);
     }
 
     static async getUpcomingForLecturer(lecturerId) {

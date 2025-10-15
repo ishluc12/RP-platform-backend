@@ -5,6 +5,7 @@ const { supabase } = require('../../config/database');
 // Get all appointments (admin can see ALL appointments in system)
 exports.getAllAppointments = async (req, res) => {
   try {
+    console.log('Admin appointments request:', { query: req.query, user: req.user?.id });
     const { q, status, date, page = 1, limit = 10, lecturer, student } = req.query;
 
     // Build filters for Supabase
@@ -22,7 +23,9 @@ exports.getAllAppointments = async (req, res) => {
     // to Appointment.findAll to filter in the database, not in memory after pagination.
 
     // Get appointments using the model's findAll method
+    console.log('Fetching appointments with filters:', filters);
     const result = await Appointment.findAll(parseInt(page), parseInt(limit), filters);
+    console.log('Appointment query result:', { success: result.success, dataLength: result.data?.length, error: result.error });
 
     if (!result.success) {
       return res.status(500).json({
@@ -43,20 +46,26 @@ exports.getAllAppointments = async (req, res) => {
     // Fetch user details
     let usersMap = {};
     if (userIds.length > 0) {
-      // NOTE: Assumes 'users' table has 'first_name', 'last_name', and 'role'
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id, first_name, last_name, role')
-        .in('id', userIds);
+      try {
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('id, name, role, email')
+          .in('id', userIds);
 
-      if (!usersError && users) {
-        usersMap = users.reduce((acc, user) => {
-          acc[user.id] = {
-            name: `${user.first_name} ${user.last_name}`.trim(),
-            role: user.role
-          };
-          return acc;
-        }, {});
+        if (usersError) {
+          console.error('Error fetching users:', usersError);
+        } else if (users) {
+          usersMap = users.reduce((acc, user) => {
+            acc[user.id] = {
+              name: user.name || user.email || 'Unknown User',
+              role: user.role
+            };
+            return acc;
+          }, {});
+        }
+      } catch (userFetchError) {
+        console.error('Exception fetching users:', userFetchError);
+        // Continue with empty usersMap
       }
     }
 

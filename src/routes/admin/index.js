@@ -16,6 +16,7 @@ const surveyRoutes = require('./surveys');
 const appointmentRoutes = require('./appointments');
 const announcementRoutes = require('./announcements');
 const feedManagementRoutes = require('./feedManagement');
+const availabilityRoutes = require('./availability');
 
 console.log('✅ Admin routes loaded - dashboard routes:', typeof dashboardRoutes);
 
@@ -29,6 +30,7 @@ router.use('/surveys', surveyRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/feed-management', feedManagementRoutes);
+router.use('/availability', availabilityRoutes);
 
 console.log('✅ Admin dashboard routes mounted at /dashboard');
 

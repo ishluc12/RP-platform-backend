@@ -11,6 +11,7 @@ const availabilityRoutes = require('./availability');
 const surveyRoutes = require('./surveys');
 const eventRoutes = require('./events');
 const lecturerAvailabilityRoutes = require('./lecturerAvailability');
+const feedbackRoutes = require('./feedback');
 
 // Mount shared routes
 router.use('/users', userRoutes);
@@ -23,5 +24,6 @@ router.use('/availability', availabilityRoutes);
 router.use('/surveys', surveyRoutes);
 router.use('/events', eventRoutes);
 router.use('/lecturer-availability', lecturerAvailabilityRoutes);
+router.use('/feedback', feedbackRoutes);
 
 module.exports = router;

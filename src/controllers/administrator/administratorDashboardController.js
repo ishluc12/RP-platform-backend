@@ -79,11 +79,31 @@ class AdministratorDashboardController {
                     logger.error(`Failed to find user with ID ${studentId}:`, userResult.error);
                     return null;
                 }
+                
+                // Find the most recent appointment with this student to get last interaction date
+                const studentAppointments = (allAppointmentsResult.data || []).filter(appt => appt.requester_id === studentId);
+                let lastInteractionDate = null;
+                
+                if (studentAppointments.length > 0) {
+                    // Sort by most recent appointment
+                    studentAppointments.sort((a, b) => {
+                        const dateA = new Date(a.appointment_time || a.created_at);
+                        const dateB = new Date(b.appointment_time || b.created_at);
+                        return dateB.getTime() - dateA.getTime();
+                    });
+                    
+                    const mostRecentAppointment = studentAppointments[0];
+                    lastInteractionDate = new Date(mostRecentAppointment.appointment_time || mostRecentAppointment.created_at);
+                }
+                
                 return {
                     id: userResult.data.id,
                     name: userResult.data.name,
                     profile_picture: userResult.data.profile_picture,
-                    email: userResult.data.email
+                    email: userResult.data.email,
+                    lastInteractionDate: lastInteractionDate ? lastInteractionDate.toISOString() : null,
+                    lastInteractionText: lastInteractionDate ? lastInteractionDate.toLocaleDateString() : 'No recent interaction',
+                    __lastInteractionText: lastInteractionDate ? lastInteractionDate.toLocaleDateString() : 'No recent interaction'
                 };
             }));
 
