@@ -33,7 +33,11 @@ const getSurveyTemplateDetails = async (templateId) => {
 
 // List survey templates (for admin or lecturer to manage)
 const listSurveyTemplates = async (filters = {}) => {
-    let query = db.from('survey_templates').select('*');
+    // Include live statistics via left join; flatten for consumers
+    let query = db
+        .from('survey_templates')
+        .select('*, survey_statistics:survey_statistics(total_responses,completed_responses,last_updated)');
+
     const keys = ['title', 'target_audience', 'is_active', 'created_by'];
     for (const k of keys) {
         if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') {
@@ -42,7 +46,13 @@ const listSurveyTemplates = async (filters = {}) => {
     }
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-    return data;
+    // Flatten stats so existing UI fields work
+    const flattened = (data || []).map((t) => ({
+        ...t,
+        total_responses: t.survey_statistics?.total_responses ?? t.total_responses ?? 0,
+        completed_responses: t.survey_statistics?.completed_responses ?? t.completed_responses ?? 0,
+    }));
+    return flattened;
 };
 
 // Update a survey template's base fields
