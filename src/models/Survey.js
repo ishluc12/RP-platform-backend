@@ -72,9 +72,53 @@ const deleteSurveyTemplateCascade = async (templateId) => {
 
 // --- Survey Questions Management ---
 const createQuestion = async (questionData) => {
+    // Ensure required ordering field is set and unique per template
+    const payload = { ...questionData };
+    if (!payload.survey_template_id) {
+        throw new Error('survey_template_id is required to create a question');
+    }
+
+    // If order_index is missing or conflicting, assign the next available index
+    try {
+        if (payload.order_index == null) {
+            const { data: last, error: lastErr } = await db
+                .from('survey_questions')
+                .select('order_index')
+                .eq('survey_template_id', payload.survey_template_id)
+                .order('order_index', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (lastErr) throw lastErr;
+            payload.order_index = (last?.order_index || 0) + 1;
+        } else {
+            // Check conflict
+            const { data: conflict, error: cErr } = await db
+                .from('survey_questions')
+                .select('id')
+                .eq('survey_template_id', payload.survey_template_id)
+                .eq('order_index', payload.order_index)
+                .limit(1);
+            if (cErr) throw cErr;
+            if (Array.isArray(conflict) && conflict.length > 0) {
+                const { data: last, error: lastErr } = await db
+                    .from('survey_questions')
+                    .select('order_index')
+                    .eq('survey_template_id', payload.survey_template_id)
+                    .order('order_index', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (lastErr) throw lastErr;
+                payload.order_index = (last?.order_index || 0) + 1;
+            }
+        }
+    } catch (e) {
+        // Fallback: default to 1 on any unexpected error
+        payload.order_index = payload.order_index || 1;
+    }
+
     const { data, error } = await db
         .from('survey_questions')
-        .insert(questionData)
+        .insert(payload)
         .select('*')
         .single();
     if (error) throw error;
@@ -115,9 +159,49 @@ const deleteQuestion = async (questionId) => {
 
 // --- Survey Question Options Management ---
 const createQuestionOption = async (optionData) => {
+    // Ensure order_index is provided; otherwise, compute next available per question
+    const payload = { ...optionData };
+    if (!payload.question_id) {
+        throw new Error('question_id is required to create an option');
+    }
+    try {
+        if (payload.order_index == null) {
+            const { data: last, error: lastErr } = await db
+                .from('survey_question_options')
+                .select('order_index')
+                .eq('question_id', payload.question_id)
+                .order('order_index', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (lastErr) throw lastErr;
+            payload.order_index = (last?.order_index || 0) + 1;
+        } else {
+            const { data: conflict, error: cErr } = await db
+                .from('survey_question_options')
+                .select('id')
+                .eq('question_id', payload.question_id)
+                .eq('order_index', payload.order_index)
+                .limit(1);
+            if (cErr) throw cErr;
+            if (Array.isArray(conflict) && conflict.length > 0) {
+                const { data: last, error: lastErr } = await db
+                    .from('survey_question_options')
+                    .select('order_index')
+                    .eq('question_id', payload.question_id)
+                    .order('order_index', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (lastErr) throw lastErr;
+                payload.order_index = (last?.order_index || 0) + 1;
+            }
+        }
+    } catch (e) {
+        payload.order_index = payload.order_index || 1;
+    }
+
     const { data, error } = await db
         .from('survey_question_options')
-        .insert(optionData)
+        .insert(payload)
         .select('*')
         .single();
     if (error) throw error;
@@ -180,9 +264,10 @@ const updateResponse = async (responseId, updates) => {
 
 // --- Survey Answers Management ---
 const createAnswer = async (answerData) => {
+    // Upsert to avoid unique_response_question conflicts when re-submitting
     const { data, error } = await db
         .from('survey_answers')
-        .insert(answerData)
+        .upsert(answerData, { onConflict: 'response_id,question_id' })
         .select('*')
         .single();
     if (error) throw error;
@@ -291,7 +376,7 @@ const updateSurveyStatistics = async (templateId) => {
             completed_responses: completedCount || 0,
             average_completion_time_seconds: averageCompletionTimeSeconds,
             last_updated: new Date().toISOString()
-        })
+        }, { onConflict: 'survey_template_id' })
         .select('*')
         .single();
     if (error) throw error;
@@ -299,6 +384,17 @@ const updateSurveyStatistics = async (templateId) => {
 };
 
 // --- Visibility and helper queries ---
+const getUserResponse = async (templateId, userId) => {
+    const { data, error } = await db
+        .from('survey_responses')
+        .select('*')
+        .eq('survey_template_id', templateId)
+        .eq('respondent_id', userId)
+        .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error; // ignore no rows
+    return data || null;
+};
+
 const listVisibleTemplatesForUser = async (role) => {
     let query = db
         .from('survey_templates')
@@ -354,6 +450,17 @@ const getResponsesByTemplate = async (templateId, onlyComplete = true) => {
     return data || [];
 };
 
+const getAnswerByResponseAndQuestion = async (responseId, questionId) => {
+    const { data, error } = await db
+        .from('survey_answers')
+        .select('*')
+        .eq('response_id', responseId)
+        .eq('question_id', questionId)
+        .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+};
+
 const getAnswersByResponseIds = async (responseIds) => {
     if (!responseIds || responseIds.length === 0) return [];
     const { data, error } = await db
@@ -403,6 +510,8 @@ module.exports = {
     getResponsesByTemplate,
     getAnswersByResponseIds,
     getAnswerOptionsByAnswerIds,
+    getUserResponse,
+    getAnswerByResponseAndQuestion,
 };
 
 

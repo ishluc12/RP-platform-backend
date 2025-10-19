@@ -187,13 +187,22 @@ const submitSurveyResponse = async (req, res) => {
             }
         }
 
-        // Create or get existing response
-        let responseRecord = await Survey.createResponse({
-            survey_template_id: id,
-            respondent_id,
-            is_complete: true,
-            completed_at: new Date().toISOString()
-        });
+        // Create or reuse existing response (unique per user/template)
+        let responseRecord = await Survey.getUserResponse(id, respondent_id);
+        if (responseRecord) {
+            // Mark as complete
+            responseRecord = await Survey.updateResponse(responseRecord.id, {
+                is_complete: true,
+                completed_at: new Date().toISOString()
+            });
+        } else {
+            responseRecord = await Survey.createResponse({
+                survey_template_id: id,
+                respondent_id,
+                is_complete: true,
+                completed_at: new Date().toISOString()
+            });
+        }
 
         // Process answers
         if (answers && Array.isArray(answers)) {
@@ -207,7 +216,18 @@ const submitSurveyResponse = async (req, res) => {
                     rating_answer: answer.rating_answer
                 };
 
-                const createdAnswer = await Survey.createAnswer(answerData);
+                let createdAnswer;
+                try {
+                    createdAnswer = await Survey.createAnswer(answerData);
+                } catch (err) {
+                    // Fallback: if duplicate, update existing instead of failing
+                    const existing = await Survey.getAnswerByResponseAndQuestion(responseRecord.id, answer.question_id);
+                    if (existing) {
+                        createdAnswer = await Survey.updateAnswer(existing.id, answerData);
+                    } else {
+                        throw err;
+                    }
+                }
 
                 // Handle multiple choice/checkbox options
                 if (answer.selected_options && Array.isArray(answer.selected_options)) {
