@@ -2,6 +2,8 @@ const User = require('../../models/User');
 const emailService = require('../../services/emailService');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const fs = require('fs');
+const { uploadImage } = require('../../config/cloudinary');
 
 
 const {
@@ -369,29 +371,30 @@ class AuthController {
                 return res.status(400).json({ success: false, message: 'No file uploaded' });
             }
 
-            const localPath = `/uploads/${req.file.filename}`;
-            const fullUrl = `${req.protocol}://${req.get('host')}${localPath}`;
+            // Upload to Cloudinary
+            const tempPath = req.file.path;
+            const cld = await uploadImage(tempPath, { folder: 'p-community/profiles' });
+            if (!cld.success) {
+                console.error('Cloudinary upload failed:', cld.error);
+                return res.status(500).json({ success: false, message: 'Failed to upload image', error: cld.error });
+            }
 
-            // Optional: delete old profile picture from disk
-            // const oldProfile = await User.findById(userId);
-            // if (oldProfile?.data?.profile_picture) {
-            //     const oldPath = path.join(__dirname, '..', '..', oldProfile.data.profile_picture);
-            //     if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-            // }
-
-            // Update user profile picture in DB
-            const updateResult = await User.updateProfilePicture(userId, localPath);
+            // Update user profile picture in DB with Cloudinary URL
+            const updateResult = await User.updateProfilePicture(userId, cld.url);
             if (!updateResult.success) {
                 console.error('User.updateProfilePicture error:', updateResult.error);
                 return res.status(500).json({ success: false, message: 'Failed to update profile picture', error: updateResult.error });
             }
 
-            console.log(`✅ User ${userId} updated profile picture to ${localPath}`);
+            // Cleanup temp file
+            try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+
+            console.log(`✅ User ${userId} updated profile picture (Cloudinary)`);
 
             res.json({
                 success: true,
                 message: 'Profile picture uploaded successfully',
-                data: { profile_picture: fullUrl }
+                data: { profile_picture: cld.url }
             });
         } catch (error) {
             console.error('Upload profile picture error:', error);

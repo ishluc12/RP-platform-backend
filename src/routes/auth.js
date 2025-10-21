@@ -56,8 +56,8 @@ router.post('/register', [
     validateRole
 ], AuthController.register);
 
-// Change password route (moved below protected routes, as it requires authentication)
-router.put('/change-password', [validateNewPassword], AuthController.changePassword);
+// Change password route (protected)
+router.put('/change-password', authenticateToken, [validateNewPassword], AuthController.changePassword);
 
 router.post('/login', [
     authRateLimit,

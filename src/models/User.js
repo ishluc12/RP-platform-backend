@@ -97,6 +97,11 @@ class User {
             if (filters.department) query = query.eq('department', filters.department);
             if (filters.search) query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
             if (filters.created_after) query = query.gte('created_at', filters.created_after);
+            if (filters.status) {
+                // Map status to is_active boolean; treat 'blocked' as inactive
+                const wantActive = String(filters.status).toLowerCase() === 'active';
+                query = query.eq('is_active', wantActive);
+            }
 
             const from = (page - 1) * limit;
             const to = from + limit - 1;
@@ -122,7 +127,7 @@ class User {
     /** Update user by ID */
     static async update(id, updateData) {
         // Only update allowed fields!
-        const allowedFields = ['name', 'role', 'profile_picture', 'bio', 'phone', 'department', 'student_id', 'staff_id'];
+        const allowedFields = ['name', 'role', 'profile_picture', 'bio', 'phone', 'department', 'student_id', 'staff_id', 'is_active', 'suspension_reason', 'status'];
         const filteredUpdate = {};
         allowedFields.forEach(field => {
             if (updateData[field] !== undefined) filteredUpdate[field] = updateData[field];

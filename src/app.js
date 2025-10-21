@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -30,6 +31,9 @@ app.get('/', (req, res) => {
 // Routes
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Lecturer routes
 const lecturerAppointmentRoutes = require('./routes/lecturer/appointments');
