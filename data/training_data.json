@@ -1,0 +1,797 @@
+{
+  "intents": {
+    "book_appointment": {
+      "examples": [
+        "I want to book an appointment",
+        "How can I schedule a meeting",
+        "I need to meet with a lecturer",
+        "Book appointment with professor",
+        "Schedule consultation",
+        "I want to book an appointment with my lecturer",
+        "Can you help me schedule a meeting",
+        "How do I book time with staff",
+        "I need academic consultation",
+        "Set up appointment",
+        "Make an appointment",
+        "Arrange a meeting",
+        "Reserve time with lecturer",
+        "Get an appointment",
+        "Need to see a professor"
+      ],
+      "keywords": [
+        "book",
+        "schedule",
+        "appointment",
+        "meeting",
+        "consultation",
+        "reserve",
+        "arrange"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I'll help you book an appointment. Let me check available lecturers for you.",
+          "action": "show_available_staff",
+          "link": "/appointments/new"
+        },
+        "lecturer": {
+          "message": "You can view and manage appointment requests from students.",
+          "action": "show_appointment_requests",
+          "link": "/lecturer/appointments"
+        },
+        "administrator": {
+          "message": "You can view all appointments in the system.",
+          "action": "show_all_appointments",
+          "link": "/administrator/appointments"
+        }
+      }
+    },
+    "check_lecturer_availability": {
+      "examples": [
+        "When is my lecturer available",
+        "Show lecturer availability",
+        "Check professor schedule",
+        "When can I meet with staff",
+        "Available time slots",
+        "Is my lecturer free today",
+        "Show me available times",
+        "Lecturer schedule this week",
+        "When is Dr. Smith available",
+        "Staff availability",
+        "Free slots",
+        "Who is available tomorrow",
+        "Check availability for next week",
+        "Show free times",
+        "Which lecturers are free"
+      ],
+      "keywords": [
+        "available",
+        "availability",
+        "schedule",
+        "free",
+        "slots",
+        "when",
+        "times"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Let me check the lecturer availability for you.",
+          "action": "fetch_staff_availability",
+          "link": "/appointments/availability"
+        },
+        "lecturer": {
+          "message": "Here's your availability schedule. You can update it as needed.",
+          "action": "show_my_availability",
+          "link": "/lecturer/availability"
+        },
+        "administrator": {
+          "message": "Here's the staff availability overview.",
+          "action": "show_all_staff_availability",
+          "link": "/administrator/availability"
+        }
+      }
+    },
+    "my_appointments": {
+      "examples": [
+        "Show my appointments",
+        "What appointments do I have",
+        "My upcoming meetings",
+        "List my scheduled appointments",
+        "Do I have any appointments today",
+        "My appointment schedule",
+        "Check my bookings",
+        "When is my next appointment",
+        "Show scheduled meetings",
+        "My consultations",
+        "View my appointments",
+        "Appointment history",
+        "Past appointments",
+        "All my meetings",
+        "What's on my calendar"
+      ],
+      "keywords": [
+        "my",
+        "appointments",
+        "meetings",
+        "scheduled",
+        "upcoming",
+        "bookings",
+        "calendar"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Here are your appointments:",
+          "action": "fetch_student_appointments",
+          "link": "/appointments"
+        },
+        "lecturer": {
+          "message": "Here are your appointments and meeting requests:",
+          "action": "fetch_lecturer_appointments",
+          "link": "/lecturer/appointments"
+        },
+        "administrator": {
+          "message": "Here's your appointment overview:",
+          "action": "fetch_admin_appointments",
+          "link": "/administrator/appointments"
+        }
+      }
+    },
+    "create_event": {
+      "examples": [
+        "Create an event",
+        "How to organize an event",
+        "Schedule a workshop",
+        "Plan a seminar",
+        "Set up conference",
+        "I want to create an event",
+        "Organize campus activity",
+        "Add new event",
+        "Schedule campus event",
+        "Create workshop",
+        "Start new event",
+        "Host an event",
+        "Arrange campus activity",
+        "Setup conference",
+        "Plan academic event"
+      ],
+      "keywords": [
+        "create",
+        "organize",
+        "event",
+        "workshop",
+        "seminar",
+        "conference",
+        "host",
+        "plan"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Students can view events but cannot create them. Would you like to see upcoming events instead?",
+          "action": "show_events",
+          "link": "/events"
+        },
+        "lecturer": {
+          "message": "I'll help you create an event. Let's set up the details.",
+          "action": "create_event_form",
+          "link": "/lecturer/events/new"
+        },
+        "administrator": {
+          "message": "You can create and manage all campus events.",
+          "action": "create_event_admin",
+          "link": "/administrator/events/new"
+        }
+      }
+    },
+    "view_events": {
+      "examples": [
+        "Show upcoming events",
+        "What events are happening",
+        "Campus activities",
+        "List all events",
+        "Events this week",
+        "What's happening on campus",
+        "Show me events",
+        "Upcoming workshops",
+        "Academic events",
+        "Social activities",
+        "Events calendar",
+        "What events are today",
+        "Next month's events",
+        "Event schedule",
+        "Community events"
+      ],
+      "keywords": [
+        "events",
+        "activities",
+        "happening",
+        "workshops",
+        "campus",
+        "calendar"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Here are the upcoming campus events:",
+          "action": "fetch_upcoming_events",
+          "link": "/events"
+        },
+        "lecturer": {
+          "message": "Here are the events including ones you're organizing:",
+          "action": "fetch_lecturer_events",
+          "link": "/lecturer/events"
+        },
+        "administrator": {
+          "message": "Here's the complete event management dashboard:",
+          "action": "fetch_all_events",
+          "link": "/administrator/events"
+        }
+      }
+    },
+    "send_message": {
+      "examples": [
+        "Send a message",
+        "How to contact someone",
+        "Message a lecturer",
+        "Contact staff",
+        "Send notification",
+        "How do I message",
+        "Contact professor",
+        "Reach out to someone",
+        "Send email",
+        "Communicate with staff",
+        "Chat with lecturer",
+        "Text someone",
+        "Write message",
+        "Compose message",
+        "Inbox"
+      ],
+      "keywords": [
+        "message",
+        "contact",
+        "send",
+        "communicate",
+        "reach",
+        "chat",
+        "email",
+        "text"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "You can message lecturers and other students through the messaging system.",
+          "action": "open_messages",
+          "link": "/messages"
+        },
+        "lecturer": {
+          "message": "Access your messages and communications here.",
+          "action": "open_lecturer_messages",
+          "link": "/lecturer/messages"
+        },
+        "administrator": {
+          "message": "You can send announcements and manage all communications.",
+          "action": "open_admin_messages",
+          "link": "/administrator/messages"
+        }
+      }
+    },
+    "set_availability": {
+      "examples": [
+        "Set my availability",
+        "Update my schedule",
+        "Change availability hours",
+        "Set office hours",
+        "Manage my time slots",
+        "Update available times",
+        "Configure schedule",
+        "Set consultation hours",
+        "Block time slots",
+        "Manage calendar",
+        "Edit my availability",
+        "Add office hours",
+        "Create time slots",
+        "Modify schedule",
+        "Set working hours"
+      ],
+      "keywords": [
+        "set",
+        "availability",
+        "schedule",
+        "hours",
+        "manage",
+        "office",
+        "configure",
+        "edit"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Availability management is for staff members only. You can view lecturer availability when booking appointments.",
+          "action": "show_available_staff",
+          "link": "/appointments/availability"
+        },
+        "lecturer": {
+          "message": "Let's update your availability schedule.",
+          "action": "manage_availability",
+          "link": "/lecturer/availability/edit"
+        },
+        "administrator": {
+          "message": "You can manage your availability and view all staff schedules.",
+          "action": "manage_admin_availability",
+          "link": "/administrator/availability"
+        }
+      }
+    },
+    "appointment_status": {
+      "examples": [
+        "Check appointment status",
+        "Is my appointment confirmed",
+        "Appointment pending",
+        "Meeting status",
+        "Was my appointment accepted",
+        "Check booking status",
+        "Appointment confirmation",
+        "Is my meeting approved",
+        "Status of my request",
+        "Pending appointments",
+        "Appointment approved",
+        "Meeting confirmed",
+        "Request status",
+        "Booking confirmation",
+        "Was my request accepted"
+      ],
+      "keywords": [
+        "status",
+        "confirmed",
+        "pending",
+        "accepted",
+        "approved",
+        "confirmation"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Let me check your appointment status.",
+          "action": "check_appointment_status",
+          "link": "/appointments?filter=pending"
+        },
+        "lecturer": {
+          "message": "Here are your pending appointment requests to review.",
+          "action": "show_pending_requests",
+          "link": "/lecturer/appointments?filter=pending"
+        },
+        "administrator": {
+          "message": "View all appointment statuses across the system.",
+          "action": "show_all_statuses",
+          "link": "/administrator/appointments/status"
+        }
+      }
+    },
+    "cancel_appointment": {
+      "examples": [
+        "Cancel appointment",
+        "Cancel my meeting",
+        "Remove appointment",
+        "Delete booking",
+        "Cancel consultation",
+        "I can't make it to my appointment",
+        "Need to cancel",
+        "Cancel scheduled meeting",
+        "Remove from calendar",
+        "Cancel my booking",
+        "Unable to attend",
+        "Drop appointment",
+        "Cancel request",
+        "Delete meeting",
+        "Can't attend meeting"
+      ],
+      "keywords": [
+        "cancel",
+        "remove",
+        "delete",
+        "can't make",
+        "drop",
+        "unable"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I'll help you cancel your appointment. Which appointment would you like to cancel?",
+          "action": "show_cancellable_appointments",
+          "link": "/appointments?action=cancel"
+        },
+        "lecturer": {
+          "message": "You can cancel or decline appointments here.",
+          "action": "manage_appointment_cancellations",
+          "link": "/lecturer/appointments?action=manage"
+        },
+        "administrator": {
+          "message": "Manage appointment cancellations system-wide.",
+          "action": "admin_cancellations",
+          "link": "/administrator/appointments/manage"
+        }
+      }
+    },
+    "reschedule_appointment": {
+      "examples": [
+        "Reschedule appointment",
+        "Change appointment time",
+        "Move my meeting",
+        "Different time slot",
+        "Postpone appointment",
+        "Change meeting date",
+        "Reschedule consultation",
+        "New appointment time",
+        "Shift appointment",
+        "Change booking time",
+        "Adjust meeting time",
+        "Pick different time",
+        "Switch appointment",
+        "Modify appointment time",
+        "Change to different day"
+      ],
+      "keywords": [
+        "reschedule",
+        "change",
+        "move",
+        "postpone",
+        "shift",
+        "adjust",
+        "switch",
+        "modify"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Let's reschedule your appointment. Which one would you like to change?",
+          "action": "show_reschedulable_appointments",
+          "link": "/appointments?action=reschedule"
+        },
+        "lecturer": {
+          "message": "You can reschedule appointments and suggest new times.",
+          "action": "manage_rescheduling",
+          "link": "/lecturer/appointments/reschedule"
+        },
+        "administrator": {
+          "message": "Manage appointment rescheduling across the system.",
+          "action": "admin_rescheduling",
+          "link": "/administrator/appointments/reschedule"
+        }
+      }
+    },
+    "help": {
+      "examples": [
+        "Help",
+        "What can you do",
+        "How does this work",
+        "Guide me",
+        "I need assistance",
+        "Show me how",
+        "What are my options",
+        "System features",
+        "How to use",
+        "Get started",
+        "Support",
+        "Assistance",
+        "Tutorial",
+        "Instructions",
+        "What can I do"
+      ],
+      "keywords": [
+        "help",
+        "guide",
+        "how",
+        "assistance",
+        "options",
+        "support",
+        "tutorial"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I can help you with:\n• Booking appointments with lecturers\n• Viewing upcoming events\n• Checking your schedule\n• Sending messages\n• Managing your appointments\n\nWhat would you like to do?",
+          "action": "show_help_menu",
+          "link": "/help"
+        },
+        "lecturer": {
+          "message": "I can assist you with:\n• Managing appointment requests\n• Setting your availability\n• Creating events\n• Viewing your schedule\n• Communicating with students\n• Managing your profile\n\nHow can I help?",
+          "action": "show_lecturer_help",
+          "link": "/lecturer/help"
+        },
+        "administrator": {
+          "message": "Administrator functions:\n• System-wide appointment management\n• Event creation and management\n• User management\n• Availability oversight\n• Reports and analytics\n• System configuration\n\nWhat would you like to manage?",
+          "action": "show_admin_help",
+          "link": "/administrator/dashboard"
+        }
+      }
+    },
+    "quick_book_today": {
+      "examples": [
+        "Book appointment today",
+        "Any slots available today",
+        "Meet someone today",
+        "Today's availability",
+        "Urgent appointment",
+        "Need meeting today",
+        "Available now",
+        "Emergency consultation",
+        "Same day appointment",
+        "Book for today",
+        "Today's schedule",
+        "Can I meet today",
+        "Immediate appointment",
+        "ASAP meeting",
+        "Today's bookings"
+      ],
+      "keywords": [
+        "today",
+        "urgent",
+        "now",
+        "emergency",
+        "same day",
+        "asap",
+        "immediate"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Checking today's available slots for urgent appointments...",
+          "action": "fetch_today_availability",
+          "link": "/appointments/urgent"
+        },
+        "lecturer": {
+          "message": "Here are today's appointment requests and your current schedule.",
+          "action": "show_today_schedule",
+          "link": "/lecturer/appointments/today"
+        },
+        "administrator": {
+          "message": "Today's appointment overview and urgent requests.",
+          "action": "show_today_system_appointments",
+          "link": "/administrator/appointments/today"
+        }
+      }
+    },
+    "profile": {
+      "examples": [
+        "View my profile",
+        "Update profile",
+        "Change my details",
+        "Edit profile",
+        "My account",
+        "Profile settings",
+        "Account information",
+        "Personal details",
+        "Update my info",
+        "Change password",
+        "Profile picture",
+        "My information",
+        "Account settings",
+        "Edit my profile",
+        "View account"
+      ],
+      "keywords": [
+        "profile",
+        "account",
+        "settings",
+        "details",
+        "information",
+        "personal"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "View and edit your profile information here.",
+          "action": "open_profile",
+          "link": "/profile"
+        },
+        "lecturer": {
+          "message": "Manage your profile, bio, and contact information.",
+          "action": "open_lecturer_profile",
+          "link": "/lecturer/profile"
+        },
+        "administrator": {
+          "message": "Access your administrator profile settings.",
+          "action": "open_admin_profile",
+          "link": "/administrator/profile"
+        }
+      }
+    },
+    "notifications": {
+      "examples": [
+        "Show notifications",
+        "Check notifications",
+        "Any new notifications",
+        "Alert me",
+        "Notification settings",
+        "Turn on notifications",
+        "My alerts",
+        "Recent notifications",
+        "Unread notifications",
+        "Notification history",
+        "What's new",
+        "Updates",
+        "Alerts",
+        "Do I have notifications",
+        "Check alerts"
+      ],
+      "keywords": [
+        "notifications",
+        "alerts",
+        "updates",
+        "new",
+        "unread"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Here are your recent notifications and alerts.",
+          "action": "show_notifications",
+          "link": "/notifications"
+        },
+        "lecturer": {
+          "message": "View your notifications including appointment requests and updates.",
+          "action": "show_lecturer_notifications",
+          "link": "/lecturer/notifications"
+        },
+        "administrator": {
+          "message": "System-wide notifications and important alerts.",
+          "action": "show_admin_notifications",
+          "link": "/administrator/notifications"
+        }
+      }
+    },
+    "dashboard": {
+      "examples": [
+        "Go to dashboard",
+        "Show dashboard",
+        "Home",
+        "Main page",
+        "Dashboard",
+        "Overview",
+        "Take me home",
+        "Go to main",
+        "Show homepage",
+        "My dashboard",
+        "Home screen",
+        "Main dashboard",
+        "Overview page",
+        "Summary",
+        "Home page"
+      ],
+      "keywords": [
+        "dashboard",
+        "home",
+        "main",
+        "overview",
+        "summary"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Taking you to your dashboard.",
+          "action": "navigate_dashboard",
+          "link": "/dashboard"
+        },
+        "lecturer": {
+          "message": "Here's your lecturer dashboard with recent activity.",
+          "action": "navigate_lecturer_dashboard",
+          "link": "/lecturer/dashboard"
+        },
+        "administrator": {
+          "message": "Access your administrator dashboard.",
+          "action": "navigate_admin_dashboard",
+          "link": "/administrator/dashboard"
+        }
+      }
+    },
+    "community_feed": {
+      "examples": [
+        "Show community feed",
+        "What's happening in community",
+        "Community posts",
+        "View feed",
+        "Social feed",
+        "Community updates",
+        "Latest posts",
+        "What's new in community",
+        "Community activity",
+        "Feed",
+        "Community news",
+        "Recent posts",
+        "Campus feed",
+        "Social updates",
+        "Community board"
+      ],
+      "keywords": [
+        "community",
+        "feed",
+        "posts",
+        "social",
+        "updates",
+        "activity"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Here's the latest from the community feed.",
+          "action": "show_community_feed",
+          "link": "/community"
+        },
+        "lecturer": {
+          "message": "View community posts and engagement.",
+          "action": "show_lecturer_community",
+          "link": "/lecturer/community"
+        },
+        "administrator": {
+          "message": "Manage community posts and moderation.",
+          "action": "show_admin_community",
+          "link": "/administrator/community"
+        }
+      }
+    },
+    "logout": {
+      "examples": [
+        "Logout",
+        "Log out",
+        "Sign out",
+        "Exit",
+        "Leave",
+        "Log me out",
+        "Sign me out",
+        "End session",
+        "Quit",
+        "Logout please"
+      ],
+      "keywords": [
+        "logout",
+        "log out",
+        "sign out",
+        "exit",
+        "leave"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Logging you out. See you next time!",
+          "action": "logout",
+          "link": "/logout"
+        },
+        "lecturer": {
+          "message": "Logging you out. See you next time!",
+          "action": "logout",
+          "link": "/logout"
+        },
+        "administrator": {
+          "message": "Logging you out. See you next time!",
+          "action": "logout",
+          "link": "/logout"
+        }
+      }
+    },
+    "greeting": {
+      "examples": [
+        "Hello",
+        "Hi",
+        "Hey",
+        "Good morning",
+        "Good afternoon",
+        "Good evening",
+        "Greetings",
+        "What's up",
+        "Howdy",
+        "Hiya"
+      ],
+      "keywords": [
+        "hello",
+        "hi",
+        "hey",
+        "morning",
+        "afternoon",
+        "evening",
+        "greetings"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Hello! How can I assist you today? I can help with appointments, events, messages, and more.",
+          "action": "show_help_menu",
+          "link": "/dashboard"
+        },
+        "lecturer": {
+          "message": "Hello! I'm here to help with appointment management, availability, events, and communications.",
+          "action": "show_lecturer_help",
+          "link": "/lecturer/dashboard"
+        },
+        "administrator": {
+          "message": "Hello! I can help you manage the system, appointments, events, and users.",
+          "action": "show_admin_help",
+          "link": "/administrator/dashboard"
+        }
+      }
+    }
+  }
+}

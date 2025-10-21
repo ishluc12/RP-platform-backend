@@ -68,8 +68,8 @@ class LecturerAvailabilityController {
                 max_appointments_per_slot,
                 buffer_time_minutes,
                 availability_type,
-                valid_from: specific_date || valid_from,
-                valid_to: specific_date || valid_to,
+                valid_from: specific_date || valid_from || null,
+                valid_to: valid_to || null,
                 is_active
             };
 

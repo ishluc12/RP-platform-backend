@@ -30,10 +30,20 @@ class AdministratorEventController {
                 return errorResponse(res, 400, `Invalid target_audience. Must be one of: ${validTargetAudiences.join(', ')}.`);
             }
 
-            // Validate event date is in the future
+            // Validate event date is valid and not in the past
             const eventDate = new Date(event_date);
-            if (eventDate <= new Date()) {
-                return errorResponse(res, 400, 'Event date must be in the future');
+            if (isNaN(eventDate.getTime())) {
+                return errorResponse(res, 400, 'Invalid event date format');
+            }
+            
+            // Allow events for today or future (compare dates only, not time)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const eventDay = new Date(eventDate);
+            eventDay.setHours(0, 0, 0, 0);
+            
+            if (eventDay < today) {
+                return errorResponse(res, 400, 'Event date cannot be in the past');
             }
 
             const eventData = {
@@ -44,7 +54,7 @@ class AdministratorEventController {
                 created_by,
                 max_participants,
                 registration_required,
-                target_audience: target_audience || 'both'
+                target_audience: target_audience || 'all'
             };
 
             const result = await Event.create(eventData);

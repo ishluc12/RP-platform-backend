@@ -8,7 +8,7 @@ const ADMIN_ROLES = ['administrator', 'admin', 'sys_admin'];
 
 // Apply authentication and role middleware to all routes
 router.use(authenticateToken);
-router.use(requireRoles(ADMIN_ROLES));
+router.use(requireRoles(...ADMIN_ROLES));
 
 // Administrator event management routes
 router.post('/', AdministratorEventController.createEvent);

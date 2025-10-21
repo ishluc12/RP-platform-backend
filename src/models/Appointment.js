@@ -353,6 +353,51 @@ class Appointment {
      */
     static async isSlotAvailable(staffId, date, startTime, endTime, excludeAppointmentId = null) {
         try {
+            // First, check if staff has availability for this date/time
+            const appointmentDate = new Date(date);
+            const dayOfWeek = appointmentDate.getDay();
+            
+            const { data: availabilitySlots, error: availError } = await supabase
+                .from('staff_availability')
+                .select('*')
+                .eq('staff_id', staffId)
+                .eq('is_active', true)
+                .or(`specific_date.eq.${date},and(day_of_week.eq.${dayOfWeek},specific_date.is.null)`)
+                .lte('start_time', startTime)
+                .gte('end_time', endTime);
+
+            if (availError) {
+                console.error('Error checking availability:', availError);
+                return false;
+            }
+
+            // Check if valid_from and valid_to constraints are met
+            const validSlots = availabilitySlots.filter(slot => {
+                const validFrom = slot.valid_from ? new Date(slot.valid_from) : null;
+                const validTo = slot.valid_to ? new Date(slot.valid_to) : null;
+                const slotDate = new Date(date);
+                slotDate.setHours(0, 0, 0, 0);
+                
+                if (validFrom) {
+                    const validFromDate = new Date(validFrom);
+                    validFromDate.setHours(0, 0, 0, 0);
+                    if (slotDate < validFromDate) return false;
+                }
+                
+                if (validTo) {
+                    const validToDate = new Date(validTo);
+                    validToDate.setHours(0, 0, 0, 0);
+                    if (slotDate > validToDate) return false;
+                }
+                
+                return true;
+            });
+
+            if (validSlots.length === 0) {
+                console.log('No availability slot found for:', { staffId, date, startTime, endTime, dayOfWeek });
+                return false;
+            }
+
             // Check for overlapping appointments
             let query = supabase
                 .from('appointments')

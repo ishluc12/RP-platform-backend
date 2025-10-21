@@ -12,15 +12,15 @@ router.use(authenticateToken);
 // --- AVAILABILITY ROUTES ---
 
 // Create availability slot
-router.post('/', requireRoles(ADMIN_ROLES), administratorAvailabilityController.createAvailability);
+router.post('/', requireRoles(...ADMIN_ROLES), administratorAvailabilityController.createAvailability);
 
 // Get all availability slots
-router.get('/', requireRoles(ADMIN_ROLES), administratorAvailabilityController.getMyAvailability);
+router.get('/', requireRoles(...ADMIN_ROLES), administratorAvailabilityController.getMyAvailability);
 
 // Update a specific availability slot
-router.put('/:id', requireRoles(ADMIN_ROLES), administratorAvailabilityController.updateAvailability);
+router.put('/:id', requireRoles(...ADMIN_ROLES), administratorAvailabilityController.updateAvailability);
 
 // Delete a specific availability slot
-router.delete('/:id', requireRoles(ADMIN_ROLES), administratorAvailabilityController.deleteAvailability);
+router.delete('/:id', requireRoles(...ADMIN_ROLES), administratorAvailabilityController.deleteAvailability);
 
 module.exports = router;

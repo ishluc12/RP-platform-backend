@@ -6,12 +6,19 @@ const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
 const net = require('net');
+const schedule = require('node-schedule');
 
 const app = express();
 const server = http.createServer(app);
 const { createSocketServer } = require('./src/config/socket');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
+const ChatbotInitializer = require('./src/utils/chatbotInitializer');
+const { setupNotificationSocket } = require('./src/sockets/notificationSocket');
+const { initializeNotificationService } = require('./src/services/notificationService');
 const io = createSocketServer(server);
+
+setupNotificationSocket(io);
+initializeNotificationService(io);
 
 // Import routes
 const authRoutes = require('./src/routes/auth');
@@ -176,12 +183,36 @@ function findAvailablePort(currentPort) {
 
 const fixedPort = 5000; // Define a fixed port
 
-server.listen(fixedPort, () => {
-    console.log(`🚀 P-Community Backend server running on fixed port ${fixedPort}`);
-    io.opts.cors.origin = [...allowedOrigins, `http://localhost:${fixedPort}`];
-    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 Health check: http://localhost:${fixedPort}/health`);
-});
+// Initialize chatbot system and start server
+async function startServer() {
+    try {
+        // Initialize chatbot system
+        console.log('🤖 Initializing chatbot system...');
+        await ChatbotInitializer.initialize();
+        console.log('✅ Chatbot system ready');
+        
+        // Schedule periodic training updates (daily at midnight)
+        schedule.scheduleJob('0 0 * * *', async () => {
+            console.log('🔄 Running scheduled chatbot training update...');
+            await ChatbotInitializer.updateTraining();
+        });
+        
+        // Start the server
+        server.listen(fixedPort, () => {
+            console.log(`🚀 P-Community Backend server running on fixed port ${fixedPort}`);
+            io.opts.cors.origin = [...allowedOrigins, `http://localhost:${fixedPort}`];
+            console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`🔗 Health check: http://localhost:${fixedPort}/health`);
+            console.log(`🤖 Chatbot: http://localhost:${fixedPort}/api/chatbot/query`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+// Start the server
+startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

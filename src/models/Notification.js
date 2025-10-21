@@ -28,6 +28,30 @@ class NotificationModel {
     }
 
     /**
+     * List all notifications for a specific user (without pagination)
+     * @param {string} user_id
+     * @returns {Promise<Object>}
+     */
+    static async listAllForUser(user_id) {
+        try {
+            const { data, error } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('user_id', user_id)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            return {
+                success: true,
+                data: data || []
+            };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
      * List notifications for a specific user with pagination
      * @param {string} user_id
      * @param {Object} options
@@ -141,4 +165,3 @@ class NotificationModel {
 }
 
 module.exports = NotificationModel;
-

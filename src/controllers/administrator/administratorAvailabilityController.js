@@ -23,8 +23,16 @@ const formatTime = (time) => {
 // Create availability slot for the authenticated administrator
 const createAvailability = async (req, res) => {
     try {
+        console.log('🚀 ADMINISTRATOR CREATE AVAILABILITY - START');
+        console.log('👤 User from req.user:', req.user);
+        console.log('📦 Request body:', JSON.stringify(req.body, null, 2));
+        console.log('🔧 Request headers authorization:', req.headers.authorization ? 'Present' : 'Missing');
+        
         const staffId = req.user.id;
         const { specific_date, day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot, slot_duration_minutes, availability_type, valid_from, valid_to, is_active, buffer_time_minutes } = req.body;
+        
+        console.log('✅ Staff ID extracted:', staffId);
+        console.log('✅ Payload extracted:', { specific_date, start_time, end_time, availability_type });
 
         // Validation - require either specific_date OR day_of_week
         if (!start_time || !end_time) {
@@ -127,19 +135,33 @@ const createAvailability = async (req, res) => {
             buffer_time_minutes: parseInt(buffer_time_minutes) || 5,
             is_active: is_active !== undefined ? Boolean(is_active) : true,
             availability_type: availType,
-            valid_from: specific_date || validFromDate,
-            valid_to: specific_date || validToDate,
+            valid_from: specific_date || validFromDate || null,
+            valid_to: validToDate || null,
         });
 
         if (!result.success) {
             logger.error('Failed to create availability in DB:', result.error);
+            logger.error('Payload that failed:', JSON.stringify({
+                staff_id: staffId,
+                specific_date: specific_date || null,
+                day_of_week: calculatedDayOfWeek,
+                start_time: formattedStartTime,
+                end_time: formattedEndTime,
+                availability_type: availType
+            }));
             // Assuming 409 Conflict for duplicate or constraint error
             return errorResponse(res, 400, result.error);
         }
 
-        logger.info(`Availability slot created for administrator: ${staffId}, day: ${dayOfWeekNum}`);
+        logger.info(`Availability slot created for administrator: ${staffId}, day: ${calculatedDayOfWeek}`);
+        console.log('✅ SUCCESS: Availability slot created for administrator:', result.data);
         response(res, 201, 'Availability slot created successfully', result.data);
     } catch (error) {
+        console.error('❌ CRITICAL ERROR in createAvailability:', error);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+        console.error('❌ Error name:', error.name);
+        
         logger.error('Error creating availability:', error.message);
         logger.error('Error stack:', error.stack);
         errorResponse(res, 500, 'Internal server error', error.message);
