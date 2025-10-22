@@ -1,4 +1,5 @@
 const { supabase } = require('../config/database');
+const { getTodayString, formatDateString } = require('../utils/dateUtils');
 
 class AvailabilityException {
     /**
@@ -65,10 +66,10 @@ class AvailabilityException {
      */
     static async getUpcoming(staffId, days = 30) {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayString();
             const futureDate = new Date();
             futureDate.setDate(futureDate.getDate() + days);
-            const futureDateStr = futureDate.toISOString().split('T')[0];
+            const futureDateStr = formatDateString(futureDate);
 
             const { data, error } = await supabase
                 .from('availability_exceptions')

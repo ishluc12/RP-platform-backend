@@ -1,4 +1,5 @@
 const { supabase } = require('../config/database');
+const { getTodayString } = require('../utils/dateUtils');
 
 class StaffAvailability {
     /**
@@ -60,6 +61,15 @@ class StaffAvailability {
                 query = query.lte('specific_date', filters.to_date);
             }
 
+            // Add default filter for current and future dates only (but don't filter if specific filters are provided)
+            if (!filters.specific_date && !filters.from_date && !filters.to_date) {
+                const today = getTodayString();
+                query = query.gte('specific_date', today);
+            }
+            
+            // Always exclude null dates (old recurring slots)
+            query = query.not('specific_date', 'is', null);
+            
             const { data, error } = await query.order('specific_date', { nullsFirst: false }).order('day_of_week').order('start_time');
 
             if (error) throw error;
@@ -139,10 +149,13 @@ class StaffAvailability {
     }
 
     /**
-     * Get all active staff availability
+     * Get all active staff availability (only current and future dates)
      */
     static async getAllActiveStaffAvailability() {
         try {
+            // Get today's date in YYYY-MM-DD format
+            const today = getTodayString();
+            
             const { data, error } = await supabase
                 .from('staff_availability')
                 .select(`
@@ -150,8 +163,10 @@ class StaffAvailability {
                     staff:staff_id(id, name, email, department, role)
                 `)
                 .eq('is_active', true)
+                .gte('specific_date', today)  // Only current and future dates
+                .not('specific_date', 'is', null)  // Only date-specific slots
                 .order('staff_id')
-                .order('day_of_week')
+                .order('specific_date')
                 .order('start_time');
 
             if (error) throw error;
@@ -356,7 +371,7 @@ class StaffAvailability {
      */
     static async deletePastSlots() {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayString();
             
             // Delete past date-specific slots
             const { data: pastSlots, error: pastError } = await supabase

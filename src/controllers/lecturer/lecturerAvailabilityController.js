@@ -31,47 +31,38 @@ class LecturerAvailabilityController {
                 return errorResponse(res, 400, 'Missing required fields: specific_date, start_time, end_time');
             }
 
-            const selectedDate = new Date(specific_date);
+            // Parse date as YYYY-MM-DD to avoid timezone issues
+            const dateParts = specific_date.split('-');
+            const selectedDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
             const calculatedDayOfWeek = selectedDate.getDay();
 
-            // If specific_date is provided, validate it
-            if (specific_date) {
-                const selectedDate = new Date(specific_date);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                if (selectedDate < today) {
-                    return errorResponse(res, 400, 'Cannot create availability for past dates');
-                }
+            // Validate the date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            if (selectedDate < today) {
+                return errorResponse(res, 400, 'Cannot create availability for past dates');
+            }
 
-                calculatedDayOfWeek = selectedDate.getDay();
-                if (calculatedDayOfWeek === 0 || calculatedDayOfWeek === 6) {
-                    return errorResponse(res, 400, 'Cannot create availability for weekends (Saturday/Sunday)');
-                }
-            } else if (day_of_week !== undefined) {
-                // Validate day_of_week for recurring slots
-                if (day_of_week < 1 || day_of_week > 5) {
-                    return errorResponse(res, 400, 'day_of_week must be between 1 (Monday) and 5 (Friday). Weekends are not allowed.');
-                }
-            } else {
-                return errorResponse(res, 400, 'Either specific_date or day_of_week is required');
+            if (calculatedDayOfWeek === 0 || calculatedDayOfWeek === 6) {
+                return errorResponse(res, 400, 'Cannot create availability for weekends (Saturday/Sunday)');
             }
 
             const data = {
                 staff_id,
-                specific_date: specific_date || null,
+                specific_date,
                 day_of_week: calculatedDayOfWeek,
                 start_time,
                 end_time,
-                break_start_time,
-                break_end_time,
-                slot_duration_minutes,
-                max_appointments_per_slot,
-                buffer_time_minutes,
-                availability_type,
-                valid_from: specific_date || valid_from || null,
+                break_start_time: break_start_time || null,
+                break_end_time: break_end_time || null,
+                slot_duration_minutes: slot_duration_minutes || 30,
+                max_appointments_per_slot: max_appointments_per_slot || 3,
+                buffer_time_minutes: buffer_time_minutes || 5,
+                availability_type: availability_type || 'regular',
+                valid_from: specific_date,
                 valid_to: valid_to || null,
-                is_active
+                is_active: true
             };
 
             const result = await StaffAvailability.create(data);

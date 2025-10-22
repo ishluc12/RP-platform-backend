@@ -295,7 +295,7 @@ class Appointment {
     static async getUpcoming(userId, userType = 'requester') {
         try {
             const field = userType === 'requester' ? 'requester_id' : 'appointee_id';
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayString();
 
             const { data, error } = await supabase
                 .from('appointments')
