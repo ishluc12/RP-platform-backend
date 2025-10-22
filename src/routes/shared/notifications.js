@@ -5,6 +5,9 @@ const notificationController = require('../../controllers/shared/notificationCon
 
 router.use(authenticateToken);
 
+// Get all notifications for the authenticated user (without pagination)
+router.get('/all', notificationController.getAllUserNotifications);
+
 // Get notifications for the authenticated user
 router.get('/', notificationController.getUserNotifications);
 

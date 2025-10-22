@@ -1,275 +1,323 @@
-const { createClient } = require('@supabase/supabase-js');
-const { logger } = require('../utils/logger');
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const { supabase } = require('../config/database');
 
 class StaffAvailability {
     /**
-     * Find availability slots by staff ID
-     * @param {string} staffId - Staff ID
-     * @param {Object} options - Filter options
-     * @returns {Promise<Object>} - Success/error result
-     */
-    static async findByStaffId(staffId, options = {}) {
-        try {
-            const { isActive, orderBy = 'day_of_week', orderDirection = 'asc' } = options;
-
-            let query = supabase
-                .from('staff_availability')
-                .select('*')
-                .eq('staff_id', staffId)
-                .order(orderBy, { ascending: orderDirection === 'asc' });
-
-            if (isActive !== undefined) {
-                query = query.eq('is_active', isActive);
-            }
-
-            const { data, error } = await query;
-
-            if (error) {
-                logger.error('Error finding availability by staff ID:', error);
-                return { success: false, error: error.message };
-            }
-
-            return { success: true, data };
-        } catch (error) {
-            logger.error('Error in findByStaffId:', error);
-            return { success: false, error: error.message };
-        }
-    }
-    /**
-     * Create availability slot for staff
-     * @param {Object} availabilityData - Availability data
-     * @returns {Promise<Object>} - Success/error result
+     * Create availability slot
      */
     static async create(availabilityData) {
         try {
-            const {
-                staff_id,
-                day_of_week,
-                start_time,
-                end_time,
-                break_start_time,
-                break_end_time,
-                slot_duration_minutes = 30,
-                max_appointments_per_slot = 1,
-                buffer_time_minutes = 0,
-                availability_type = 'regular',
-                valid_from,
-                valid_to
-            } = availabilityData;
-
-            // Normalize valid_from and valid_to to null if not provided or empty
-            const normalizedValidFrom = valid_from === '' ? null : valid_from;
-            const normalizedValidTo = valid_to === '' ? null : valid_to;
-
-            // Validate required fields
-            if (!staff_id || day_of_week === undefined || !start_time || !end_time) {
-                logger.error(`Validation Error: Missing required fields - staff_id: ${staff_id}, day_of_week: ${day_of_week}, start_time: ${start_time}, end_time: ${end_time}`);
-                throw new Error('Missing required fields: staff_id, day_of_week, start_time, end_time');
-            }
-
-            // Validate day_of_week (0-6)
-            if (day_of_week < 0 || day_of_week > 6) {
-                logger.error(`Validation Error: Invalid day_of_week - ${day_of_week}`);
-                throw new Error('day_of_week must be between 0 (Sunday) and 6 (Saturday)');
-            }
-
             const { data, error } = await supabase
                 .from('staff_availability')
-                .insert({
-                    staff_id,
-                    day_of_week,
-                    start_time,
-                    end_time,
-                    break_start_time,
-                    break_end_time,
-                    slot_duration_minutes,
-                    max_appointments_per_slot,
-                    buffer_time_minutes,
-                    availability_type,
-                    valid_from: normalizedValidFrom,
-                    valid_to: normalizedValidTo,
-                    is_active: true
-                })
-                .select('*')
+                .insert([availabilityData])
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
                 .single();
 
             if (error) throw error;
             return { success: true, data };
         } catch (error) {
-            console.error('Error creating availability:', error);
             return { success: false, error: error.message };
         }
     }
 
     /**
-     * Get availability for a staff member
-     * @param {string} staffId - Staff UUID
-     * @param {Object} filters - Optional filters
-     * @returns {Promise<Object>} - Success/error result
+     * Get availability by staff ID
      */
     static async getByStaff(staffId, filters = {}) {
         try {
             let query = supabase
                 .from('staff_availability')
-                .select('*')
-                .eq('staff_id', staffId)
-                .order('day_of_week', { ascending: true })
-                .order('start_time', { ascending: true });
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
+                .eq('staff_id', staffId);
+
+            if (filters.day_of_week !== undefined) {
+                query = query.eq('day_of_week', filters.day_of_week);
+            }
 
             if (filters.is_active !== undefined) {
                 query = query.eq('is_active', filters.is_active);
             }
-            if (filters.day_of_week !== undefined) {
-                query = query.eq('day_of_week', filters.day_of_week);
-            }
+
             if (filters.availability_type) {
                 query = query.eq('availability_type', filters.availability_type);
             }
 
-            const { data, error } = await query;
+            // Add specific_date filter if provided
+            if (filters.specific_date) {
+                query = query.eq('specific_date', filters.specific_date);
+            }
+
+            // Filter by date range if provided
+            if (filters.from_date) {
+                query = query.gte('specific_date', filters.from_date);
+            }
+            if (filters.to_date) {
+                query = query.lte('specific_date', filters.to_date);
+            }
+
+            const { data, error } = await query.order('specific_date', { nullsFirst: false }).order('day_of_week').order('start_time');
 
             if (error) throw error;
+            return { success: true, data: data || [] };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get availability by staff ID (alias for getByStaff)
+     */
+    static async findByStaffId(staffId) {
+        return this.getByStaff(staffId);
+    }
+
+    /**
+     * Get availability by staff ID and day
+     */
+    static async findByStaffIdAndDay(staffId, dayOfWeek) {
+        return this.getByStaff(staffId, { day_of_week: dayOfWeek });
+    }
+
+    /**
+     * Find one availability slot by ID
+     */
+    static async findOne(slotId) {
+        try {
+            const { data, error } = await supabase
+                .from('staff_availability')
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
+                .eq('id', slotId)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    return { success: false, error: 'Availability slot not found' };
+                }
+                throw error;
+            }
             return { success: true, data };
         } catch (error) {
-            console.error('Error fetching staff availability:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get all availability (sys-admin)
+     */
+    static async getAll(filters = {}) {
+        try {
+            let query = supabase
+                .from('staff_availability')
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `);
+
+            if (filters.staff_id) query = query.eq('staff_id', filters.staff_id);
+            if (filters.day_of_week !== undefined) query = query.eq('day_of_week', filters.day_of_week);
+            if (filters.is_active !== undefined) query = query.eq('is_active', filters.is_active);
+            if (filters.availability_type) query = query.eq('availability_type', filters.availability_type);
+
+            const { data, error } = await query
+                .order('staff_id')
+                .order('day_of_week')
+                .order('start_time');
+
+            if (error) throw error;
+            return { success: true, data: data || [] };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get all active staff availability
+     */
+    static async getAllActiveStaffAvailability() {
+        try {
+            const { data, error } = await supabase
+                .from('staff_availability')
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
+                .eq('is_active', true)
+                .order('staff_id')
+                .order('day_of_week')
+                .order('start_time');
+
+            if (error) throw error;
+            return { success: true, data: data || [] };
+        } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
     /**
      * Update availability slot
-     * @param {string} availabilityId - Availability UUID
-     * @param {Object} updateData - Update data
-     * @returns {Promise<Object>} - Success/error result
      */
-    static async update(availabilityId, updateData) {
+    static async update(slotId, updates) {
         try {
             const { data, error } = await supabase
                 .from('staff_availability')
-                .update(updateData)
-                .eq('id', availabilityId)
-                .select('*')
+                .update({
+                    ...updates,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', slotId)
+                .select(`
+                    *,
+                    staff:staff_id(id, name, email, department, role)
+                `)
                 .single();
 
             if (error) throw error;
             return { success: true, data };
         } catch (error) {
-            console.error('Error updating availability:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Toggle active status
+     */
+    static async toggleActive(slotId, isActive) {
+        try {
+            const { data, error } = await supabase
+                .from('staff_availability')
+                .update({
+                    is_active: isActive,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', slotId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
     /**
      * Delete availability slot
-     * @param {string} availabilityId - Availability UUID
-     * @returns {Promise<Object>} - Success/error result
      */
-    static async delete(availabilityId) {
+    static async delete(slotId) {
         try {
             const { error } = await supabase
                 .from('staff_availability')
                 .delete()
-                .eq('id', availabilityId);
+                .eq('id', slotId);
 
             if (error) throw error;
-            return { success: true };
+            return { success: true, message: 'Availability slot deleted successfully' };
         } catch (error) {
-            console.error('Error deleting availability:', error);
             return { success: false, error: error.message };
         }
     }
 
     /**
-     * Toggle availability active status
-     * @param {string} availabilityId - Availability UUID
-     * @param {boolean} isActive - Active status
-     * @returns {Promise<Object>} - Success/error result
+     * Bulk create availability slots
      */
-    static async toggleActive(availabilityId, isActive) {
+    static async bulkCreate(staffId, slots) {
+        try {
+            const slotsWithStaffId = slots.map(slot => ({
+                ...slot,
+                staff_id: staffId
+            }));
+
+            const { data, error } = await supabase
+                .from('staff_availability')
+                .insert(slotsWithStaffId)
+                .select();
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get availability summary
+     */
+    static async getSummary(staffId) {
         try {
             const { data, error } = await supabase
                 .from('staff_availability')
-                .update({ is_active: isActive })
-                .eq('id', availabilityId)
                 .select('*')
-                .single();
+                .eq('staff_id', staffId);
 
             if (error) throw error;
-            return { success: true, data };
+
+            const summary = {
+                total_slots: data.length,
+                active_slots: data.filter(s => s.is_active).length,
+                inactive_slots: data.filter(s => !s.is_active).length,
+                by_day: {}
+            };
+
+            for (let i = 0; i < 7; i++) {
+                const daySlots = data.filter(s => s.day_of_week === i && s.is_active);
+                summary.by_day[i] = {
+                    count: daySlots.length,
+                    total_hours: daySlots.reduce((acc, s) => {
+                        const start = new Date(`2000-01-01T${s.start_time}`);
+                        const end = new Date(`2000-01-01T${s.end_time}`);
+                        return acc + (end - start) / (1000 * 60 * 60);
+                    }, 0)
+                };
+            }
+
+            return { success: true, data: summary };
         } catch (error) {
-            console.error('Error toggling availability:', error);
             return { success: false, error: error.message };
         }
     }
 
     /**
-     * Get all active availability for booking
-     * @param {Object} filters - Optional filters
-     * @returns {Promise<Object>} - Success/error result
+     * Get coverage statistics (sys-admin)
      */
-    static async getActiveAvailability(filters = {}) {
+    static async getCoverageStats() {
         try {
-            let query = supabase
-                .from('staff_availability')
-                .select(`
-                    *,
-                    staff:staff_id(name, email, staff_id, department, role)
-                `)
-                .eq('is_active', true)
-                .order('day_of_week', { ascending: true })
-                .order('start_time', { ascending: true });
-
-            if (filters.day_of_week !== undefined) {
-                query = query.eq('day_of_week', filters.day_of_week);
-            }
-            if (filters.availability_type) {
-                query = query.eq('availability_type', filters.availability_type);
-            }
-            if (filters.staff_role) {
-                query = query.eq('staff.role', filters.staff_role);
-            }
-
-            const { data, error } = await query;
+            const { data, error } = await supabase
+                .from('v_staff_availability_summary')
+                .select('*');
 
             if (error) throw error;
-            return { success: true, data };
+            return { success: true, data: data || [] };
         } catch (error) {
-            console.error('Error fetching active availability:', error);
             return { success: false, error: error.message };
         }
     }
 
     /**
-     * Get available staff for a specific date and time
-     * @param {string} date - Date in YYYY-MM-DD format
-     * @param {string} startTime - Start time in HH:MM format
-     * @param {string} endTime - End time in HH:MM format
-     * @param {string} role - Optional staff role filter
-     * @param {string} availabilityType - Optional availability type filter (e.g. emergency)
-     * @returns {Promise<Object>} - Success/error result
+     * Get available staff for a specific date/time slot
      */
     static async getAvailableStaff(date, startTime, endTime, role = null, availabilityType = null) {
         try {
             const dayOfWeek = new Date(date).getDay();
-
+            
             let query = supabase
                 .from('staff_availability')
                 .select(`
                     *,
-                    staff:staff_id(name, email, staff_id, department, role)
+                    staff:staff_id(id, name, email, department, role)
                 `)
                 .eq('is_active', true)
                 .eq('day_of_week', dayOfWeek)
                 .lte('start_time', startTime)
                 .gte('end_time', endTime);
 
-            if (role) {
-                query = query.eq('staff.role', role);
-            }
             if (availabilityType) {
                 query = query.eq('availability_type', availabilityType);
             }
@@ -278,96 +326,63 @@ class StaffAvailability {
 
             if (error) throw error;
 
-            // Filter out staff with exceptions on this date
-            const availableStaff = [];
-            for (const availability of data) {
-                const hasException = await this.hasExceptionOnDate(availability.staff_id, date);
-                if (!hasException) {
-                    availableStaff.push(availability);
+            // Filter by role if specified
+            let staffList = data || [];
+            if (role) {
+                staffList = staffList.filter(slot => slot.staff?.role === role);
+            }
+
+            // Get unique staff members
+            const uniqueStaff = [];
+            const staffIds = new Set();
+            
+            for (const slot of staffList) {
+                if (slot.staff && !staffIds.has(slot.staff.id)) {
+                    staffIds.add(slot.staff.id);
+                    uniqueStaff.push(slot.staff);
                 }
             }
 
-            return { success: true, data: availableStaff };
+            return { success: true, data: uniqueStaff };
         } catch (error) {
-            console.error('Error fetching available staff:', error);
             return { success: false, error: error.message };
         }
     }
 
     /**
-     * Check if staff has exception on specific date
-     * @param {string} staffId - Staff UUID
-     * @param {string} date - Date in YYYY-MM-DD format
-     * @returns {Promise<boolean>} - Whether staff has exception
+     * Delete past availability slots (cleanup)
+     * Removes slots with specific_date that are in the past
+     * Also removes old recurring slots (without specific_date)
      */
-    static async hasExceptionOnDate(staffId, date) {
+    static async deletePastSlots() {
         try {
-            const { data, error } = await supabase
-                .from('availability_exceptions')
-                .select('id')
-                .eq('staff_id', staffId)
-                .eq('exception_date', date)
-                .eq('exception_type', 'unavailable')
-                .limit(1);
-
-            if (error) throw error;
-            return data.length > 0;
-        } catch (error) {
-            console.error('Error checking staff exception:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Bulk create availability slots
-     * @param {string} staffId - Staff UUID
-     * @param {Array} slots - Array of availability slots
-     * @returns {Promise<Object>} - Success/error result
-     */
-    static async bulkCreate(staffId, slots) {
-        try {
-            const availabilityData = slots.map(slot => ({
-                staff_id: staffId,
-                ...slot
-            }));
-
-            const { data, error } = await supabase
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Delete past date-specific slots
+            const { data: pastSlots, error: pastError } = await supabase
                 .from('staff_availability')
-                .insert(availabilityData)
-                .select('*');
+                .delete()
+                .lt('specific_date', today)
+                .not('specific_date', 'is', null)
+                .select();
 
-            if (error) throw error;
-            return { success: true, data };
-        } catch (error) {
-            console.error('Error bulk creating availability:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Get availability summary for staff
-     * @param {string} staffId - Staff UUID
-     * @returns {Promise<Object>} - Success/error result
-     */
-    static async getSummary(staffId) {
-        try {
-            const { data, error } = await supabase
+            if (pastError) throw pastError;
+            
+            // Delete old recurring slots (without specific_date) - we don't use them anymore
+            const { data: recurringSlots, error: recurringError } = await supabase
                 .from('staff_availability')
-                .select('day_of_week, is_active, availability_type')
-                .eq('staff_id', staffId);
+                .delete()
+                .is('specific_date', null)
+                .select();
 
-            if (error) throw error;
-
-            const summary = {
-                total_slots: data.length,
-                active_slots: data.filter(slot => slot.is_active).length,
-                days_covered: [...new Set(data.map(slot => slot.day_of_week))].length,
-                availability_types: [...new Set(data.map(slot => slot.availability_type))]
-            };
-
-            return { success: true, data: summary };
+            if (recurringError) throw recurringError;
+            
+            const totalDeleted = (pastSlots?.length || 0) + (recurringSlots?.length || 0);
+            console.log(`🗑️ Deleted ${pastSlots?.length || 0} past slots + ${recurringSlots?.length || 0} recurring slots = ${totalDeleted} total`);
+            
+            return { success: true, data: [...(pastSlots || []), ...(recurringSlots || [])], count: totalDeleted };
         } catch (error) {
-            console.error('Error fetching availability summary:', error);
+            console.error('Error deleting past slots:', error);
             return { success: false, error: error.message };
         }
     }

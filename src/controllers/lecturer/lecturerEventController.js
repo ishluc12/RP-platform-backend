@@ -7,12 +7,28 @@ class LecturerEventController {
     // Create event (lecturer can create events)
     static async createEvent(req, res) {
         try {
-            const { title, description, event_date, location, max_participants, registration_required } = req.body;
+            const { title, description, event_date, location, max_participants, registration_required, target_audience } = req.body;
             const created_by = req.user.id;
 
             // Validation
             if (!title || !event_date || !location) {
                 return errorResponse(res, 400, 'Title, event date, and location are required');
+            }
+
+            // Validate target_audience if provided
+            const validTargetAudiences = [
+                'all',
+                'Civil Engineering',
+                'Creative Arts',
+                'Mechanical Engineering',
+                'Electrical & Electronics Engineering',
+                'Information & Communication Technology (ICT)',
+                'Mining Engineering',
+                'Transport and Logistics'
+            ];
+
+            if (target_audience && !validTargetAudiences.includes(target_audience)) {
+                return errorResponse(res, 400, `Invalid target_audience. Must be one of: ${validTargetAudiences.join(', ')}.`);
             }
 
             // Validate event date is in the future
@@ -28,7 +44,8 @@ class LecturerEventController {
                 location: location?.trim() || null,
                 created_by,
                 max_participants,
-                registration_required
+                registration_required,
+                target_audience: target_audience || 'both'
             };
 
             const result = await Event.create(eventData);
@@ -73,7 +90,8 @@ class LecturerEventController {
     static async getUpcomingEvents(req, res) {
         try {
             const limit = parseInt(req.query.limit) || 15;
-            const result = await Event.findUpcoming(limit);
+            const userRole = req.user?.role;
+            const result = await Event.findUpcoming(limit, userRole);
 
             if (!result.success) {
                 logger.error('Failed to fetch upcoming events:', result.error);
@@ -91,7 +109,8 @@ class LecturerEventController {
     static async getPastEvents(req, res) {
         try {
             const limit = parseInt(req.query.limit) || 15;
-            const result = await Event.findPast(limit);
+            const userRole = req.user?.role;
+            const result = await Event.findPast(limit, userRole);
 
             if (!result.success) {
                 logger.error('Failed to fetch past events:', result.error);
@@ -207,12 +226,13 @@ class LecturerEventController {
             const { q } = req.query;
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 15;
+            const userRole = req.user?.role;
 
             if (!q || q.trim().length === 0) {
                 return errorResponse(res, 400, 'Search query is required');
             }
 
-            const result = await Event.searchEvents(q.trim(), page, limit);
+            const result = await Event.searchEvents(q.trim(), page, limit, userRole);
 
             if (!result.success) {
                 logger.error('Failed to search events:', result.error);

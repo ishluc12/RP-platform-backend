@@ -120,11 +120,29 @@ const removeGroupMember = async (req, res) => {
     }
 };
 
+/**
+ * Get all members of a chat group.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
+const getGroupMembers = async (req, res) => {
+    const { groupId } = req.params;
+
+    try {
+        const result = await ChatGroup.getMembers(groupId);
+        if (!result.success) return errorResponse(res, 400, result.error);
+        response(res, 200, 'Group members fetched successfully', result.data);
+    } catch (error) {
+        errorResponse(res, 500, error.message);
+    }
+};
+
 module.exports = {
     createChatGroup,
     getChatGroupById,
     updateChatGroup,
     deleteChatGroup,
     addGroupMember,
-    removeGroupMember
+    removeGroupMember,
+    getGroupMembers
 };

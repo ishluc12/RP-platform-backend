@@ -7,8 +7,8 @@ const db = supabaseAdmin || supabase;
 class Event {
     static async create(eventData) {
         try {
-            const { title, description, event_date, location, created_by, max_participants = null, registration_required = false } = eventData;
-            const insertData = { title, description, event_date, location, created_by, max_participants, registration_required };
+            const { title, description, event_date, location, created_by, max_participants = null, registration_required = false, target_audience = 'all' } = eventData;
+            const insertData = { title, description, event_date, location, created_by, max_participants, registration_required, target_audience };
             const { data, error } = await db
                 .from('events')
                 .insert([insertData])
@@ -56,7 +56,7 @@ class Event {
         }
     }
 
-    static async findAll(page = 1, limit = 10, filters = {}) {
+    static async findAll(page = 1, limit = 10, filters = {}, userRole = null, userDepartment = null) {
         try {
             let query = db.from('events')
                 .select(`
@@ -66,6 +66,18 @@ class Event {
                         email
                     )
                 `, { count: 'exact' });
+
+            // Apply role-based filtering for target_audience
+            // Show events that are for 'all' or match the user's department
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin') {
+                if (userDepartment) {
+                    // Show events for 'all' or user's specific department
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    // If no department info, show only 'all' events
+                    query = query.eq('target_audience', 'all');
+                }
+            }
 
             // Apply filters (only for columns that exist)
             if (filters.title) {
@@ -82,6 +94,9 @@ class Event {
             }
             if (filters.event_date_to) {
                 query = query.lte('event_date', filters.event_date_to);
+            }
+            if (filters.target_audience) {
+                query = query.eq('target_audience', filters.target_audience);
             }
 
             const offset = (page - 1) * limit;
@@ -120,7 +135,8 @@ class Event {
                 'event_date',
                 'location',
                 'max_participants',
-                'registration_required'
+                'registration_required',
+                'target_audience'
             ];
             const filteredUpdate = {};
             allowedFields.forEach(field => {
@@ -173,9 +189,9 @@ class Event {
         }
     }
 
-    static async findUpcoming(limit = 10) {
+    static async findUpcoming(limit = 10, userRole = null, userDepartment = null) {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('events')
                 .select(`
                     *,
@@ -184,7 +200,20 @@ class Event {
                         email
                     )
                 `)
-                .gte('event_date', new Date().toISOString())
+                .gte('event_date', new Date().toISOString());
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin') {
+                if (userDepartment) {
+                    // Show events for 'all' or user's specific department
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    // If no department info, show only 'all' events
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+
+            const { data, error } = await query
                 .order('event_date', { ascending: true })
                 .limit(limit);
 
@@ -200,9 +229,9 @@ class Event {
         }
     }
 
-    static async findPast(limit = 10) {
+    static async findPast(limit = 10, userRole = null, userDepartment = null) {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('events')
                 .select(`
                     *,
@@ -211,7 +240,20 @@ class Event {
                         email
                     )
                 `)
-                .lt('event_date', new Date().toISOString())
+                .lt('event_date', new Date().toISOString());
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin') {
+                if (userDepartment) {
+                    // Show events for 'all' or user's specific department
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    // If no department info, show only 'all' events
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+
+            const { data, error } = await query
                 .order('event_date', { ascending: false })
                 .limit(limit);
 
@@ -264,11 +306,11 @@ class Event {
         }
     }
 
-    static async searchEvents(searchTerm, page = 1, limit = 10) {
+    static async searchEvents(searchTerm, page = 1, limit = 10, userRole = null, userDepartment = null) {
         try {
             const offset = (page - 1) * limit;
 
-            const { data, error, count } = await supabase
+            let query = supabase
                 .from('events')
                 .select(`
                     *,
@@ -277,7 +319,20 @@ class Event {
                         email
                     )
                 `, { count: 'exact' })
-                .or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%`)
+                .or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%`);
+
+            // Apply role-based filtering for target_audience
+            if (userRole && userRole !== 'admin' && userRole !== 'administrator' && userRole !== 'sys_admin') {
+                if (userDepartment) {
+                    // Show events for 'all' or user's specific department
+                    query = query.or(`target_audience.eq.all,target_audience.eq.${userDepartment}`);
+                } else {
+                    // If no department info, show only 'all' events
+                    query = query.eq('target_audience', 'all');
+                }
+            }
+
+            const { data, error, count } = await query
                 .order('event_date', { ascending: true })
                 .range(offset, offset + limit - 1);
 

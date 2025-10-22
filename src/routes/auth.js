@@ -15,33 +15,11 @@ const {
     validateRole
 } = require('../middleware/auth');
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = 'uploads/profiles';
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
-const fileFilter = (req, file, cb) => {
-    // Accept only image files
-    if (file.mimetype.startsWith('image/')) {
-        cb(null, true);
-    } else {
-        cb(new Error('Only image files are allowed'), false);
-    }
-};
+// Configure multer for file uploads (using memory storage for Cloudinary)
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage: storage,
-    fileFilter: fileFilter,
     limits: {
         fileSize: 5 * 1024 * 1024 // 5MB limit
     }
@@ -129,12 +107,7 @@ router.use((error, req, res, next) => {
         }
     }
 
-    if (error.message === 'Only image files are allowed') {
-        return res.status(400).json({
-            success: false,
-            message: 'Only image files are allowed.'
-        });
-    }
+    // Cloudinary will handle file type validation
 
     next(error);
 });

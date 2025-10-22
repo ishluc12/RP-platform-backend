@@ -5,6 +5,50 @@ const User = require('../../models/User');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
+/**
+ * Send notifications to users based on event target audience
+ * @param {Object} event - The created event
+ * @param {string} createdBy - ID of the user who created the event
+ */
+const sendEventNotifications = async (event, createdBy) => {
+    try {
+        let targetUsers = [];
+
+        if (event.target_audience === 'all') {
+            // Notify all users
+            const allUsersResult = await User.findAll(1, 1000); // Get up to 1000 users
+            if (allUsersResult.success) {
+                targetUsers = allUsersResult.data;
+            }
+        } else {
+            // Notify users from specific department
+            const departmentUsersResult = await User.findAll(1, 1000, { department: event.target_audience });
+            if (departmentUsersResult.success) {
+                targetUsers = departmentUsersResult.data;
+            }
+        }
+
+        // Filter out the creator (they don't need to be notified about their own event)
+        targetUsers = targetUsers.filter(user => user.id !== createdBy);
+
+        // Create notifications for each target user
+        for (const user of targetUsers) {
+            await NotificationModel.createNotification({
+                user_id: user.id,
+                type: 'event_created',
+                content: `New event: ${event.title} on ${new Date(event.event_date).toLocaleDateString()}${event.target_audience !== 'all' ? ` (${event.target_audience})` : ''}`,
+                source_id: event.id,
+                source_table: 'events',
+            });
+        }
+
+        logger.info(`Sent event notifications to ${targetUsers.length} users for event: ${event.title} (target: ${event.target_audience})`);
+    } catch (error) {
+        logger.error('Error sending event notifications:', error.message);
+        // Don't throw error to avoid breaking event creation
+    }
+};
+
 // --- Event Management ---
 
 /**
@@ -15,20 +59,36 @@ const { logger } = require('../../utils/logger');
 const createEvent = async (req, res) => {
     const userRole = req.user.role;
 
-    // Only allow lecturers and administrators to create events
-    if (userRole !== 'lecturer' && userRole !== 'administrator') {
+    // Allow lecturers, administrators, and sys-admin to create events
+    if (userRole !== 'lecturer' && userRole !== 'administrator' && userRole !== 'sys_admin') {
         return errorResponse(res, 403, 'You are not authorized to create events.');
     }
 
-    const { title, description, event_date, location, max_participants, registration_required } = req.body;
+    const { title, description, event_date, location, max_participants, registration_required, target_audience } = req.body;
     const created_by = req.user.id;
 
     if (!title || !event_date || !location) {
         return errorResponse(res, 400, 'Title, event date, and location are required.');
     }
 
+    // Validate target_audience if provided
+    const validTargetAudiences = [
+        'all',
+        'Civil Engineering',
+        'Creative Arts',
+        'Mechanical Engineering',
+        'Electrical & Electronics Engineering',
+        'Information & Communication Technology (ICT)',
+        'Mining Engineering',
+        'Transport and Logistics'
+    ];
+
+    if (target_audience && !validTargetAudiences.includes(target_audience)) {
+        return errorResponse(res, 400, `Invalid target_audience. Must be one of: ${validTargetAudiences.join(', ')}.`);
+    }
+
     try {
-        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required });
+        const result = await Event.create({ title, description, event_date, location, created_by, max_participants, registration_required, target_audience });
         if (!result.success) {
             logger.error('Error creating event in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to create event');
@@ -36,7 +96,8 @@ const createEvent = async (req, res) => {
 
         const newEvent = result.data;
 
-        // Simplified notification logic - just log the event creation
+        // Send department-specific notifications
+        await sendEventNotifications(newEvent, created_by);
         logger.info(`New event created: ${newEvent.title} by user ${created_by}`);
 
         response(res, 201, 'Event created successfully', result.data);
@@ -52,16 +113,18 @@ const createEvent = async (req, res) => {
  * @param {Object} res - Express response object.
  */
 const getAllEvents = async (req, res) => {
-    const { page, limit, title, location, created_by, event_date_from, event_date_to } = req.query;
+    const { page, limit, title, location, created_by, event_date_from, event_date_to, target_audience } = req.query;
+    const userRole = req.user?.role;
     const filters = {};
     if (title) filters.title = title;
     if (location) filters.location = location;
     if (created_by) filters.created_by = created_by;
     if (event_date_from) filters.event_date_from = event_date_from;
     if (event_date_to) filters.event_date_to = event_date_to;
+    if (target_audience) filters.target_audience = target_audience;
 
     try {
-        const result = await Event.findAll(parseInt(page) || 1, parseInt(limit) || 10, filters);
+        const result = await Event.findAll(parseInt(page) || 1, parseInt(limit) || 10, filters, userRole);
         if (!result.success) {
             logger.error('Error fetching all events in controller:', result.error);
             return errorResponse(res, 400, result.error.message || 'Failed to fetch events');

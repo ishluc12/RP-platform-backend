@@ -361,7 +361,7 @@ class AuthController {
             res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
         }
     }
-    // Upload profile picture (local storage)
+    // Upload profile picture (Cloudinary)
     static async uploadProfilePicture(req, res) {
         try {
             const userId = req.user.id;
@@ -371,31 +371,38 @@ class AuthController {
                 return res.status(400).json({ success: false, message: 'No file uploaded' });
             }
 
-            // Upload to Cloudinary
-            const tempPath = req.file.path;
-            const cld = await uploadImage(tempPath, { folder: 'p-community/profiles' });
-            if (!cld.success) {
-                console.error('Cloudinary upload failed:', cld.error);
-                return res.status(500).json({ success: false, message: 'Failed to upload image', error: cld.error });
-            }
+            // Upload file buffer to Cloudinary
+            const cloudinary = require('../../config/cloudinary').cloudinary;
+            const stream = cloudinary.uploader.upload_stream({
+                resource_type: 'image',
+                folder: 'p-community/profile-pictures',
+                public_id: `profile-${userId}-${Date.now()}`,
+                overwrite: true
+            }, async (error, result) => {
+                if (error) {
+                    console.error('Cloudinary upload error:', error);
+                    return res.status(500).json({ success: false, message: 'File upload failed', details: error.message });
+                }
 
-            // Update user profile picture in DB with Cloudinary URL
-            const updateResult = await User.updateProfilePicture(userId, cld.url);
-            if (!updateResult.success) {
-                console.error('User.updateProfilePicture error:', updateResult.error);
-                return res.status(500).json({ success: false, message: 'Failed to update profile picture', error: updateResult.error });
-            }
+                // Update user profile picture in DB with Cloudinary URL
+                const updateResult = await User.updateProfilePicture(userId, result.secure_url);
+                if (!updateResult.success) {
+                    console.error('User.updateProfilePicture error:', updateResult.error);
+                    return res.status(500).json({ success: false, message: 'Failed to update profile picture', error: updateResult.error });
+                }
 
-            // Cleanup temp file
-            try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+                console.log(`✅ User ${userId} updated profile picture to ${result.secure_url}`);
 
-            console.log(`✅ User ${userId} updated profile picture (Cloudinary)`);
-
-            res.json({
-                success: true,
-                message: 'Profile picture uploaded successfully',
-                data: { profile_picture: cld.url }
+                res.json({
+                    success: true,
+                    message: 'Profile picture uploaded successfully',
+                    data: { profile_picture: result.secure_url }
+                });
             });
+
+            // Pipe the file buffer to Cloudinary upload stream
+            stream.end(req.file.buffer);
+
         } catch (error) {
             console.error('Upload profile picture error:', error);
             res.status(500).json({ success: false, message: 'Internal server error', error: error.message });

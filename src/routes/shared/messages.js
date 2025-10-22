@@ -11,7 +11,7 @@ router.use(authenticateToken);
 router.post('/', MessageController.sendMessage);
 
 // Send a file message (to user or group)
-router.post('/file', upload.single('file'), MessageController.sendFile);
+router.post('/file', upload.single('file'), upload.validateFileSize, MessageController.sendFile);
 
 // Get direct message thread with another user
 router.get('/thread/:otherId', MessageController.getDirectMessageThread);
@@ -24,6 +24,9 @@ router.get('/conversations', MessageController.getUserConversations);
 
 // Get user's group chats
 router.get('/groups', MessageController.getUserGroupChats);
+
+// Download file from message
+router.get('/download/:messageId', MessageController.downloadFile);
 
 // No chat group routes in this file, they belong in chatGroups.js
 

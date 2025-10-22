@@ -19,6 +19,9 @@ router.put('/:id', ChatGroupController.updateChatGroup);
 // Delete a chat group
 router.delete('/:id', ChatGroupController.deleteChatGroup);
 
+// Get all members of a chat group
+router.get('/:groupId/members', ChatGroupController.getGroupMembers);
+
 // Add a member to a chat group
 router.post('/:groupId/members', ChatGroupController.addGroupMember);
 

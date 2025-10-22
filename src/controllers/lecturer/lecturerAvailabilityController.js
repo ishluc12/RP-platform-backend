@@ -1,232 +1,200 @@
-const { supabase } = require('../../config/database');
 const StaffAvailability = require('../../models/StaffAvailability');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
-// Create availability slot for the authenticated staff member
-const createAvailability = async (req, res) => {
-    try {
-        const staffId = req.user.id;
-        const { day_of_week, start_time, end_time, break_start_time, break_end_time, max_appointments_per_slot = 1, slot_duration_minutes = 30, availability_type = 'regular', valid_from, valid_to, is_active = true } = req.body;
-
-        // Normalize valid_from and valid_to to null if not provided or empty
-        const normalizedValidFrom = valid_from === '' ? null : valid_from;
-        const normalizedValidTo = valid_to === '' ? null : valid_to;
-
-        // Validation
-        if (!day_of_week || !start_time || !end_time) {
-            return errorResponse(res, 400, 'day_of_week, start_time, and end_time are required');
-        }
-
-        // Validate day_of_week is between 0 and 6
-        const dayOfWeekNum = parseInt(day_of_week);
-        if (isNaN(dayOfWeekNum) || dayOfWeekNum < 0 || dayOfWeekNum > 6) {
-            return errorResponse(res, 400, 'day_of_week must be between 0 and 6 (0=Sunday, 6=Saturday)');
-        }
-
-        // Format time properly - handle both HH:MM and HH:MM:SS
-        const formatTime = (time) => {
-            if (!time) return null;
-            const parts = time.split(':');
-            if (parts.length >= 3) {
-                return parts.slice(0, 3).join(':');
+class LecturerAvailabilityController {
+    // Create a new availability slot
+    static async createAvailability(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can create availability slots');
             }
-            if (parts.length === 2) {
-                return time + ':00';
+            const staff_id = req.user.id;
+            const {
+                specific_date,
+                day_of_week,
+                start_time,
+                end_time,
+                break_start_time,
+                break_end_time,
+                slot_duration_minutes,
+                max_appointments_per_slot,
+                buffer_time_minutes,
+                availability_type,
+                valid_from,
+                valid_to,
+                is_active = true
+            } = req.body;
+
+            // Validation - specific_date is now required
+            if (!specific_date || !start_time || !end_time) {
+                return errorResponse(res, 400, 'Missing required fields: specific_date, start_time, end_time');
             }
-            return null;
-        };
 
-        const formattedStartTime = formatTime(start_time);
-        const formattedEndTime = formatTime(end_time);
-        const formattedBreakStart = break_start_time ? formatTime(break_start_time) : null;
-        const formattedBreakEnd = break_end_time ? formatTime(break_end_time) : null;
+            const selectedDate = new Date(specific_date);
+            const calculatedDayOfWeek = selectedDate.getDay();
 
-        // Validate times
-        if (!formattedStartTime || !formattedEndTime) {
-            return errorResponse(res, 400, 'Invalid time format for start_time or end_time. Use HH:MM or HH:MM:SS');
-        }
+            // If specific_date is provided, validate it
+            if (specific_date) {
+                const selectedDate = new Date(specific_date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                if (selectedDate < today) {
+                    return errorResponse(res, 400, 'Cannot create availability for past dates');
+                }
 
-        if (formattedStartTime >= formattedEndTime) {
-            return errorResponse(res, 400, 'End time must be after start time');
-        }
-
-        if (formattedBreakStart && formattedBreakEnd) {
-            if (formattedBreakStart >= formattedBreakEnd) {
-                return errorResponse(res, 400, 'Break end time must be after break start time');
+                calculatedDayOfWeek = selectedDate.getDay();
+                if (calculatedDayOfWeek === 0 || calculatedDayOfWeek === 6) {
+                    return errorResponse(res, 400, 'Cannot create availability for weekends (Saturday/Sunday)');
+                }
+            } else if (day_of_week !== undefined) {
+                // Validate day_of_week for recurring slots
+                if (day_of_week < 1 || day_of_week > 5) {
+                    return errorResponse(res, 400, 'day_of_week must be between 1 (Monday) and 5 (Friday). Weekends are not allowed.');
+                }
+            } else {
+                return errorResponse(res, 400, 'Either specific_date or day_of_week is required');
             }
-            if (formattedBreakStart < formattedStartTime || formattedBreakEnd > formattedEndTime) {
-                return errorResponse(res, 400, 'Break times must be within start and end times');
+
+            const data = {
+                staff_id,
+                specific_date: specific_date || null,
+                day_of_week: calculatedDayOfWeek,
+                start_time,
+                end_time,
+                break_start_time,
+                break_end_time,
+                slot_duration_minutes,
+                max_appointments_per_slot,
+                buffer_time_minutes,
+                availability_type,
+                valid_from: specific_date || valid_from || null,
+                valid_to: valid_to || null,
+                is_active
+            };
+
+            const result = await StaffAvailability.create(data);
+            if (!result.success) {
+                logger.error('Failed to create availability:', result.error);
+                return errorResponse(res, 400, result.error);
             }
-        } else if (formattedBreakStart || formattedBreakEnd) {
-            return errorResponse(res, 400, 'Both break_start_time and break_end_time must be provided if using break');
-        }
 
-        // Validate valid_from and valid_to if provided
-        if (valid_from && valid_to) {
-            const fromDate = new Date(valid_from);
-            const toDate = new Date(valid_to);
-            if (fromDate >= toDate) {
-                return errorResponse(res, 400, 'valid_to must be after valid_from');
-            }
+            logger.info(`Lecturer ${staff_id} created availability slot`);
+            response(res, 201, 'Availability slot created successfully', result.data);
+        } catch (error) {
+            logger.error('Error creating lecturer availability:', error);
+            errorResponse(res, 500, 'Internal server error');
         }
-
-        // Validate max_appointments_per_slot and slot_duration_minutes
-        const maxAppts = parseInt(max_appointments_per_slot);
-        const slotDuration = parseInt(slot_duration_minutes);
-        if (isNaN(maxAppts) || maxAppts < 1) {
-            return errorResponse(res, 400, 'max_appointments_per_slot must be at least 1');
-        }
-        if (isNaN(slotDuration) || slotDuration < 1) {
-            return errorResponse(res, 400, 'slot_duration_minutes must be at least 1');
-        }
-
-        const result = await StaffAvailability.create({
-            staff_id: staffId,
-            day_of_week: dayOfWeekNum,
-            start_time: formattedStartTime,
-            end_time: formattedEndTime,
-            break_start_time: formattedBreakStart,
-            break_end_time: formattedBreakEnd,
-            max_appointments_per_slot: maxAppts,
-            slot_duration_minutes: slotDuration,
-            availability_type,
-            valid_from: normalizedValidFrom,
-            valid_to: normalizedValidTo,
-            is_active: Boolean(is_active)
-        });
-
-        if (!result.success) {
-            logger.error('Failed to create availability in DB:', result.error);
-            return errorResponse(res, 400, result.error);
-        }
-
-        logger.info(`Availability slot created for staff_id: ${staffId}, role: ${req.user.role}, day: ${dayOfWeekNum}`);
-        response(res, 201, 'Availability slot created successfully', result.data);
-    } catch (error) {
-        logger.error('Error creating availability:', error.message);
-        logger.error('Error stack:', error.stack);
-        errorResponse(res, 500, 'Internal server error', error.message);
     }
-};
 
-// Get all availability slots for the authenticated staff member
-const getMyAvailability = async (req, res) => {
-    try {
-        const staffId = req.user.id;
-        const { day_of_week } = req.query;
-
-        let result;
-        if (day_of_week) {
-            // Validate day_of_week
-            const numericDayOfWeek = parseInt(day_of_week, 10);
-            if (isNaN(numericDayOfWeek) || numericDayOfWeek < 1 || numericDayOfWeek > 7) {
-                return errorResponse(res, 400, 'Invalid day_of_week. Must be a number between 1 and 7.');
+    // List all availability slots for the authenticated lecturer
+    static async listMyAvailability(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can view their availability slots');
             }
-            result = await StaffAvailability.findByStaffIdAndDay(staffId, numericDayOfWeek);
-        } else {
-            result = await StaffAvailability.findByStaffId(staffId);
-        }
+            
+            // Auto-cleanup: Delete past slots before fetching
+            await StaffAvailability.deletePastSlots();
+            
+            const staff_id = req.user.id;
+            const { day_of_week, is_active, availability_type } = req.query;
+            const filters = {};
+            if (day_of_week !== undefined) filters.day_of_week = parseInt(day_of_week);
+            if (is_active !== undefined) filters.is_active = is_active === 'true';
+            if (availability_type) filters.availability_type = availability_type;
 
-        if (!result.success) {
-            logger.error('Failed to fetch availability:', result.error);
-            throw new Error(result.error);
-        }
-
-        response(res, 200, 'Staff availability fetched successfully', result.data);
-    } catch (error) {
-        logger.error('Error fetching availability:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
-    }
-};
-
-// Update a specific availability slot owned by the authenticated staff member
-const updateAvailability = async (req, res) => {
-    try {
-        const staffId = req.user.id;
-        const slotId = req.params.id;
-        const updates = req.body;
-
-        if (!slotId) {
-            return errorResponse(res, 400, 'Invalid slot ID');
-        }
-
-        // Format times if provided
-        if (updates.start_time) {
-            const parts = updates.start_time.split(':');
-            if (parts.length === 2) {
-                updates.start_time = updates.start_time + ':00';
+            const result = await StaffAvailability.getByStaff(staff_id, filters);
+            if (!result.success) {
+                logger.error('Failed to fetch availability:', result.error);
+                return errorResponse(res, 500, result.error);
             }
-        }
 
-        if (updates.end_time) {
-            const parts = updates.end_time.split(':');
-            if (parts.length === 2) {
-                updates.end_time = updates.end_time + ':00';
+            response(res, 200, 'Availability fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching lecturer availability:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
+    }
+
+    // Update a specific availability slot owned by the lecturer
+    static async updateAvailability(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can update their availability');
             }
-        }
+            const staff_id = req.user.id;
+            const { id } = req.params;
+            const updateData = req.body;
 
-        // Validate times if both are provided
-        if (updates.start_time && updates.end_time && updates.start_time >= updates.end_time) {
-            return errorResponse(res, 400, 'End time must be after start time');
-        }
+            // Check ownership
+            const slots = await StaffAvailability.getByStaff(staff_id);
+            if (!slots.success) {
+                return errorResponse(res, 500, slots.error);
+            }
+            const slot = slots.data.find(s => s.id === id);
+            if (!slot) {
+                return errorResponse(res, 404, 'Availability slot not found');
+            }
 
-        const result = await StaffAvailability.update(slotId, updates);
-        if (!result.success) {
-            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
-        }
+            const result = await StaffAvailability.update(id, updateData);
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
 
-        response(res, 200, 'Availability slot updated successfully', result.data);
-    } catch (error) {
-        logger.error('Error updating availability:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
+            logger.info(`Lecturer ${staff_id} updated availability slot ${id}`);
+            response(res, 200, 'Availability slot updated successfully', result.data);
+        } catch (error) {
+            logger.error('Error updating lecturer availability:', error);
+            errorResponse(res, 500, 'Internal server error');
+        }
     }
-};
 
-// Delete a specific availability slot owned by the authenticated staff member
-const deleteAvailability = async (req, res) => {
-    try {
-        const staffId = req.user.id;
-        const slotId = req.params.id;
+    // Delete a specific availability slot owned by the lecturer
+    static async deleteAvailability(req, res) {
+        try {
+            if (req.user.role !== 'lecturer') {
+                return errorResponse(res, 403, 'Forbidden: Only lecturers can delete their availability');
+            }
 
-        if (!slotId) {
-            return errorResponse(res, 400, 'Invalid slot ID');
+            const staff_id = req.user.id;
+            const { id } = req.params;
+
+            if (!id) {
+                return errorResponse(res, 400, 'Availability slot ID is required');
+            }
+
+            const result = await StaffAvailability.delete(id, staff_id);
+
+            if (!result.success) {
+                return errorResponse(res, 400, result.error);
+            }
+
+            logger.info(`Lecturer ${staff_id} deleted availability slot ${id}`);
+            response(res, 200, 'Availability slot deleted successfully');
+        } catch (error) {
+            logger.error('Error deleting lecturer availability:', error);
+            errorResponse(res, 500, 'Internal server error');
         }
-
-        const result = await StaffAvailability.delete(slotId);
-        if (!result.success) {
-            return errorResponse(res, result.error.includes('not found') ? 404 : 403, result.error);
-        }
-
-        response(res, 200, 'Availability slot deleted successfully', result.data);
-    } catch (error) {
-        logger.error('Error deleting availability:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
     }
-};
 
-// Get all active availability slots for students (no authentication required)
-const getLecturerAvailabilityForStudents = async (req, res) => {
-    try {
-        // Fetch all active staff availability (includes both lecturers and administrators)
-        const result = await StaffAvailability.getAllActiveStaffAvailability();
+    // Get all active lecturer availability for students (public access)
+    static async getLecturerAvailabilityForStudents(req, res) {
+        try {
+            const result = await StaffAvailability.getAllActiveStaffAvailability();
 
-        if (!result.success) {
-            logger.error('Failed to fetch staff availability:', result.error);
-            throw new Error(result.error);
+            if (!result.success) {
+                logger.error('Failed to fetch staff availability:', result.error);
+                return errorResponse(res, 500, result.error);
+            }
+
+            response(res, 200, 'Staff availability fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching staff availability for students:', error);
+            errorResponse(res, 500, 'Internal server error', error.message);
         }
-
-        response(res, 200, 'Staff availability fetched successfully', result.data);
-    } catch (error) {
-        logger.error('Error fetching staff availability for students:', error.message);
-        errorResponse(res, 500, 'Internal server error', error.message);
     }
-};
+}
 
-module.exports = {
-    createAvailability,
-    getMyAvailability,
-    updateAvailability,
-    deleteAvailability,
-    getLecturerAvailabilityForStudents
-};
+module.exports = LecturerAvailabilityController;
