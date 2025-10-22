@@ -2,11 +2,6 @@ const router = require('express').Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { requireRoles } = require('../../middleware/roleAuth');
 
-// Middleware for all admin routes
-router.use(authenticateToken);
-router.use(requireRoles('admin', 'administrator', 'sys_admin'));
-
-// Import and mount admin sub-routes
 const userRoutes = require('./users');
 const eventRoutes = require('./events');
 const analyticsRoutes = require('./analytics');

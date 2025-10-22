@@ -3,7 +3,137 @@ const { getTodayString } = require('../utils/dateUtils');
 
 class Appointment {
     /**
-     * Create new appointment
+     * List all appointments with pagination and optional filters
+     * Mirrors the signature used by other models so controllers (e.g., admin dashboard)
+     * can call Appointment.findAll(page, limit, filters)
+     */
+    static async findAll(page = 1, limit = 10, filters = {}) {
+        try {
+            let query = supabase
+                .from('appointments')
+                .select('*', { count: 'exact' });
+
+            if (filters.status) query = query.eq('status', filters.status);
+            if (filters.requester_id) query = query.eq('requester_id', filters.requester_id);
+            if (filters.appointee_id) query = query.eq('appointee_id', filters.appointee_id);
+            if (filters.date_from) query = query.gte('appointment_date', filters.date_from);
+            if (filters.date_to) query = query.lte('appointment_date', filters.date_to);
+
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+            const { data, error, count } = await query
+                .order('appointment_date', { ascending: false })
+                .order('start_time', { ascending: false })
+                .range(from, to);
+
+            if (error) {
+                logger.error('Error fetching appointments (findAll):', error);
+                return { success: false, error: error.message };
+            }
+
+            return {
+                success: true,
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count || 0,
+                    totalPages: count ? Math.ceil(count / limit) : 0,
+                },
+            };
+        } catch (error) {
+            logger.error('Error in Appointment.findAll:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * List appointments by appointee (staff)
+     * @param {string} appointeeId - Staff ID
+     * @param {Object} options - Filter options
+     * @returns {Promise<Object>} - Success/error result
+     */
+    static async listByAppointee(appointeeId, options = {}) {
+        try {
+            const { status, limit = 10, offset = 0, orderBy = 'appointment_date', orderDirection = 'asc' } = options;
+
+            let query = supabase
+                .from('appointments')
+                .select(`
+                    *,
+                    requester:requester_id(id, name, email, role, profile_picture),
+                    appointee:appointee_id(id, name, email, role, profile_picture)
+                `)
+                .eq('appointee_id', appointeeId)
+                .order(orderBy, { ascending: orderDirection === 'asc' })
+                .range(offset, offset + limit - 1);
+
+            if (status) {
+                query = query.eq('status', status);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                logger.error('Error listing appointments by appointee:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            logger.error('Error in listByAppointee:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Find upcoming appointments for a user
+     * @param {string} userId - User ID
+     * @param {string} role - User role ('student' or 'staff')
+     * @param {Object} options - Filter options
+     * @returns {Promise<Object>} - Success/error result
+     */
+    static async getUpcomingByUser(userId, role = 'student', options = {}) {
+        try {
+            const { limit = 5, offset = 0 } = options;
+            const today = new Date().toISOString().split('T')[0];
+
+            let query = supabase
+                .from('appointments')
+                .select(`
+                    *,
+                    requester:requester_id(id, name, email, role, profile_picture),
+                    appointee:appointee_id(id, name, email, role, profile_picture)
+                `)
+                .gte('appointment_date', today)
+                .in('status', ['pending', 'accepted', 'rescheduled'])
+                .order('appointment_date', { ascending: true })
+                .order('start_time', { ascending: true })
+                .range(offset, offset + limit - 1);
+
+            if (role === 'student') {
+                query = query.eq('requester_id', userId);
+            } else {
+                query = query.eq('appointee_id', userId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                logger.error('Error finding upcoming appointments:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            logger.error('Error in findUpcomingAppointments:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    /**
+     * Create a new appointment request
+     * @param {Object} appointmentData - Appointment data
+     * @returns {Promise<Object>} - Success/error result
      */
     static async create(appointmentData) {
         try {

@@ -12,6 +12,9 @@ router.use(authenticateToken);
 // Get all appointments
 router.get('/', requireRoles(...ADMIN_ROLES), administratorAppointmentController.list);
 
+// Get pending appointments
+router.get('/pending', requireRoles(...ADMIN_ROLES), administratorAppointmentController.getPending);
+
 // Get upcoming appointments
 router.get('/upcoming', requireRoles(...ADMIN_ROLES), administratorAppointmentController.getUpcoming);
 

@@ -195,5 +195,22 @@ module.exports = {
             logger.error('Error fetching appointment history:', error);
             errorResponse(res, 500, 'Internal server error');
         }
+    },
+
+    async getPending(req, res) {
+        try {
+            const adminId = req.user.id;
+            const result = await Appointment.getPendingForStaff(adminId);
+            
+            if (!result.success) {
+                logger.error('Failed to fetch pending appointments for administrator:', result.error);
+                return errorResponse(res, 400, result.error);
+            }
+            
+            response(res, 200, 'Pending appointments fetched successfully', result.data);
+        } catch (error) {
+            logger.error('Error fetching pending appointments for administrator:', error.message);
+            errorResponse(res, 500, 'Internal server error', error.message);
+        }
     }
 };

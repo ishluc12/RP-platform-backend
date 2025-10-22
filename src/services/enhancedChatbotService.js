@@ -265,8 +265,8 @@ class EnhancedChatbotService {
                         link: '/lecturer/appointments?filter=pending'
                     },
                     {
-                        label: 'My Schedule',
-                        link: '/lecturer/schedule'
+                        label: 'View All Appointments',
+                        link: '/lecturer/appointments'
                     }
                 ]
             };
@@ -414,7 +414,7 @@ class EnhancedChatbotService {
                     `• Manage your events\n\n` +
                     `What would you like to do?`,
                 quickActions: [
-                    { label: 'View Requests', link: '/lecturer/appointments' },
+                    { label: 'View Appointments', link: '/lecturer/appointments' },
                     { label: 'Set Availability', link: '/lecturer/availability' }
                 ]
             },
@@ -429,7 +429,7 @@ class EnhancedChatbotService {
                     `Select an action:`,
                 quickActions: [
                     { label: 'Dashboard', link: '/administrator/dashboard' },
-                    { label: 'User Management', link: '/administrator/users' }
+                    { label: 'View Appointments', link: '/administrator/appointments' }
                 ]
             }
         };
@@ -484,7 +484,33 @@ class EnhancedChatbotService {
     }
     
     static async getAdminAppointments(userId) {
-        return { response: 'Admin appointment view coming soon', data: null };
+        try {
+            const result = await Appointment.listByAppointee(userId);
+            const appointments = result.data || [];
+            const pending = appointments.filter(a => a.status === 'pending');
+            
+            return {
+                response: `You have ${appointments.length} appointment(s), including ${pending.length} pending request(s).`,
+                data: { appointments, pending },
+                quickActions: [
+                    {
+                        label: 'Review Pending',
+                        link: '/administrator/appointments?filter=pending'
+                    },
+                    {
+                        label: 'View All Appointments',
+                        link: '/administrator/appointments'
+                    }
+                ]
+            };
+        } catch (error) {
+            logger.error('Error fetching administrator appointments:', error);
+            return {
+                response: 'Sorry, I couldn\'t fetch your appointments.',
+                data: null,
+                error: error.message
+            };
+        }
     }
     
     static async checkAppointmentStatus(userId, userRole) {

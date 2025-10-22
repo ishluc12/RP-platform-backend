@@ -33,7 +33,11 @@ const getSurveyTemplateDetails = async (templateId) => {
 
 // List survey templates (for admin or lecturer to manage)
 const listSurveyTemplates = async (filters = {}) => {
-    let query = db.from('survey_templates').select('*');
+    // Include live statistics via left join; flatten for consumers
+    let query = db
+        .from('survey_templates')
+        .select('*, survey_statistics:survey_statistics(total_responses,completed_responses,last_updated)');
+
     const keys = ['title', 'target_audience', 'is_active', 'created_by'];
     for (const k of keys) {
         if (filters[k] !== undefined && filters[k] !== null && filters[k] !== '') {
@@ -42,7 +46,13 @@ const listSurveyTemplates = async (filters = {}) => {
     }
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-    return data;
+    // Flatten stats so existing UI fields work
+    const flattened = (data || []).map((t) => ({
+        ...t,
+        total_responses: t.survey_statistics?.total_responses ?? t.total_responses ?? 0,
+        completed_responses: t.survey_statistics?.completed_responses ?? t.completed_responses ?? 0,
+    }));
+    return flattened;
 };
 
 // Update a survey template's base fields
@@ -72,9 +82,53 @@ const deleteSurveyTemplateCascade = async (templateId) => {
 
 // --- Survey Questions Management ---
 const createQuestion = async (questionData) => {
+    // Ensure required ordering field is set and unique per template
+    const payload = { ...questionData };
+    if (!payload.survey_template_id) {
+        throw new Error('survey_template_id is required to create a question');
+    }
+
+    // If order_index is missing or conflicting, assign the next available index
+    try {
+        if (payload.order_index == null) {
+            const { data: last, error: lastErr } = await db
+                .from('survey_questions')
+                .select('order_index')
+                .eq('survey_template_id', payload.survey_template_id)
+                .order('order_index', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (lastErr) throw lastErr;
+            payload.order_index = (last?.order_index || 0) + 1;
+        } else {
+            // Check conflict
+            const { data: conflict, error: cErr } = await db
+                .from('survey_questions')
+                .select('id')
+                .eq('survey_template_id', payload.survey_template_id)
+                .eq('order_index', payload.order_index)
+                .limit(1);
+            if (cErr) throw cErr;
+            if (Array.isArray(conflict) && conflict.length > 0) {
+                const { data: last, error: lastErr } = await db
+                    .from('survey_questions')
+                    .select('order_index')
+                    .eq('survey_template_id', payload.survey_template_id)
+                    .order('order_index', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (lastErr) throw lastErr;
+                payload.order_index = (last?.order_index || 0) + 1;
+            }
+        }
+    } catch (e) {
+        // Fallback: default to 1 on any unexpected error
+        payload.order_index = payload.order_index || 1;
+    }
+
     const { data, error } = await db
         .from('survey_questions')
-        .insert(questionData)
+        .insert(payload)
         .select('*')
         .single();
     if (error) throw error;
@@ -115,9 +169,49 @@ const deleteQuestion = async (questionId) => {
 
 // --- Survey Question Options Management ---
 const createQuestionOption = async (optionData) => {
+    // Ensure order_index is provided; otherwise, compute next available per question
+    const payload = { ...optionData };
+    if (!payload.question_id) {
+        throw new Error('question_id is required to create an option');
+    }
+    try {
+        if (payload.order_index == null) {
+            const { data: last, error: lastErr } = await db
+                .from('survey_question_options')
+                .select('order_index')
+                .eq('question_id', payload.question_id)
+                .order('order_index', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (lastErr) throw lastErr;
+            payload.order_index = (last?.order_index || 0) + 1;
+        } else {
+            const { data: conflict, error: cErr } = await db
+                .from('survey_question_options')
+                .select('id')
+                .eq('question_id', payload.question_id)
+                .eq('order_index', payload.order_index)
+                .limit(1);
+            if (cErr) throw cErr;
+            if (Array.isArray(conflict) && conflict.length > 0) {
+                const { data: last, error: lastErr } = await db
+                    .from('survey_question_options')
+                    .select('order_index')
+                    .eq('question_id', payload.question_id)
+                    .order('order_index', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (lastErr) throw lastErr;
+                payload.order_index = (last?.order_index || 0) + 1;
+            }
+        }
+    } catch (e) {
+        payload.order_index = payload.order_index || 1;
+    }
+
     const { data, error } = await db
         .from('survey_question_options')
-        .insert(optionData)
+        .insert(payload)
         .select('*')
         .single();
     if (error) throw error;
@@ -180,9 +274,10 @@ const updateResponse = async (responseId, updates) => {
 
 // --- Survey Answers Management ---
 const createAnswer = async (answerData) => {
+    // Upsert to avoid unique_response_question conflicts when re-submitting
     const { data, error } = await db
         .from('survey_answers')
-        .insert(answerData)
+        .upsert(answerData, { onConflict: 'response_id,question_id' })
         .select('*')
         .single();
     if (error) throw error;
@@ -246,37 +341,154 @@ const deleteAnswerFile = async (answerFileId) => {
 
 // --- Survey Statistics Management ---
 const updateSurveyStatistics = async (templateId) => {
-    // This function would typically be triggered by a database trigger or a background job
-    // For direct calls, it aggregates current data
-    const { data: totalResponsesData, error: trError } = await db
+    // Aggregate totals
+    const { count: totalCount, error: trError } = await db
         .from('survey_responses')
-        .select('count', { head: true, count: 'exact' })
+        .select('*', { head: true, count: 'exact' })
         .eq('survey_template_id', templateId);
     if (trError) throw trError;
 
-    const totalResponses = totalResponsesData.count;
-
-    const { data: completedResponsesData, error: crError } = await db
+    const { count: completedCount, error: crError } = await db
         .from('survey_responses')
-        .select('count', { head: true, count: 'exact' })
+        .select('*', { head: true, count: 'exact' })
         .eq('survey_template_id', templateId)
         .eq('is_complete', true);
     if (crError) throw crError;
 
-    const completedResponses = completedResponsesData.count;
+    let averageCompletionTimeSeconds = null;
+    // Compute average completion time for completed responses
+    const { data: completedRows, error: rowsErr } = await db
+        .from('survey_responses')
+        .select('started_at, completed_at')
+        .eq('survey_template_id', templateId)
+        .eq('is_complete', true)
+        .not('completed_at', 'is', null);
+    if (rowsErr) throw rowsErr;
+    if (completedRows && completedRows.length > 0) {
+        let totalSecs = 0;
+        let n = 0;
+        for (const r of completedRows) {
+            const start = r.started_at ? new Date(r.started_at).getTime() : null;
+            const end = r.completed_at ? new Date(r.completed_at).getTime() : null;
+            if (start && end && end >= start) {
+                totalSecs += Math.floor((end - start) / 1000);
+                n += 1;
+            }
+        }
+        if (n > 0) averageCompletionTimeSeconds = Math.round(totalSecs / n);
+    }
 
     const { data, error } = await db
         .from('survey_statistics')
         .upsert({
             survey_template_id: templateId,
-            total_responses: totalResponses,
-            completed_responses: completedResponses,
+            total_responses: totalCount || 0,
+            completed_responses: completedCount || 0,
+            average_completion_time_seconds: averageCompletionTimeSeconds,
             last_updated: new Date().toISOString()
-        })
+        }, { onConflict: 'survey_template_id' })
         .select('*')
         .single();
     if (error) throw error;
     return data;
+};
+
+// --- Visibility and helper queries ---
+const getUserResponse = async (templateId, userId) => {
+    const { data, error } = await db
+        .from('survey_responses')
+        .select('*')
+        .eq('survey_template_id', templateId)
+        .eq('respondent_id', userId)
+        .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error; // ignore no rows
+    return data || null;
+};
+
+const listVisibleTemplatesForUser = async (role) => {
+    let query = db
+        .from('survey_templates')
+        .select('*')
+        .eq('is_active', true);
+
+    const now = new Date().toISOString();
+    // start_date is null or <= now
+    query = query.or(`start_date.is.null,start_date.lte.${now}`);
+    // end_date is null or >= now
+    query = query.or(`end_date.is.null,end_date.gte.${now}`);
+
+    const adminRoles = ['admin', 'administrator', 'sys_admin'];
+    if (!adminRoles.includes(role)) {
+        // Restrict by audience for non-admins
+        let audiences = ['all', 'both', 'everyone'];
+        if (role === 'student') {
+            audiences = audiences.concat(['student', 'students']); // Accept both singular and plural
+        } else if (role === 'lecturer') {
+            audiences = audiences.concat(['lecturer', 'lecturers', 'all_staff']); // Accept both singular and plural
+        } else {
+            // Fallback: include role string as-is for any custom role naming
+            audiences = audiences.concat([role]);
+        }
+        query = query.in('target_audience', audiences);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+};
+
+const hasUserCompletedResponse = async (templateId, userId) => {
+    const { data, error } = await db
+        .from('survey_responses')
+        .select('id')
+        .eq('survey_template_id', templateId)
+        .eq('respondent_id', userId)
+        .eq('is_complete', true)
+        .limit(1);
+    if (error) throw error;
+    return Array.isArray(data) && data.length > 0;
+};
+
+const getResponsesByTemplate = async (templateId, onlyComplete = true) => {
+    let q = db
+        .from('survey_responses')
+        .select('*')
+        .eq('survey_template_id', templateId);
+    if (onlyComplete) q = q.eq('is_complete', true);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+};
+
+const getAnswerByResponseAndQuestion = async (responseId, questionId) => {
+    const { data, error } = await db
+        .from('survey_answers')
+        .select('*')
+        .eq('response_id', responseId)
+        .eq('question_id', questionId)
+        .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+};
+
+const getAnswersByResponseIds = async (responseIds) => {
+    if (!responseIds || responseIds.length === 0) return [];
+    const { data, error } = await db
+        .from('survey_answers')
+        .select('*')
+        .in('response_id', responseIds);
+    if (error) throw error;
+    return data || [];
+};
+
+const getAnswerOptionsByAnswerIds = async (answerIds) => {
+    if (!answerIds || answerIds.length === 0) return [];
+    const { data, error } = await db
+        .from('survey_answer_options')
+        .select('*')
+        .in('answer_id', answerIds);
+    if (error) throw error;
+    return data || [];
 };
 
 // Export all functions
@@ -303,6 +515,13 @@ module.exports = {
     createAnswerFile,
     deleteAnswerFile,
     updateSurveyStatistics,
+    listVisibleTemplatesForUser,
+    hasUserCompletedResponse,
+    getResponsesByTemplate,
+    getAnswersByResponseIds,
+    getAnswerOptionsByAnswerIds,
+    getUserResponse,
+    getAnswerByResponseAndQuestion,
 };
 
 

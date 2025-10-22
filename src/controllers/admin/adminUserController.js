@@ -184,6 +184,11 @@ class AdminUserController {
             const result = await User.delete(id);
             if (!result.success) {
                 logger.error('Failed to delete user:', result.error);
+                // Fallback to soft-delete (deactivate) if hard delete fails (e.g., FK constraints)
+                const soft = await User.update(id, { is_active: false, suspension_reason: 'Soft-deleted by admin' });
+                if (soft.success) {
+                    return response(res, 200, 'User deactivated instead of deleting due to dependencies', { id, is_active: false });
+                }
                 return errorResponse(res, 500, 'Failed to delete user', result.error);
             }
 

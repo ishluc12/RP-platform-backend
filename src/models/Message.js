@@ -10,71 +10,23 @@ class Message {
     static async getDirectThread(userId1, userId2, { page = 1, limit = 50 }) {
         try {
             const offset = (page - 1) * limit;
-            
-            // First get the messages with count
-            const { data: messages, error: messagesError, count } = await db
+            const { data, error, count } = await db
                 .from(TABLE_NAME)
                 .select('*', { count: 'exact' })
                 .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
                 .order('sent_at', { ascending: false })
                 .range(offset, offset + limit - 1);
 
-            if (messagesError) {
-                logger.error('Error fetching direct message thread from DB:', messagesError);
-                return { success: false, error: messagesError.message };
+            if (error) {
+                logger.error('Error fetching direct message thread from DB:', error);
+                return { success: false, error: error.message };
             }
-
-            if (!messages || messages.length === 0) {
-                return {
-                    success: true,
-                    data: [],
-                    pagination: {
-                        currentPage: page,
-                        limit,
-                        totalItems: 0,
-                        totalPages: 0
-                    }
-                };
-            }
-
-            // Get unique sender IDs
-            const senderIds = [...new Set(messages.map(m => m.sender_id))].filter(id => id);
-            
-            // Fetch user details for all senders
-            const { data: users, error: usersError } = await db
-                .from('users')
-                .select('id, name, profile_picture, role')
-                .in('id', senderIds);
-
-            if (usersError) {
-                logger.error('Error fetching user details for messages:', usersError);
-                // Continue without user details rather than failing
-            }
-
-            // Create a map of user details
-            const userMap = {};
-            if (users) {
-                users.forEach(user => {
-                    userMap[user.id] = user;
-                });
-            }
-
-            // Enrich messages with sender details
-            const enrichedMessages = messages.map(message => {
-                const sender = userMap[message.sender_id];
-                return {
-                    ...message,
-                    sender_name: sender?.name || 'Unknown User',
-                    sender_profile_picture: sender?.profile_picture || null,
-                    sender_role: sender?.role || null
-                };
-            });
 
             const totalPages = Math.ceil(count / limit);
 
             return {
                 success: true,
-                data: enrichedMessages.reverse(),
+                data: data.reverse(),
                 pagination: {
                     currentPage: page,
                     limit,
@@ -110,9 +62,7 @@ class Message {
     static async getGroupMessages(groupId, { page = 1, limit = 50 }) {
         try {
             const offset = (page - 1) * limit;
-            
-            // First get the messages with count
-            const { data: messages, error: messagesError, count } = await db
+            const { data, error, count } = await db
                 .from(TABLE_NAME)
                 .select('*', { count: 'exact' })
                 .eq('group_id', groupId)
@@ -120,62 +70,16 @@ class Message {
                 .order('sent_at', { ascending: false })
                 .range(offset, offset + limit - 1);
 
-            if (messagesError) {
-                logger.error('Error fetching group messages from DB:', messagesError);
-                return { success: false, error: messagesError.message };
+            if (error) {
+                logger.error('Error fetching group messages from DB:', error);
+                return { success: false, error: error.message };
             }
-
-            if (!messages || messages.length === 0) {
-                return {
-                    success: true,
-                    data: [],
-                    pagination: {
-                        currentPage: page,
-                        limit,
-                        totalItems: 0,
-                        totalPages: 0
-                    }
-                };
-            }
-
-            // Get unique sender IDs
-            const senderIds = [...new Set(messages.map(m => m.sender_id))].filter(id => id);
-            
-            // Fetch user details for all senders
-            const { data: users, error: usersError } = await db
-                .from('users')
-                .select('id, name, profile_picture, role')
-                .in('id', senderIds);
-
-            if (usersError) {
-                logger.error('Error fetching user details for group messages:', usersError);
-                // Continue without user details rather than failing
-            }
-
-            // Create a map of user details
-            const userMap = {};
-            if (users) {
-                users.forEach(user => {
-                    userMap[user.id] = user;
-                });
-            }
-
-            // Enrich messages with sender details
-            const enrichedMessages = messages.map(message => {
-                const sender = userMap[message.sender_id];
-                return {
-                    ...message,
-                    sender_name: sender?.name || 'Unknown User',
-                    sender_profile_picture: sender?.profile_picture || null,
-                    sender_role: sender?.role || null
-                };
-            });
 
             const totalPages = Math.ceil(count / limit);
 
             return {
                 success: true,
-                data: enrichedMessages.reverse(),
+                data: data.reverse(),
                 pagination: {
                     currentPage: page,
                     limit,
@@ -349,47 +253,6 @@ class Message {
         } catch (error) {
             logger.error('Exception in getUserGroupChats:', error);
             return { success: false, error: error.message };
-        }
-    }
-
-    static async getById(messageId) {
-        try {
-            const { data, error } = await db
-                .from(TABLE_NAME)
-                .select('*')
-                .eq('id', messageId)
-                .single();
-
-            if (error) {
-                logger.error('Error fetching message by ID from DB:', error);
-                return { success: false, error: error.message };
-            }
-
-            return { success: true, data };
-        } catch (error) {
-            logger.error('Exception in getById:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    static async isUserInGroup(userId, groupId) {
-        try {
-            const { data, error } = await db
-                .from('group_members')
-                .select('*')
-                .eq('user_id', userId)
-                .eq('group_id', groupId)
-                .single();
-
-            if (error) {
-                logger.error('Error checking user in group:', error);
-                return false;
-            }
-
-            return !!data;
-        } catch (error) {
-            logger.error('Exception in isUserInGroup:', error);
-            return false;
         }
     }
 

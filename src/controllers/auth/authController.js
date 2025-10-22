@@ -2,6 +2,8 @@ const User = require('../../models/User');
 const emailService = require('../../services/emailService');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const fs = require('fs');
+const { uploadImage } = require('../../config/cloudinary');
 
 
 const {

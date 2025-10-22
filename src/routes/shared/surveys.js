@@ -1,14 +1,24 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
+const { requireRoles } = require('../../middleware/roleAuth');
 const surveyController = require('../../controllers/shared/surveyController');
 
 router.use(authenticateToken);
 
 // --- Survey Template Management Routes ---
 
-// Create a new survey template
-router.post('/', surveyController.createSurveyTemplate);
+// Create a new survey template (admin only)
+router.post('/', requireRoles('admin', 'administrator', 'sys_admin'), surveyController.createSurveyTemplate);
+
+// Visible templates for current user role
+router.get('/visible', surveyController.getVisibleTemplates);
+
+// Get submission status for current user on a template (must be before '/:id')
+router.get('/:id/status', surveyController.getSurveyStatus);
+
+// Get survey aggregated report (available to all authenticated users)
+router.get('/:id/report', surveyController.getSurveyReport);
 
 // Get a specific survey template with questions and options
 router.get('/:id', surveyController.getSurveyTemplateDetails);

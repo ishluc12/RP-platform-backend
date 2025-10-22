@@ -12,6 +12,7 @@ router.use(requireRoles(...ADMIN_ROLES));
 
 // Administrator event management routes
 router.post('/', AdministratorEventController.createEvent);
+router.get('/', AdministratorEventController.getMyEvents); // Add this line to handle GET /api/administrator/events
 router.get('/my-events', AdministratorEventController.getMyEvents);
 router.get('/upcoming', AdministratorEventController.getUpcomingEvents);
 router.get('/past', AdministratorEventController.getPastEvents);
