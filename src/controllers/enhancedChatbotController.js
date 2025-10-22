@@ -1,4 +1,5 @@
 const EnhancedChatbotService = require('../services/enhancedChatbotService');
+const IntelligentChatbotService = require('../services/intelligentChatbotService');
 const { response, errorResponse } = require('../utils/responseHandlers');
 const { logger } = require('../utils/logger');
 
@@ -22,13 +23,35 @@ class EnhancedChatbotController {
             
             logger.info(`Chatbot query from user ${user.id} (${user.role}): ${message}`);
             
-            // Process query with enhanced service
-            const result = await EnhancedChatbotService.processQuery(
-                user.id,
-                message,
-                user.name || 'User',
-                user.role
-            );
+            // Process query with intelligent service first, fallback to enhanced service
+            let result;
+            try {
+                result = await IntelligentChatbotService.processQuery(
+                    user.id,
+                    message,
+                    user.name || 'User',
+                    user.role
+                );
+                
+                // If intelligent service doesn't provide a good response, fallback to enhanced service
+                if (!result.success || result.confidence < 0.4) {
+                    logger.info('Falling back to enhanced chatbot service');
+                    result = await EnhancedChatbotService.processQuery(
+                        user.id,
+                        message,
+                        user.name || 'User',
+                        user.role
+                    );
+                }
+            } catch (error) {
+                logger.warn('Intelligent service failed, using enhanced service:', error.message);
+                result = await EnhancedChatbotService.processQuery(
+                    user.id,
+                    message,
+                    user.name || 'User',
+                    user.role
+                );
+            }
             
             if (!result.success && result.error) {
                 return errorResponse(res, 500, result.message || 'Failed to process query', result.error);

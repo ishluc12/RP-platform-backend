@@ -26,12 +26,13 @@ class LecturerAvailabilityController {
                 is_active = true
             } = req.body;
 
-            // Validation - require either specific_date OR day_of_week
-            if (!start_time || !end_time) {
-                return errorResponse(res, 400, 'Missing required fields: start_time, end_time');
+            // Validation - specific_date is now required
+            if (!specific_date || !start_time || !end_time) {
+                return errorResponse(res, 400, 'Missing required fields: specific_date, start_time, end_time');
             }
 
-            let calculatedDayOfWeek = day_of_week;
+            const selectedDate = new Date(specific_date);
+            const calculatedDayOfWeek = selectedDate.getDay();
 
             // If specific_date is provided, validate it
             if (specific_date) {

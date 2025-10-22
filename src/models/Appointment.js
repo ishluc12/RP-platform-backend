@@ -87,49 +87,6 @@ class Appointment {
     }
 
     /**
-     * Find upcoming appointments for a user
-     * @param {string} userId - User ID
-     * @param {string} role - User role ('student' or 'staff')
-     * @param {Object} options - Filter options
-     * @returns {Promise<Object>} - Success/error result
-     */
-    static async getUpcomingByUser(userId, role = 'student', options = {}) {
-        try {
-            const { limit = 5, offset = 0 } = options;
-            const today = new Date().toISOString().split('T')[0];
-
-            let query = supabase
-                .from('appointments')
-                .select(`
-                    *,
-                    requester:requester_id(id, name, email, role, profile_picture),
-                    appointee:appointee_id(id, name, email, role, profile_picture)
-                `)
-                .gte('appointment_date', today)
-                .in('status', ['pending', 'accepted', 'rescheduled'])
-                .order('appointment_date', { ascending: true })
-                .order('start_time', { ascending: true })
-                .range(offset, offset + limit - 1);
-
-            if (role === 'student') {
-                query = query.eq('requester_id', userId);
-            } else {
-                query = query.eq('appointee_id', userId);
-            }
-
-            const { data, error } = await query;
-
-            if (error) {
-                logger.error('Error finding upcoming appointments:', error);
-                return { success: false, error: error.message };
-            }
-
-            return { success: true, data };
-        } catch (error) {
-            logger.error('Error in findUpcomingAppointments:', error);
-            return { success: false, error: error.message };
-        }
-    }
     /**
      * Create a new appointment request
      * @param {Object} appointmentData - Appointment data
@@ -137,7 +94,8 @@ class Appointment {
      */
     static async create(appointmentData) {
         try {
-            // Create appointment_time from appointment_date and start_time
+            // Create appointment_time using local timezone to avoid timezone shifts
+            // Format: YYYY-MM-DDTHH:mm:ss (local time)
             const appointmentTime = `${appointmentData.appointment_date}T${appointmentData.start_time}`;
             
             const { data, error } = await supabase
@@ -484,15 +442,15 @@ class Appointment {
     static async isSlotAvailable(staffId, date, startTime, endTime, excludeAppointmentId = null) {
         try {
             // First, check if staff has availability for this date/time
-            const appointmentDate = new Date(date);
-            const dayOfWeek = appointmentDate.getDay();
+            // Use string comparison to avoid timezone issues
+            const appointmentDateStr = date; // Already a YYYY-MM-DD string from frontend
             
             const { data: availabilitySlots, error: availError } = await supabase
                 .from('staff_availability')
                 .select('*')
                 .eq('staff_id', staffId)
                 .eq('is_active', true)
-                .or(`specific_date.eq.${date},and(day_of_week.eq.${dayOfWeek},specific_date.is.null)`)
+                .eq('specific_date', appointmentDateStr)
                 .lte('start_time', startTime)
                 .gte('end_time', endTime);
 
@@ -503,28 +461,25 @@ class Appointment {
 
             // Check if valid_from and valid_to constraints are met
             const validSlots = availabilitySlots.filter(slot => {
-                const validFrom = slot.valid_from ? new Date(slot.valid_from) : null;
-                const validTo = slot.valid_to ? new Date(slot.valid_to) : null;
-                const slotDate = new Date(date);
-                slotDate.setHours(0, 0, 0, 0);
+                const validFrom = slot.valid_from ? slot.valid_from : null;
+                const validTo = slot.valid_to ? slot.valid_to : null;
                 
+                // Use string comparison for date validation to avoid timezone issues
                 if (validFrom) {
-                    const validFromDate = new Date(validFrom);
-                    validFromDate.setHours(0, 0, 0, 0);
-                    if (slotDate < validFromDate) return false;
+                    // Compare as strings (YYYY-MM-DD format)
+                    if (appointmentDateStr < validFrom) return false;
                 }
                 
                 if (validTo) {
-                    const validToDate = new Date(validTo);
-                    validToDate.setHours(0, 0, 0, 0);
-                    if (slotDate > validToDate) return false;
+                    // Compare as strings (YYYY-MM-DD format)
+                    if (appointmentDateStr > validTo) return false;
                 }
                 
                 return true;
             });
 
             if (validSlots.length === 0) {
-                console.log('No availability slot found for:', { staffId, date, startTime, endTime, dayOfWeek });
+                console.log('No availability slot found for:', { staffId, date: appointmentDateStr, startTime, endTime });
                 return false;
             }
 
@@ -533,7 +488,7 @@ class Appointment {
                 .from('appointments')
                 .select('id')
                 .eq('appointee_id', staffId)
-                .eq('appointment_date', date)
+                .eq('appointment_date', appointmentDateStr)
                 .in('status', ['pending', 'accepted', 'rescheduled'])
                 .is('deleted_at', null);
 

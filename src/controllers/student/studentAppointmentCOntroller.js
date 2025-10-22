@@ -180,21 +180,18 @@ class StudentAppointmentController {
 
             const matchingSlots = availRes.data.filter(slot => {
                 // ONLY show slots with specific_date matching the requested date
-                if (slot.specific_date) {
-                    // Use string comparison to avoid timezone shifts
-                    const slotDateStr = slot.specific_date;
-                    
-                    // Skip past dates (string comparison works for YYYY-MM-DD format)
-                    if (slotDateStr < todayStr) {
-                        return false;
-                    }
-                    
-                    // Must match the requested date exactly
-                    return slotDateStr === requestedDateStr;
+                if (!slot.specific_date) return false;
+                
+                // Use string comparison to avoid timezone shifts
+                const slotDateStr = slot.specific_date;
+                
+                // Skip past dates (string comparison works for YYYY-MM-DD format)
+                if (slotDateStr < todayStr) {
+                    return false;
                 }
                 
-                // Ignore recurring slots (old system)
-                return false;
+                // Must match the requested date exactly
+                return slotDateStr === requestedDateStr;
             });
 
             console.log(`📅 Found ${matchingSlots.length} slots for date ${date}`);
