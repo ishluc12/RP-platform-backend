@@ -67,7 +67,7 @@ class AdminUserController {
                 staff_id,
                 phone,
                 bio,
-                is_active = true
+                status = 'active'
             } = req.body;
 
             // Validate required fields
@@ -100,6 +100,8 @@ class AdminUserController {
             const bcrypt = require('bcryptjs');
             const hashedPassword = await bcrypt.hash(password, 12);
 
+
+
             // Create user data
             const userData = {
                 name,
@@ -111,7 +113,7 @@ class AdminUserController {
                 staff_id,
                 phone,
                 bio,
-                is_active: is_active,
+                status,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
@@ -137,7 +139,7 @@ class AdminUserController {
     static async updateUser(req, res) {
         try {
             const { id } = req.params;
-            const updateData = req.body;
+            const updateData = { ...req.body };
 
             // Check if user exists
             const existingUser = await User.findById(id);
@@ -145,10 +147,25 @@ class AdminUserController {
                 return errorResponse(res, 404, 'User not found');
             }
 
-            // Remove fields that shouldn't be updated via this endpoint (e.g., password, sensitive audit fields)
-            delete updateData.password_hash;
+            // Check if email is being changed and if it already exists
+            if (updateData.email && updateData.email !== existingUser.data.email) {
+                const emailCheck = await User.findByEmail(updateData.email);
+                if (emailCheck.success) {
+                    return errorResponse(res, 400, 'Email already exists');
+                }
+            }
+
+            // Handle password update if provided
+            if (updateData.password) {
+                const bcrypt = require('bcryptjs');
+                updateData.password_hash = await bcrypt.hash(updateData.password, 12);
+                delete updateData.password; // Remove plain password
+            }
+
+
+
+            // Remove fields that shouldn't be updated via this endpoint
             delete updateData.created_at;
-            delete updateData.email; // Email should ideally be updated via a separate flow
 
             // Update user
             const result = await User.update(id, updateData);
@@ -180,19 +197,14 @@ class AdminUserController {
                 return errorResponse(res, 400, 'Cannot delete your own account');
             }
 
-            // Delete user
-            const result = await User.delete(id);
+            // Use soft delete (block user) to avoid dependency issues
+            const result = await User.update(id, { status: 'blocked' });
             if (!result.success) {
-                logger.error('Failed to delete user:', result.error);
-                // Fallback to soft-delete (deactivate) if hard delete fails (e.g., FK constraints)
-                const soft = await User.update(id, { is_active: false, suspension_reason: 'Soft-deleted by admin' });
-                if (soft.success) {
-                    return response(res, 200, 'User deactivated instead of deleting due to dependencies', { id, is_active: false });
-                }
-                return errorResponse(res, 500, 'Failed to delete user', result.error);
+                logger.error('Failed to block user:', result.error);
+                return errorResponse(res, 500, 'Failed to block user', result.error);
             }
 
-            response(res, 200, 'User deleted successfully');
+            response(res, 200, 'User blocked successfully');
         } catch (error) {
             logger.error('Delete user error:', error);
             errorResponse(res, 500, error.message);
@@ -345,7 +357,7 @@ class AdminUserController {
                 staff_id: user.staff_id,
                 phone: user.phone,
                 bio: user.bio,
-                is_active: user.is_active,
+                status: user.status,
                 created_at: user.created_at,
                 updated_at: user.updated_at
             }));
@@ -394,8 +406,8 @@ class AdminUserController {
                 return errorResponse(res, 400, 'Cannot change your own status');
             }
 
-            const updateData = { is_active: isActive };
-            if (reason !== undefined) updateData.suspension_reason = reason; // Allow null to clear reason
+            const updateData = { status: isActive ? 'active' : 'blocked' };
+            if (reason !== undefined) updateData.suspension_reason = reason;
 
             // Update user status
             const result = await User.update(id, updateData);
@@ -406,7 +418,7 @@ class AdminUserController {
 
             response(res, 200, `User ${isActive ? 'activated' : 'suspended'} successfully`, {
                 id: id,
-                is_active: isActive,
+                status: isActive ? 'active' : 'blocked',
                 reason: reason || null
             });
         } catch (error) {
