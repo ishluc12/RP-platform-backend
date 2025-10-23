@@ -16,5 +16,7 @@ router.put('/:id', authenticateToken, requireAdmin, AdminUserController.updateUs
 router.delete('/:id', authenticateToken, requireAdmin, AdminUserController.deleteUser);
 router.put('/:id/status', authenticateToken, requireAdmin, AdminUserController.toggleUserStatus);
 router.get('/:id/logs', authenticateToken, requireAdmin, AdminUserController.getUserActivityLogs);
+router.put('/:id/ban', authenticateToken, requireAdmin, require('../../controllers/admin/adminPostController').banUser);
+router.put('/:id/unban', authenticateToken, requireAdmin, require('../../controllers/admin/adminPostController').unbanUser);
 
 module.exports = router;

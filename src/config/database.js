@@ -54,5 +54,6 @@ module.exports = {
     supabase,
     supabaseAdmin,
     testConnection,
-    pgPool: pool // Export the pg pool
+    pool, // Export the pg pool
+    pgPool: pool // Export the pg pool (alias)
 };
