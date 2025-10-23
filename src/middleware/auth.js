@@ -45,7 +45,27 @@ const authenticateToken = async (req, res, next) => {
         }
 
         const decoded = verifyToken(token);
-        req.user = { id: decoded.id, email: decoded.email, role: decoded.role };
+        
+        // Check user status in database
+        const User = require('../models/User');
+        const userResult = await User.findById(decoded.id);
+        if (!userResult.success) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not found',
+                error: 'USER_NOT_FOUND'
+            });
+        }
+        
+        if (userResult.data.status === 'blocked') {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account has been blocked. Please contact the system administrator.',
+                error: 'ACCOUNT_BLOCKED'
+            });
+        }
+        
+        req.user = { id: decoded.id, email: decoded.email, role: decoded.role, status: userResult.data.status };
         return next();
     } catch (error) {
         console.error('Authentication error:', error);

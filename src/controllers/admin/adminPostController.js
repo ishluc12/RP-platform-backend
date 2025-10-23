@@ -1,6 +1,9 @@
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
-const { pool } = require('../../config/database');
+const { supabase, supabaseAdmin } = require('../../config/database');
+
+// Prefer service-role client to bypass RLS on server-side trusted operations
+const db = supabaseAdmin || supabase;
 
 class AdminPostController {
     /**
@@ -12,7 +15,7 @@ class AdminPostController {
             const from = (page - 1) * limit;
             const to = from + limit - 1;
 
-            let query = supabase
+            let query = db
                 .from('posts')
                 .select(`
                     *,
@@ -79,17 +82,27 @@ class AdminPostController {
             const { id } = req.params;
 
             // Check if post exists
-            const checkResult = await pool.query('SELECT id FROM posts WHERE id = $1', [id]);
-            if (checkResult.rows.length === 0) {
+            const { data: existingPost, error: checkError } = await db
+                .from('posts')
+                .select('id')
+                .eq('id', id)
+                .single();
+
+            if (checkError || !existingPost) {
                 return errorResponse(res, 404, 'Post not found');
             }
 
             // Delete related records first
-            await pool.query('DELETE FROM post_likes WHERE post_id = $1', [id]);
-            await pool.query('DELETE FROM comments WHERE post_id = $1', [id]);
+            await db.from('post_likes').delete().eq('post_id', id);
+            await db.from('comments').delete().eq('post_id', id);
             
             // Delete the post
-            await pool.query('DELETE FROM posts WHERE id = $1', [id]);
+            const { error: deleteError } = await db
+                .from('posts')
+                .delete()
+                .eq('id', id);
+
+            if (deleteError) throw deleteError;
 
             response(res, 200, 'Post deleted successfully', { id });
         } catch (error) {
@@ -106,7 +119,7 @@ class AdminPostController {
             const { id } = req.params;
             const { reason } = req.body;
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('posts')
                 .update({
                     status: 'blocked',
@@ -138,7 +151,7 @@ class AdminPostController {
         try {
             const { id } = req.params;
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('posts')
                 .update({
                     status: 'active',
@@ -171,16 +184,25 @@ class AdminPostController {
             const { id } = req.params;
             const { reason } = req.body;
 
-            const result = await pool.query(
-                'UPDATE posts SET status = $1, moderation_reason = $2 WHERE id = $3 RETURNING *',
-                ['flagged', reason || 'Flagged for review', id]
-            );
+            const { data, error } = await db
+                .from('posts')
+                .update({
+                    status: 'flagged',
+                    moderation_reason: reason || 'Flagged for review',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select('*')
+                .single();
 
-            if (result.rows.length === 0) {
-                return errorResponse(res, 404, 'Post not found');
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    return errorResponse(res, 404, 'Post not found');
+                }
+                throw error;
             }
 
-            response(res, 200, 'Post flagged successfully', result.rows[0]);
+            response(res, 200, 'Post flagged successfully', data);
         } catch (error) {
             logger.error('Error flagging post:', error.message);
             errorResponse(res, 500, 'Internal server error', error.message);
@@ -195,7 +217,7 @@ class AdminPostController {
             const { id } = req.params;
             const { reason } = req.body;
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .update({
                     status: 'blocked',
@@ -213,7 +235,7 @@ class AdminPostController {
             }
 
             // Also block all posts by this user
-            await supabase
+            await db
                 .from('posts')
                 .update({
                     status: 'blocked',
@@ -235,7 +257,7 @@ class AdminPostController {
         try {
             const { id } = req.params;
 
-            const { data, error } = await supabase
+            const { data, error } = await db
                 .from('users')
                 .update({
                     status: 'active',

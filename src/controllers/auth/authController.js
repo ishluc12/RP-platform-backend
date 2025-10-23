@@ -128,6 +128,16 @@ class AuthController {
             }
 
             const user = result.data;
+            
+            // Check if user is blocked
+            if (user.status === 'blocked') {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Your account has been blocked. Please contact the system administrator.',
+                    error: 'ACCOUNT_BLOCKED'
+                });
+            }
+            
             const isPasswordValid = await comparePassword(password, user.password_hash);
             if (!isPasswordValid) {
                 console.error('comparePassword error (login): Invalid password for user', email);

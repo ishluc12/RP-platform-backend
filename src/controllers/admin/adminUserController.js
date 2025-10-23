@@ -197,14 +197,14 @@ class AdminUserController {
                 return errorResponse(res, 400, 'Cannot delete your own account');
             }
 
-            // Use soft delete (block user) to avoid dependency issues
-            const result = await User.update(id, { status: 'blocked' });
+            // Perform permanent deletion
+            const result = await User.delete(id);
             if (!result.success) {
-                logger.error('Failed to block user:', result.error);
-                return errorResponse(res, 500, 'Failed to block user', result.error);
+                logger.error('Failed to delete user:', result.error);
+                return errorResponse(res, 500, 'Failed to delete user', result.error);
             }
 
-            response(res, 200, 'User blocked successfully');
+            response(res, 200, 'User deleted permanently');
         } catch (error) {
             logger.error('Delete user error:', error);
             errorResponse(res, 500, error.message);

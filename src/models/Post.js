@@ -15,9 +15,24 @@ class PostModel {
      */
     static async create({ user_id, content, description = null, image_url = null, video_url = null, media_type = null, sticker = null }) {
         try {
+            // Check if user is blocked before allowing post creation
+            const { data: user, error: userError } = await supabase
+                .from('users')
+                .select('status')
+                .eq('id', user_id)
+                .single();
+
+            if (userError || !user) {
+                return { success: false, error: 'User not found' };
+            }
+
+            if (user.status === 'blocked') {
+                return { success: false, error: 'Your account has been blocked. You cannot create posts.' };
+            }
+
             const { data, error } = await supabase
                 .from('posts')
-                .insert([{ user_id, content, description, image_url, video_url, media_type, sticker }])
+                .insert([{ user_id, content, description, image_url, video_url, media_type, sticker, status: 'active' }])
                 .select('*')
                 .single();
 
@@ -42,6 +57,7 @@ class PostModel {
             const to = from + limit - 1;
 
             // Get posts with user details, like count, and comment count
+            // Filter out blocked and flagged posts from regular feed
             const { data: posts, error } = await supabase
                 .from('posts')
                 .select(`
@@ -54,15 +70,19 @@ class PostModel {
                     sticker,
                     created_at,
                     user_id,
+                    status,
                     users!posts_user_id_fkey (
                         id,
                         name,
                         email,
                         profile_picture,
                         role,
-                        department
+                        department,
+                        status
                     )
                 `)
+                .or('status.is.null,status.eq.active')
+                .eq('users.status', 'active')
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
@@ -126,7 +146,13 @@ class PostModel {
      */
     static async findAll(page = 1, limit = 10, filters = {}) {
         try {
-            let query = supabase.from('posts').select('*, users(id, name, email)', { count: 'exact' }).order('created_at', { ascending: false });
+            let query = supabase.from('posts').select('*, users(id, name, email, status)', { count: 'exact' }).order('created_at', { ascending: false });
+
+            // Filter out blocked/flagged posts unless specifically requested
+            if (!filters.includeModerated) {
+                query = query.or('status.is.null,status.eq.active');
+                query = query.eq('users.status', 'active');
+            }
 
             // Apply filters if needed
             if (filters.user_id) {
@@ -134,6 +160,9 @@ class PostModel {
             }
             if (filters.created_after) {
                 query = query.gte('created_at', filters.created_after);
+            }
+            if (filters.status) {
+                query = query.eq('status', filters.status);
             }
 
             const from = (page - 1) * limit;
@@ -171,8 +200,10 @@ class PostModel {
 
             const { data, error } = await supabase
                 .from('posts')
-                .select('*')
+                .select('*, users!posts_user_id_fkey(status)')
                 .eq('user_id', userId)
+                .or('status.is.null,status.eq.active')
+                .eq('users.status', 'active')
                 .range(from, to);
 
             if (error) throw error;
@@ -238,11 +269,13 @@ class PostModel {
                 .from('posts')
                 .select(`
                     *,
-                    users (id, name, email, profile_picture),
+                    users (id, name, email, profile_picture, status),
                     likes_count:post_likes(count),
                     comments_count:comments(count)
                 `)
                 .eq('id', postId)
+                .or('status.is.null,status.eq.active')
+                .eq('users.status', 'active')
                 .single();
 
             if (error) throw error;
