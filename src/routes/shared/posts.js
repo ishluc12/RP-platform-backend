@@ -26,4 +26,7 @@ router.post('/:postId/like', postController.likePost);
 // Unlike post
 router.delete('/:postId/unlike', postController.unlikePost);
 
+// List likes for a post
+router.get('/:postId/likes', postController.getLikes);
+
 module.exports = router;

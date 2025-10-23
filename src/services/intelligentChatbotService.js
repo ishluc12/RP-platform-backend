@@ -13,6 +13,8 @@ class IntelligentChatbotService {
     constructor() {
         this.systemKnowledge = this.initializeSystemKnowledge();
         this.conversationContext = new Map(); // Store conversation context per user
+        this.cache = new Map(); // Simple cache for frequently accessed data
+        this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache timeout
     }
 
     /**
@@ -175,7 +177,7 @@ class IntelligentChatbotService {
      */
     async processQuery(userId, message, userName, userRole) {
         try {
-            logger.info(`Intelligent chatbot processing - User: ${userId}, Role: ${userRole}, Message: ${message}`);
+            // Removed verbose logging for performance
 
             // Get or create conversation context
             const context = this.getConversationContext(userId);
@@ -184,7 +186,7 @@ class IntelligentChatbotService {
 
             // Detect intent from message
             const intent = this.detectIntent(message);
-            logger.info(`Detected intent: ${intent.type} with confidence: ${intent.confidence}`);
+            // Intent detected
 
             // Handle the intent
             const response = await this.handleIntent(intent, message, userId, userRole, context);
@@ -218,24 +220,155 @@ class IntelligentChatbotService {
     }
 
     /**
-     * Detect user intent from message
+     * Enhanced intent detection with better pattern matching and context awareness
      */
     detectIntent(message) {
         const lowerMessage = message.toLowerCase();
         
-        // Check each intent pattern
-        for (const [intentType, intentData] of Object.entries(this.systemKnowledge.intents)) {
+        // Enhanced intent patterns with more sophisticated matching
+        const enhancedIntents = {
+            navigation: {
+                patterns: [
+                    /(?:go to|open|navigate to|take me to|show me|visit|access)\s+(\w+)/i,
+                    /(?:i want to|i need to|can you)\s+(?:go to|open|see|visit)\s+(\w+)/i,
+                    /(?:where is|how do i get to|direct me to)\s+(\w+)/i
+                ],
+                keywords: ['go', 'open', 'navigate', 'take', 'show', 'visit', 'access', 'page', 'section'],
+                confidence: 0.9
+            },
+            appointments: {
+                patterns: [
+                    /(?:book|schedule|make|create|set up)\s+(?:an?\s+)?appointment/i,
+                    /(?:i want to|i need to|can i)\s+(?:book|schedule|meet)/i,
+                    /(?:appointment|meeting|consultation)\s+(?:with|for)/i,
+                    /(?:my|show|view|check)\s+appointments?/i,
+                    /(?:when|what time)\s+(?:is|are)\s+(?:my|the)\s+appointment/i
+                ],
+                keywords: ['appointment', 'book', 'schedule', 'meeting', 'consultation', 'lecturer', 'staff'],
+                confidence: 0.9
+            },
+            availability: {
+                patterns: [
+                    /(?:when|what time)\s+(?:is|are)\s+(?:\w+\s+)?(?:available|free)/i,
+                    /(?:availability|free time|schedule)\s+(?:of|for)\s+\w+/i,
+                    /(?:check|see|view)\s+(?:availability|schedule)/i,
+                    /(?:set|manage|update)\s+(?:my\s+)?availability/i
+                ],
+                keywords: ['available', 'availability', 'free', 'time', 'when', 'schedule'],
+                confidence: 0.9
+            },
+            events: {
+                patterns: [
+                    /(?:create|make|organize|set up)\s+(?:an?\s+)?event/i,
+                    /(?:upcoming|next|future)\s+events?/i,
+                    /(?:rsvp|register|sign up)\s+(?:for|to)\s+(?:an?\s+)?event/i,
+                    /(?:my|show|view|list)\s+events?/i
+                ],
+                keywords: ['event', 'workshop', 'seminar', 'conference', 'activity', 'rsvp'],
+                confidence: 0.9
+            },
+            surveys: {
+                patterns: [
+                    /(?:take|answer|fill|complete)\s+(?:a\s+)?survey/i,
+                    /(?:create|make|new)\s+(?:a\s+)?survey/i,
+                    /(?:available|active|new)\s+surveys?/i,
+                    /(?:survey|poll|questionnaire|feedback)/i,
+                    /(?:my|show|view|list)\s+surveys?/i
+                ],
+                keywords: ['survey', 'surveys', 'poll', 'questionnaire', 'feedback', 'form'],
+                confidence: 0.9
+            },
+            messages: {
+                patterns: [
+                    /(?:send|write|compose)\s+(?:a\s+)?message/i,
+                    /(?:check|view|read|open)\s+messages?/i,
+                    /(?:message|messages|inbox|chat)/i,
+                    /(?:unread|new)\s+messages?/i
+                ],
+                keywords: ['message', 'messages', 'chat', 'inbox', 'send', 'conversation'],
+                confidence: 0.9
+            },
+            notifications: {
+                patterns: [
+                    /(?:notification|alert|update)s?\s+(?:from|about|regarding)/i,
+                    /(?:unread|new)\s+(?:notifications?|alerts?|messages?)/i,
+                    /(?:check|view|see)\s+(?:my\s+)?notifications?/i,
+                    /(?:mark|clear)\s+(?:as\s+)?(?:read|seen)/i
+                ],
+                keywords: ['notification', 'alert', 'update', 'unread', 'bell', 'new'],
+                confidence: 0.8
+            },
+            help: {
+                patterns: [
+                    /(?:help|assist|guide|tutorial|how to)/i,
+                    /(?:what can you|what do you|how do you)/i,
+                    /(?:i don't know|i'm confused|i need help)/i,
+                    /(?:explain|tell me about|show me how)/i
+                ],
+                keywords: ['help', 'how', 'what', 'guide', 'tutorial', 'explain', 'confused'],
+                confidence: 0.8
+            },
+            greeting: {
+                patterns: [
+                    /^(?:hello|hi|hey|good morning|good afternoon|good evening)/i,
+                    /^(?:greetings|salutations|howdy)/i
+                ],
+                keywords: ['hello', 'hi', 'hey', 'good', 'morning', 'afternoon', 'evening'],
+                confidence: 0.9
+            },
+            system_info: {
+                patterns: [
+                    /(?:what is|tell me about|explain)\s+(?:this\s+)?(?:system|platform|app)/i,
+                    /(?:how does|how do)\s+(?:\w+\s+)?(?:work|function)/i,
+                    /(?:features|capabilities|functions)\s+(?:of|in)\s+(?:this\s+)?(?:system|app)/i
+                ],
+                keywords: ['what', 'tell', 'about', 'explain', 'how', 'work', 'system', 'platform'],
+                confidence: 0.7
+            }
+        };
+
+        let bestMatch = { type: 'general', confidence: 0.3, handler: 'handleGeneral' };
+
+        // Check enhanced patterns
+        for (const [intentType, intentData] of Object.entries(enhancedIntents)) {
+            let confidence = 0;
+            
+            // Check regex patterns
             for (const pattern of intentData.patterns) {
                 if (pattern.test(lowerMessage)) {
-                    // Calculate confidence based on keyword matches
-                    const confidence = this.calculateConfidence(lowerMessage, intentType);
-                    return { type: intentType, confidence, handler: intentData.handler };
+                    confidence = Math.max(confidence, intentData.confidence);
+                    break;
                 }
+            }
+            
+            // Check keyword matches if no pattern matched
+            if (confidence === 0) {
+                const keywordMatches = intentData.keywords.filter(keyword => 
+                    lowerMessage.includes(keyword)
+                ).length;
+                
+                if (keywordMatches > 0) {
+                    confidence = Math.min(0.8, 0.3 + (keywordMatches * 0.15));
+                }
+            }
+            
+            // Update best match if this is better
+            if (confidence > bestMatch.confidence) {
+                bestMatch = {
+                    type: intentType,
+                    confidence,
+                    handler: this.systemKnowledge.intents[intentType]?.handler || `handle${intentType.charAt(0).toUpperCase() + intentType.slice(1)}`
+                };
             }
         }
 
-        // Default to general help if no specific intent detected
-        return { type: 'general', confidence: 0.3, handler: 'handleGeneral' };
+        // Special handling for notification-related queries
+        if (lowerMessage.includes('notification') && lowerMessage.includes('click')) {
+            bestMatch = { type: 'notification_click', confidence: 0.95, handler: 'handleNotificationNavigation' };
+        }
+
+        // Intent: ${bestMatch.type}
+        return bestMatch;
     }
 
     /**
@@ -272,41 +405,159 @@ class IntelligentChatbotService {
     }
 
     /**
-     * Handle navigation requests
+     * Handle navigation requests with enhanced routing and notification support
      */
     async handleNavigation(message, userId, userRole, context) {
         const lowerMessage = message.toLowerCase();
         
-        // Extract page name from message
+        // Enhanced page keywords with more variations and specific routing
         const pageKeywords = {
-            'appointments': ['appointment', 'book', 'schedule', 'meeting'],
-            'events': ['event', 'workshop', 'seminar', 'activity'],
-            'messages': ['message', 'chat', 'inbox', 'communication'],
-            'surveys': ['survey', 'poll', 'questionnaire', 'feedback'],
-            'profile': ['profile', 'account', 'settings', 'personal'],
-            'notifications': ['notification', 'alert', 'updates'],
-            'dashboard': ['dashboard', 'home', 'main', 'overview'],
-            'feed': ['feed', 'community', 'posts', 'social']
+            'appointments': {
+                keywords: ['appointment', 'book', 'schedule', 'meeting', 'consultation', 'lecturer', 'staff'],
+                routes: {
+                    student: '/appointments',
+                    lecturer: '/lecturer/appointments',
+                    administrator: '/administrator/appointments'
+                },
+                specificRoutes: {
+                    'new': '/appointments/new',
+                    'book': '/appointments/new',
+                    'create': '/appointments/new',
+                    'pending': '/appointments?filter=pending',
+                    'history': '/appointments?view=history',
+                    'today': '/appointments?date=today'
+                }
+            },
+            'events': {
+                keywords: ['event', 'workshop', 'seminar', 'activity', 'conference', 'rsvp'],
+                routes: {
+                    student: '/events',
+                    lecturer: '/lecturer/events',
+                    administrator: '/administrator/events'
+                },
+                specificRoutes: {
+                    'new': '/events/new',
+                    'create': '/events/new',
+                    'upcoming': '/events?filter=upcoming',
+                    'my': '/events?view=my',
+                    'rsvp': '/events?action=rsvp'
+                }
+            },
+            'messages': {
+                keywords: ['message', 'chat', 'inbox', 'communication', 'conversation'],
+                routes: {
+                    all: '/messages'
+                },
+                specificRoutes: {
+                    'new': '/messages/new',
+                    'unread': '/messages?filter=unread',
+                    'sent': '/messages?view=sent'
+                }
+            },
+            'surveys': {
+                keywords: ['survey', 'poll', 'questionnaire', 'feedback', 'form'],
+                routes: {
+                    student: '/surveys',
+                    lecturer: '/lecturer/surveys',
+                    administrator: '/administrator/surveys'
+                },
+                specificRoutes: {
+                    'new': '/surveys/new',
+                    'create': '/surveys/new',
+                    'active': '/surveys?filter=active',
+                    'results': '/surveys?view=results'
+                }
+            },
+            'profile': {
+                keywords: ['profile', 'account', 'settings', 'personal', 'info'],
+                routes: {
+                    all: '/profile'
+                },
+                specificRoutes: {
+                    'edit': '/profile/edit',
+                    'settings': '/profile/settings',
+                    'password': '/profile/password'
+                }
+            },
+            'notifications': {
+                keywords: ['notification', 'alert', 'updates', 'bell', 'unread'],
+                routes: {
+                    all: '/notifications'
+                },
+                specificRoutes: {
+                    'unread': '/notifications?filter=unread',
+                    'settings': '/notifications/settings'
+                }
+            },
+            'dashboard': {
+                keywords: ['dashboard', 'home', 'main', 'overview', 'summary'],
+                routes: {
+                    student: '/dashboard',
+                    lecturer: '/lecturer/dashboard',
+                    administrator: '/administrator/dashboard'
+                }
+            },
+            'feed': {
+                keywords: ['feed', 'community', 'posts', 'social', 'timeline'],
+                routes: {
+                    all: '/feed'
+                },
+                specificRoutes: {
+                    'new': '/feed/new',
+                    'my': '/feed?view=my'
+                }
+            }
         };
 
+        // Find target page and specific action
         let targetPage = null;
-        for (const [page, keywords] of Object.entries(pageKeywords)) {
-            if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        let specificAction = null;
+        
+        for (const [page, config] of Object.entries(pageKeywords)) {
+            if (config.keywords.some(keyword => lowerMessage.includes(keyword))) {
                 targetPage = page;
+                
+                // Check for specific actions
+                for (const [action, route] of Object.entries(config.specificRoutes || {})) {
+                    if (lowerMessage.includes(action)) {
+                        specificAction = { action, route };
+                        break;
+                    }
+                }
                 break;
             }
         }
 
-        if (targetPage && this.systemKnowledge.pages[targetPage]) {
-            const pageInfo = this.systemKnowledge.pages[targetPage][userRole] || 
-                           this.systemKnowledge.pages[targetPage]['all'];
+        if (targetPage) {
+            const config = pageKeywords[targetPage];
+            const pageInfo = this.systemKnowledge.pages[targetPage]?.[userRole] || 
+                           this.systemKnowledge.pages[targetPage]?.['all'];
             
-            if (pageInfo) {
+            if (pageInfo || config.routes) {
+                let navigationLink;
+                let actionDescription = '';
+                
+                if (specificAction) {
+                    navigationLink = specificAction.route;
+                    actionDescription = ` I'll take you directly to ${specificAction.action} ${targetPage}.`;
+                } else {
+                    navigationLink = config.routes[userRole] || config.routes.all || pageInfo?.path;
+                }
+                
+                const message = `Taking you to ${targetPage}!${actionDescription} ${pageInfo?.description || ''}
+
+Here's what you can do there:
+${pageInfo?.features?.map(f => `• ${f}`).join('\n') || '• Navigate and explore the features'}`;
+                
                 return {
-                    message: `Taking you to ${targetPage}! ${pageInfo.description}\n\nHere's what you can do there:\n${pageInfo.features.map(f => `• ${f}`).join('\n')}`,
-                    navigationLink: pageInfo.path,
+                    message,
+                    navigationLink,
                     quickActions: [
-                        { label: `Go to ${targetPage.charAt(0).toUpperCase() + targetPage.slice(1)}`, link: pageInfo.path }
+                        { 
+                            label: `Go to ${targetPage.charAt(0).toUpperCase() + targetPage.slice(1)}${specificAction ? ` (${specificAction.action})` : ''}`, 
+                            link: navigationLink,
+                            type: 'primary'
+                        }
                     ],
                     suggestions: this.getContextualSuggestions(targetPage, userRole),
                     interactive: true
@@ -314,9 +565,16 @@ class IntelligentChatbotService {
             }
         }
 
+        // Enhanced navigation help with more examples
         return {
-            message: "I can help you navigate to any page in the system! Try saying things like:\n• 'Go to appointments'\n• 'Open events page'\n• 'Show me messages'\n• 'Take me to my profile'\n\nWhat page would you like to visit?",
-            suggestions: ['Appointments', 'Events', 'Messages', 'Profile', 'Dashboard'],
+            message: "I can help you navigate anywhere in the system! Here are some examples:\n\n🎯 **Basic Navigation:**\n• 'Go to appointments'\n• 'Open events page'\n• 'Show me messages'\n• 'Take me to my profile'\n\n🎯 **Specific Actions:**\n• 'Book new appointment'\n• 'Create event'\n• 'Check unread notifications'\n• 'View pending appointments'\n\nWhat would you like to do?",
+            suggestions: ['Book appointment', 'View events', 'Check messages', 'My profile', 'Dashboard'],
+            quickActions: [
+                { label: 'Appointments', link: pageKeywords.appointments.routes[userRole] || '/appointments' },
+                { label: 'Events', link: pageKeywords.events.routes[userRole] || '/events' },
+                { label: 'Messages', link: '/messages' },
+                { label: 'Profile', link: '/profile' }
+            ],
             interactive: true
         };
     }
@@ -329,8 +587,10 @@ class IntelligentChatbotService {
             if (userRole === 'student') {
                 // Check if they want to book or view appointments
                 if (message.toLowerCase().includes('book') || message.toLowerCase().includes('schedule')) {
-                    // Get available lecturers
-                    const availabilityResult = await StaffAvailability.getAllActiveLecturerAvailability();
+                    // Get available lecturers with caching
+                    const availabilityResult = await this.getCachedData('lecturer_availability', 
+                        async () => await StaffAvailability.getAllActiveLecturerAvailability(), 
+                        3 * 60 * 1000); // 3 minutes cache
                     const slots = availabilityResult.data || [];
                     
                     const uniqueLecturers = [...new Map(
@@ -374,7 +634,13 @@ class IntelligentChatbotService {
                 const pending = appointments.filter(apt => apt.status === 'pending');
 
                 return {
-                    message: `You have ${appointments.length} appointments with ${pending.length} pending requests.\n\nAs a lecturer, you can:\n• Review and approve/decline requests\n• Set your availability schedule\n• Manage your appointment calendar\n• View appointment history`,
+                    message: `You have ${appointments.length} appointments with ${pending.length} pending requests.
+
+As a lecturer, you can:
+• Review and approve/decline requests
+• Set your availability schedule
+• Manage your appointment calendar
+• View appointment history`,
                     data: { appointments: appointments.slice(0, 5), pending },
                     navigationLink: '/lecturer/appointments',
                     quickActions: [
@@ -414,8 +680,27 @@ class IntelligentChatbotService {
      */
     async handleAvailability(message, userId, userRole, context) {
         try {
+            const lowerMessage = message.toLowerCase();
+            
             if (userRole === 'student') {
-                const availabilityResult = await StaffAvailability.getAllActiveLecturerAvailability();
+                // Check if student is trying to set/manage availability (they can't)
+                if (lowerMessage.includes('set') || lowerMessage.includes('manage') || lowerMessage.includes('my availability') || lowerMessage.includes('add availability')) {
+                    return {
+                        message: "⏰ **Availability Management**: As a student, you can view lecturer availability but cannot set your own availability.\n\nOnly lecturers can manage their availability schedules.\n\n**What you can do:**\n• View when lecturers are available\n• Check availability for specific lecturers\n• Book appointments during available slots\n• See real-time availability updates\n\nWould you like to check lecturer availability to book an appointment?",
+                        navigationLink: '/appointments',
+                        quickActions: [
+                            { label: 'Check Lecturer Availability', link: '/appointments', type: 'primary' },
+                            { label: 'Book Appointment', link: '/appointments', type: 'secondary' }
+                        ],
+                        suggestions: ['Check availability', 'Book appointment', 'My appointments', 'Help'],
+                        interactive: true
+                    };
+                }
+                
+                // Use caching for availability data
+                const availabilityResult = await this.getCachedData('lecturer_availability', 
+                    async () => await StaffAvailability.getAllActiveLecturerAvailability(), 
+                    3 * 60 * 1000); // 3 minutes cache
                 const slots = availabilityResult.data || [];
                 
                 // Group by day and time
@@ -438,7 +723,15 @@ class IntelligentChatbotService {
                 const slots = myAvailability.data || [];
                 
                 return {
-                    message: `Your availability settings:\n\n📅 You have ${slots.length} time slots configured\n\nYou can:\n• Add new availability slots\n• Modify existing slots\n• Block specific times\n• Set recurring availability`,
+                    message: `Your availability settings:
+
+📅 You have ${slots.length} time slots configured
+
+You can:
+• Add new availability slots
+• Modify existing slots
+• Block specific times
+• Set recurring availability`,
                     data: { mySlots: slots },
                     navigationLink: '/lecturer/availability',
                     quickActions: [
@@ -460,15 +753,50 @@ class IntelligentChatbotService {
     }
 
     /**
-     * Handle events queries
+     * Handle events queries with enhanced information
      */
     async handleEvents(message, userId, userRole, context) {
         try {
-            const eventsResult = await Event.getAll();
+            const lowerMessage = message.toLowerCase();
+            // Use caching for events data
+            const eventsResult = await this.getCachedData('all_events', async () => await Event.getAll(), 2 * 60 * 1000); // 2 minutes cache
             const events = eventsResult.data || [];
             const upcoming = events.filter(event => new Date(event.event_date) > new Date());
             
+            // Check if user is asking for specific event information
+            const isAskingForDetails = lowerMessage.includes('what') && 
+                                     (lowerMessage.includes('event') || lowerMessage.includes('detail') || lowerMessage.includes('information'));
+            
             if (userRole === 'student') {
+                // Check if student is trying to create an event (they can't)
+                if (lowerMessage.includes('create') || lowerMessage.includes('make') || lowerMessage.includes('new event') || lowerMessage.includes('organize')) {
+                    return {
+                        message: "🎉 **Event Creation**: As a student, you can view and join events but cannot create them.\n\nOnly lecturers and administrators can create campus events.\n\n**What you can do:**\n• View " + upcoming.length + " upcoming events\n• RSVP to events you're interested in\n• Get event notifications and reminders\n• View your RSVP history\n• Check event details and locations\n\nWould you like to see the available events?",
+                        data: { events: upcoming.slice(0, 5) },
+                        navigationLink: '/events',
+                        quickActions: [
+                            { label: 'View Available Events', link: '/events', type: 'primary' }
+                        ],
+                        suggestions: ['View events', 'My RSVPs', 'Event notifications', 'Help'],
+                        interactive: true
+                    };
+                }
+                
+                // Provide detailed event information if requested
+                if (isAskingForDetails && upcoming.length > 0) {
+                    const featuredEvent = upcoming[0]; // Get the first upcoming event as an example
+                    return {
+                        message: `Here's detailed information about upcoming events:\n\n📅 **Featured Event:**\n**${featuredEvent.title}**\n📝 Description: ${featuredEvent.description || 'No description provided'}\n📅 Date & Time: ${this.formatDate(featuredEvent.event_date)}\n📍 Location: ${featuredEvent.location || 'TBA'}\n👥 Target Audience: ${featuredEvent.target_audience || 'All'}\n\nWe have ${upcoming.length} upcoming events in total. Would you like to see them all?`,
+                        data: { featuredEvent, totalEvents: upcoming.length },
+                        navigationLink: '/events',
+                        quickActions: [
+                            { label: 'View All Events', link: '/events', type: 'primary' }
+                        ],
+                        suggestions: ['RSVP to event', 'Event details', 'My RSVPs'],
+                        interactive: true
+                    };
+                }
+                
                 return {
                     message: `🎉 **Upcoming Events**: ${upcoming.length} events available\n\n${upcoming.slice(0, 3).map(event => 
                         `• **${event.title}**\n  📅 ${this.formatDate(event.event_date)}\n  📍 ${event.location || 'TBA'}`
@@ -482,8 +810,48 @@ class IntelligentChatbotService {
                     interactive: true
                 };
             } else if (userRole === 'lecturer' || userRole === 'administrator') {
+                // Provide more detailed information for lecturers and administrators
+                if (isAskingForDetails) {
+                    return {
+                        message: `📋 **Event Management Overview:**
+
+📊 **Statistics:**
+• Total events: ${events.length}
+• Upcoming events: ${upcoming.length}
+• Events this month: ${events.filter(e => new Date(e.event_date).getMonth() === new Date().getMonth()).length}
+
+🎯 **Crucial Event Information I Track:**
+• Event title and description
+• Date and time
+• Location or venue
+• Target audience
+• Registration requirements
+• Contact information
+• Agenda or schedule
+• Materials needed
+• Special instructions
+
+As a ${userRole}, you can manage all aspects of these events.`,
+                        data: { events: upcoming.slice(0, 5), stats: { total: events.length, upcoming: upcoming.length } },
+                        navigationLink: userRole === 'lecturer' ? '/lecturer/events' : '/administrator/events',
+                        quickActions: [
+                            { label: 'Manage Events', link: userRole === 'lecturer' ? '/lecturer/events' : '/administrator/events' },
+                            { label: 'Create New Event', link: userRole === 'lecturer' ? '/lecturer/events/new' : '/administrator/events/new' }
+                        ],
+                        suggestions: ['Create event', 'View RSVPs', 'Edit event', 'Event analytics'],
+                        interactive: true
+                    };
+                }
+                
                 return {
-                    message: `🎉 **Event Management**: ${events.length} total events, ${upcoming.length} upcoming\n\nAs a ${userRole}, you can:\n• Create new events\n• Manage existing events\n• View RSVPs and attendance\n• Edit event details\n• Send event notifications`,
+                    message: `🎉 **Event Management**: ${events.length} total events, ${upcoming.length} upcoming
+
+As a ${userRole}, you can:
+• Create new events
+• Manage existing events
+• View RSVPs and attendance
+• Edit event details
+• Send event notifications`,
                     data: { events: upcoming.slice(0, 5) },
                     navigationLink: userRole === 'lecturer' ? '/lecturer/events' : '/administrator/events',
                     quickActions: [
@@ -503,6 +871,132 @@ class IntelligentChatbotService {
             navigationLink: '/events',
             suggestions: ['View events', 'Create event', 'RSVP to event']
         };
+    }
+
+    /**
+     * Handle survey-related queries
+     */
+    async handleSurveys(message, userId, userRole, context) {
+        try {
+            const lowerMessage = message.toLowerCase();
+            
+            if (userRole === 'student') {
+                // Fetch available surveys for students
+                const surveys = await Survey.listVisibleTemplatesForUser(userRole);
+                const activeSurveys = surveys.filter(s => s.is_active);
+                
+                // Check if student wants to create (they can't)
+                if (lowerMessage.includes('create') || lowerMessage.includes('make') || lowerMessage.includes('new survey')) {
+                    return {
+                        message: "📝 **Survey Creation**: As a student, you can participate in surveys but cannot create them.\n\nOnly lecturers and administrators can create surveys.\n\nYou currently have access to:\n• " + activeSurveys.length + " available surveys to participate in\n• View your survey response history\n• See survey results (if available)\n\nWould you like to take a survey instead?",
+                        data: { surveys: activeSurveys.slice(0, 5) },
+                        navigationLink: '/surveys',
+                        quickActions: [
+                            { label: 'View Available Surveys', link: '/surveys', type: 'primary' }
+                        ],
+                        suggestions: ['Take survey', 'View my responses', 'Help'],
+                        interactive: true
+                    };
+                }
+                
+                return {
+                    message: `📝 **Available Surveys**: ${activeSurveys.length} survey(s) you can participate in!\n\n${activeSurveys.slice(0, 3).map(survey => 
+                        `• **${survey.title}**\n  Target: ${survey.target_audience || 'All'}\n  ${survey.description ? survey.description.substring(0, 80) + '...' : ''}`
+                    ).join('\n\n')}\n\nYour participation helps improve the campus experience!`,
+                    data: { surveys: activeSurveys.slice(0, 5) },
+                    navigationLink: '/surveys',
+                    quickActions: [
+                        { label: 'View All Surveys', link: '/surveys', type: 'primary' }
+                    ],
+                    suggestions: ['Take survey', 'View results', 'My survey history'],
+                    interactive: true
+                };
+            } else if (userRole === 'lecturer' || userRole === 'administrator') {
+                const allSurveys = await Survey.listSurveyTemplates({ created_by: userId });
+                const activeSurveys = allSurveys.filter(s => s.is_active);
+                
+                return {
+                    message: `📝 **Survey Management**: You have ${allSurveys.length} survey(s), ${activeSurveys.length} active
+
+As a ${userRole}, you can:
+• Create new surveys with custom questions
+• Target specific audiences (students, lecturers, all)
+• View real-time response analytics
+• Export survey results
+• Manage survey lifecycle (activate/deactivate)
+
+**Your Latest Surveys:**
+${allSurveys.slice(0, 3).map(survey => 
+                    `• **${survey.title}** - ${survey.total_responses || 0} responses`
+                ).join('\n') || 'No surveys yet'}`,
+                    data: { surveys: allSurveys.slice(0, 5) },
+                    navigationLink: userRole === 'lecturer' ? '/lecturer/surveys' : '/administrator/surveys',
+                    quickActions: [
+                        { label: 'Create New Survey', link: userRole === 'lecturer' ? '/lecturer/surveys/new' : '/administrator/surveys/new', type: 'primary' },
+                        { label: 'View My Surveys', link: userRole === 'lecturer' ? '/lecturer/surveys' : '/administrator/surveys', type: 'secondary' }
+                    ],
+                    suggestions: ['Create survey', 'View responses', 'Survey analytics', 'Help'],
+                    interactive: true
+                };
+            }
+        } catch (error) {
+            logger.error('Error handling surveys query:', error);
+        }
+        
+        return {
+            message: "📝 I can help you with surveys! Students can participate in available surveys, while lecturers and administrators can create and manage them.\n\nLet me take you to the surveys page.",
+            navigationLink: userRole === 'student' ? '/surveys' : 
+                          userRole === 'lecturer' ? '/lecturer/surveys' : '/administrator/surveys',
+            quickActions: [
+                { label: 'Go to Surveys', link: userRole === 'student' ? '/surveys' : 
+                                              userRole === 'lecturer' ? '/lecturer/surveys' : '/administrator/surveys', type: 'primary' }
+            ],
+            suggestions: ['View surveys', 'Take survey', 'Help']
+        };
+    }
+
+    /**
+     * Handle message-related queries
+     */
+    async handleMessages(message, userId, userRole, context) {
+        try {
+            const lowerMessage = message.toLowerCase();
+            
+            // Get user's messages (simplified - you may need to adjust based on your Message model)
+            const messageHint = lowerMessage.includes('unread') ? 'unread messages' :
+                               lowerMessage.includes('send') ? 'send a new message' :
+                               lowerMessage.includes('inbox') ? 'inbox' : 'messages';
+            
+            return {
+                message: `💬 **Messages**: Opening your ${messageHint}!
+
+In the messaging system, you can:
+• Send messages to lecturers, students, and administrators
+• View conversation history
+• Share files and attachments
+• Get real-time notifications for new messages
+• Organize conversations by person
+
+Let me take you to your messages now!`,
+                navigationLink: '/messages',
+                quickActions: [
+                    { label: 'Open Messages', link: '/messages', type: 'primary' },
+                    { label: 'New Message', link: '/messages/new', type: 'secondary' }
+                ],
+                suggestions: ['Send message', 'Check unread', 'Message history', 'Help'],
+                interactive: true
+            };
+        } catch (error) {
+            logger.error('Error handling messages query:', error);
+            return {
+                message: "💬 Taking you to your messages where you can communicate with others in the system.",
+                navigationLink: '/messages',
+                quickActions: [
+                    { label: 'Open Messages', link: '/messages', type: 'primary' }
+                ],
+                suggestions: ['Help', 'Dashboard']
+            };
+        }
     }
 
     /**
@@ -586,6 +1080,70 @@ class IntelligentChatbotService {
     }
 
     /**
+     * Handle notification-related queries
+     */
+    async handleNotifications(message, userId, userRole, context) {
+        try {
+            const NotificationModel = require('../models/Notification');
+            
+            // Get user's notifications
+            const notificationsResult = await NotificationModel.listAllForUser(userId);
+            const notifications = notificationsResult.data || [];
+            const unreadNotifications = notifications.filter(n => !n.is_read);
+            
+            if (message.toLowerCase().includes('unread') || message.toLowerCase().includes('new')) {
+                return {
+                    message: `You have ${unreadNotifications.length} unread notification(s).\n\n${unreadNotifications.slice(0, 3).map(n => 
+                        `🔔 ${n.content}`
+                    ).join('\n\n')}${unreadNotifications.length > 3 ? `\n\n...and ${unreadNotifications.length - 3} more` : ''}`,
+                    data: { notifications: unreadNotifications.slice(0, 5) },
+                    navigationLink: '/notifications',
+                    quickActions: [
+                        { label: 'View All Notifications', link: '/notifications', type: 'primary' },
+                        { label: 'Mark All as Read', action: 'markAllRead', type: 'secondary' }
+                    ],
+                    suggestions: ['Mark all as read', 'View specific notification', 'Help'],
+                    interactive: true
+                };
+            }
+            
+            return {
+                message: `You have ${notifications.length} total notifications, with ${unreadNotifications.length} unread.
+
+I can help you:
+• View all notifications
+• Check unread notifications
+• Navigate to specific notification content
+• Mark notifications as read`,
+                data: { 
+                    total: notifications.length, 
+                    unread: unreadNotifications.length,
+                    recent: notifications.slice(0, 3)
+                },
+                navigationLink: '/notifications',
+                quickActions: [
+                    { label: 'View Notifications', link: '/notifications', type: 'primary' },
+                    { label: 'Check Unread', link: '/notifications?filter=unread', type: 'secondary' }
+                ],
+                suggestions: ['View unread notifications', 'Mark all as read', 'Notification settings'],
+                interactive: true
+            };
+            
+        } catch (error) {
+            logger.error('Error handling notifications query:', error);
+            return {
+                message: "I'll take you to your notifications page where you can see all your updates and alerts.",
+                navigationLink: '/notifications',
+                quickActions: [
+                    { label: 'View Notifications', link: '/notifications', type: 'primary' }
+                ],
+                suggestions: ['Help', 'Dashboard'],
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Handle greeting messages
      */
     async handleGreeting(message, userId, userRole, context) {
@@ -601,6 +1159,7 @@ class IntelligentChatbotService {
             suggestions: [
                 userRole === 'student' ? 'Book appointment' : 'View appointments',
                 'Upcoming events',
+                'Check notifications',
                 'Check messages',
                 'What can you do?'
             ],
@@ -609,14 +1168,138 @@ class IntelligentChatbotService {
     }
 
     /**
+     * Handle notification-based navigation
+     * This method is called when a user clicks on a notification
+     */
+    async handleNotificationNavigation(notificationData, userId, userRole) {
+        try {
+            const { type, source_table, source_id, content } = notificationData;
+            
+            // Map notification types to appropriate pages
+            const notificationRoutes = {
+                'appointment_new': {
+                    student: `/appointments/${source_id}`,
+                    lecturer: `/lecturer/appointments/${source_id}`,
+                    administrator: `/administrator/appointments/${source_id}`
+                },
+                'appointment_approved': {
+                    student: `/appointments/${source_id}`,
+                    lecturer: `/lecturer/appointments/${source_id}`
+                },
+                'appointment_declined': {
+                    student: `/appointments/${source_id}`,
+                    lecturer: `/lecturer/appointments/${source_id}`
+                },
+                'appointment_cancelled': {
+                    student: `/appointments/${source_id}`,
+                    lecturer: `/lecturer/appointments/${source_id}`
+                },
+                'event_new': {
+                    all: `/events/${source_id}`
+                },
+                'event_update': {
+                    all: `/events/${source_id}`
+                },
+                'event_reminder': {
+                    all: `/events/${source_id}`
+                },
+                'message_new': {
+                    all: `/messages/${source_id}`
+                },
+                'survey_new': {
+                    student: `/surveys/${source_id}`,
+                    lecturer: `/lecturer/surveys/${source_id}`,
+                    administrator: `/administrator/surveys/${source_id}`
+                },
+                'system_announcement': {
+                    all: '/notifications'
+                }
+            };
+
+            const route = notificationRoutes[type];
+            let navigationLink = '/notifications'; // Default fallback
+            let message = `Opening the page related to: "${content}"`;
+
+            if (route) {
+                navigationLink = route[userRole] || route.all || navigationLink;
+                
+                // Customize message based on notification type
+                switch (type) {
+                    case 'appointment_new':
+                        message = userRole === 'student' 
+                            ? "Taking you to your appointment details. You can view the status and details here."
+                            : "Opening the new appointment request. You can approve or decline it here.";
+                        break;
+                    case 'appointment_approved':
+                        message = "Great news! Taking you to your approved appointment details.";
+                        break;
+                    case 'appointment_declined':
+                        message = "Taking you to the appointment details. You can book a different time if needed.";
+                        break;
+                    case 'event_new':
+                        message = "Taking you to the new event details. You can RSVP and get more information here.";
+                        break;
+                    case 'message_new':
+                        message = "Opening your new message. You can read and reply here.";
+                        break;
+                    case 'survey_new':
+                        message = userRole === 'student'
+                            ? "Taking you to the new survey. You can participate and share your feedback."
+                            : "Opening the survey management page where you can view responses and analytics.";
+                        break;
+                    default:
+                        message = `Opening the page for: "${content}"`;
+                }
+            }
+
+            return {
+                message,
+                navigationLink,
+                quickActions: [
+                    { 
+                        label: 'Go to Page', 
+                        link: navigationLink,
+                        type: 'primary'
+                    },
+                    {
+                        label: 'View All Notifications',
+                        link: '/notifications',
+                        type: 'secondary'
+                    }
+                ],
+                suggestions: [
+                    'Mark as read',
+                    'View all notifications',
+                    'Help'
+                ],
+                interactive: true,
+                notificationHandled: true
+            };
+
+        } catch (error) {
+            logger.error('Error handling notification navigation:', error);
+            return {
+                message: "I'll take you to the notifications page where you can see all your updates.",
+                navigationLink: '/notifications',
+                quickActions: [
+                    { label: 'View Notifications', link: '/notifications', type: 'primary' }
+                ],
+                suggestions: ['Help', 'Dashboard'],
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Handle general queries
      */
     async handleGeneral(message, userId, userRole, context) {
         return {
-            message: "I'm your intelligent RP Community assistant! I can help you with:\n\n• 🧭 **Navigation** - 'Go to appointments', 'Open events'\n• 📅 **Appointments** - Booking, scheduling, availability\n• 🎉 **Events** - Campus activities and workshops\n• 📝 **Surveys** - Polls and feedback\n• 💬 **Messages** - Communication\n• ❓ **Help** - System guidance and tutorials\n\nJust tell me what you want to do in natural language!",
+            message: "I'm your intelligent RP Community assistant! I can help you with:\n\n• 🧭 **Navigation** - 'Go to appointments', 'Open events'\n• 📅 **Appointments** - Booking, scheduling, availability\n• 🎉 **Events** - Campus activities and workshops\n• 📝 **Surveys** - Polls and feedback\n• 💬 **Messages** - Communication\n• 🔔 **Notifications** - Handle alerts and updates\n• ❓ **Help** - System guidance and tutorials\n\nJust tell me what you want to do in natural language!",
             suggestions: [
                 'Show my appointments',
                 'Upcoming events', 
+                'Check notifications',
                 'Help me navigate',
                 'What can you do?'
             ],
@@ -625,6 +1308,40 @@ class IntelligentChatbotService {
     }
 
     // Helper methods
+
+    /**
+     * Get cached data or fetch and cache it
+     */
+    async getCachedData(key, fetchFunction, ttl = this.cacheTimeout) {
+        const cached = this.cache.get(key);
+        
+        if (cached && (Date.now() - cached.timestamp < ttl)) {
+            return cached.data; // Cache hit
+        }
+        
+        // Cache miss - fetching data
+        const data = await fetchFunction();
+        
+        this.cache.set(key, {
+            data,
+            timestamp: Date.now()
+        });
+        
+        return data;
+    }
+
+    /**
+     * Clear cache for specific key or all cache
+     */
+    clearCache(key = null) {
+        if (key) {
+            this.cache.delete(key);
+            // Cache cleared
+        } else {
+            this.cache.clear();
+            // All cache cleared
+        }
+    }
 
     /**
      * Get conversation context for user

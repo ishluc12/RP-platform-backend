@@ -1,9 +1,9 @@
-const chatbotService = require('../../services/chatbotService');
+const intelligentChatbotService = require('../../services/intelligentChatbotService');
 const { response, errorResponse } = require('../../utils/responseHandlers');
 const { logger } = require('../../utils/logger');
 
 /**
- * Handle chatbot query
+ * Handle chatbot query with intelligent service
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
@@ -18,9 +18,9 @@ const handleQuery = async (req, res) => {
             return errorResponse(res, 400, 'Message is required');
         }
 
-        logger.info(`Chatbot query from user ${userId} (${userRole}): ${message}`);
+        logger.info(`Intelligent chatbot query from user ${userId} (${userRole}): ${message}`);
 
-        const result = await chatbotService.processQuery(userId, message, userName, userRole);
+        const result = await intelligentChatbotService.processQuery(userId, message, userName, userRole);
 
         if (!result.success) {
             return errorResponse(res, 500, result.message || 'Failed to process query', result.error);

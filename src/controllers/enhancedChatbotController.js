@@ -106,6 +106,47 @@ class EnhancedChatbotController {
     }
     
     /**
+     * Handle notification click navigation
+     * POST /api/chatbot/notification-click
+     */
+    static async handleNotificationClick(req, res) {
+        try {
+            const { notificationData, context = {} } = req.body;
+            const user = req.user;
+            
+            if (!notificationData) {
+                return errorResponse(res, 400, 'Notification data is required');
+            }
+            
+            logger.info(`Notification click from user ${user.id} (${user.role}): ${notificationData.type}`);
+            
+            // Use intelligent service to handle notification navigation
+            const result = await IntelligentChatbotService.handleNotificationNavigation(
+                notificationData,
+                user.id,
+                user.role
+            );
+            
+            if (!result) {
+                return errorResponse(res, 500, 'Failed to process notification click');
+            }
+            
+            response(res, 200, 'Notification click processed successfully', {
+                success: true,
+                message: result.message,
+                navigationLink: result.navigationLink,
+                quickActions: result.quickActions,
+                suggestions: result.suggestions,
+                interactive: result.interactive,
+                notificationHandled: result.notificationHandled
+            });
+        } catch (error) {
+            logger.error('Notification click handler error:', error);
+            errorResponse(res, 500, 'Failed to process notification click', error.message);
+        }
+    }
+
+    /**
      * Get chatbot health status
      * GET /api/chatbot/health
      */

@@ -1,0 +1,467 @@
+{
+  "intents": {
+    "navigation_general": {
+      "examples": [
+        "Go to appointments",
+        "Open events page",
+        "Take me to messages",
+        "Show me my profile",
+        "Navigate to dashboard",
+        "I want to go to the appointments section",
+        "Can you open the events page for me",
+        "Direct me to my messages",
+        "Where is the profile page",
+        "How do I get to the dashboard",
+        "Show me the way to notifications",
+        "Take me to the surveys page",
+        "Open the community feed",
+        "I need to access my settings"
+      ],
+      "keywords": [
+        "go", "open", "navigate", "take", "show", "direct", "access", "page", "section"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I can take you anywhere in the system! Where would you like to go?",
+          "action": "handle_navigation",
+          "suggestions": ["Appointments", "Events", "Messages", "Profile", "Dashboard"]
+        },
+        "lecturer": {
+          "message": "I can help you navigate to any section. What are you looking for?",
+          "action": "handle_navigation",
+          "suggestions": ["Appointments", "Events", "Surveys", "Dashboard", "Availability"]
+        },
+        "administrator": {
+          "message": "I can direct you to any administrative section. Where do you need to go?",
+          "action": "handle_navigation",
+          "suggestions": ["Dashboard", "Users", "Appointments", "Events", "Reports"]
+        }
+      }
+    },
+    "navigation_specific": {
+      "examples": [
+        "Book new appointment",
+        "Create new event",
+        "Check unread notifications",
+        "View pending appointments",
+        "Open new message",
+        "Take survey",
+        "Edit my profile",
+        "Change password",
+        "View appointment history",
+        "See upcoming events",
+        "Check my RSVP status",
+        "View survey results"
+      ],
+      "keywords": [
+        "new", "create", "unread", "pending", "edit", "change", "history", "upcoming", "results"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I'll take you directly to that specific action!",
+          "action": "handle_specific_navigation"
+        },
+        "lecturer": {
+          "message": "Taking you to the specific page you requested!",
+          "action": "handle_specific_navigation"
+        },
+        "administrator": {
+          "message": "Directing you to the administrative function you need!",
+          "action": "handle_specific_navigation"
+        }
+      }
+    },
+    "notification_handling": {
+      "examples": [
+        "I clicked on a notification",
+        "Show me this notification",
+        "What is this notification about",
+        "Take me to this notification's page",
+        "I got a notification about an appointment",
+        "There's a new event notification",
+        "I have an unread message notification",
+        "Notification about survey",
+        "System announcement notification",
+        "Appointment approved notification",
+        "Event reminder notification"
+      ],
+      "keywords": [
+        "notification", "clicked", "alert", "unread", "announcement", "reminder", "approved", "new"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I'll help you navigate to the content of this notification!",
+          "action": "handle_notification_navigation"
+        },
+        "lecturer": {
+          "message": "Taking you to the page related to this notification!",
+          "action": "handle_notification_navigation"
+        },
+        "administrator": {
+          "message": "Opening the administrative page for this notification!",
+          "action": "handle_notification_navigation"
+        }
+      }
+    },
+    "book_appointment": {
+      "examples": [
+        "I want to book an appointment",
+        "How can I schedule a meeting",
+        "I need to meet with a lecturer",
+        "Book appointment with professor",
+        "Schedule consultation",
+        "I want to book an appointment with my lecturer",
+        "Can you help me schedule a meeting",
+        "How do I book time with staff",
+        "I need academic consultation",
+        "Set up appointment",
+        "Make an appointment",
+        "Arrange a meeting",
+        "Reserve time with lecturer",
+        "Get an appointment",
+        "Need to see a professor",
+        "Book urgent appointment",
+        "Schedule meeting for today",
+        "I need to see someone ASAP"
+      ],
+      "keywords": [
+        "book", "schedule", "appointment", "meeting", "consultation", "reserve", "arrange", "urgent", "asap"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I'll help you book an appointment. Let me check available lecturers for you.",
+          "action": "show_available_staff",
+          "link": "/appointments/new"
+        },
+        "lecturer": {
+          "message": "You can view and manage appointment requests from students.",
+          "action": "show_appointment_requests",
+          "link": "/lecturer/appointments"
+        },
+        "administrator": {
+          "message": "You can view all appointments in the system.",
+          "action": "show_all_appointments",
+          "link": "/administrator/appointments"
+        }
+      }
+    },
+    "check_lecturer_availability": {
+      "examples": [
+        "When is my lecturer available",
+        "Check Dr Smith availability",
+        "What time is professor free",
+        "Show lecturer schedule",
+        "When can I meet with staff",
+        "Is my lecturer free today",
+        "Check availability for this week",
+        "When is the next available slot",
+        "Show me free time slots",
+        "Who is available now",
+        "Check all lecturer availability",
+        "Find available appointment times"
+      ],
+      "keywords": [
+        "available", "availability", "free", "schedule", "time", "slot", "when", "check"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Let me check lecturer availability for you.",
+          "action": "fetch_staff_availability",
+          "link": "/appointments"
+        },
+        "lecturer": {
+          "message": "You can view and manage your availability settings.",
+          "action": "show_my_availability",
+          "link": "/lecturer/availability"
+        },
+        "administrator": {
+          "message": "You can view system-wide availability.",
+          "action": "show_all_staff_availability",
+          "link": "/administrator/appointments"
+        }
+      }
+    },
+    "my_appointments": {
+      "examples": [
+        "Show my appointments",
+        "What appointments do I have",
+        "My upcoming meetings",
+        "List my appointments",
+        "Check my schedule",
+        "Do I have any appointments today",
+        "Show my appointment history",
+        "What meetings are scheduled",
+        "My appointment status",
+        "Upcoming consultations",
+        "Check my bookings",
+        "View my calendar"
+      ],
+      "keywords": [
+        "my", "appointments", "meetings", "schedule", "upcoming", "today", "history", "status"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Let me show you your appointments.",
+          "action": "fetch_student_appointments",
+          "link": "/appointments"
+        },
+        "lecturer": {
+          "message": "Here are your appointment requests and schedule.",
+          "action": "fetch_lecturer_appointments",
+          "link": "/lecturer/appointments"
+        },
+        "administrator": {
+          "message": "You can view all system appointments.",
+          "action": "fetch_admin_appointments",
+          "link": "/administrator/appointments"
+        }
+      }
+    },
+    "events": {
+      "examples": [
+        "Show upcoming events",
+        "What events are happening",
+        "Create new event",
+        "I want to RSVP to an event",
+        "List all events",
+        "Event calendar",
+        "Campus activities",
+        "Workshops and seminars",
+        "Event details",
+        "My event RSVPs",
+        "Event management",
+        "Organize an event",
+        "Event registration",
+        "Upcoming workshops"
+      ],
+      "keywords": [
+        "event", "events", "workshop", "seminar", "activity", "rsvp", "calendar", "upcoming"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Let me show you upcoming events you can join!",
+          "action": "fetch_upcoming_events",
+          "link": "/events"
+        },
+        "lecturer": {
+          "message": "You can create and manage events here.",
+          "action": "fetch_lecturer_events",
+          "link": "/lecturer/events"
+        },
+        "administrator": {
+          "message": "You have full event management capabilities.",
+          "action": "fetch_all_events",
+          "link": "/administrator/events"
+        }
+      }
+    },
+    "messages": {
+      "examples": [
+        "Check my messages",
+        "Open inbox",
+        "New messages",
+        "Send a message",
+        "Chat with lecturer",
+        "Message history",
+        "Unread messages",
+        "Communication",
+        "Conversations",
+        "Reply to message",
+        "Message someone",
+        "Check chat"
+      ],
+      "keywords": [
+        "message", "messages", "chat", "inbox", "communication", "conversation", "unread"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Opening your messages where you can chat with lecturers and peers!",
+          "action": "open_messages",
+          "link": "/messages"
+        },
+        "lecturer": {
+          "message": "Access your messages to communicate with students!",
+          "action": "open_messages",
+          "link": "/messages"
+        },
+        "administrator": {
+          "message": "Access the messaging system for communication!",
+          "action": "open_messages",
+          "link": "/messages"
+        }
+      }
+    },
+    "surveys": {
+      "examples": [
+        "Available surveys",
+        "Take a survey",
+        "Create survey",
+        "Survey results",
+        "Feedback forms",
+        "Questionnaires",
+        "Poll participation",
+        "Survey analytics",
+        "My survey responses",
+        "New surveys",
+        "Survey management",
+        "Student feedback"
+      ],
+      "keywords": [
+        "survey", "surveys", "poll", "feedback", "questionnaire", "form", "analytics"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Here are surveys you can participate in!",
+          "action": "show_available_surveys",
+          "link": "/surveys"
+        },
+        "lecturer": {
+          "message": "You can create and manage surveys for students!",
+          "action": "show_lecturer_surveys",
+          "link": "/lecturer/surveys"
+        },
+        "administrator": {
+          "message": "Full survey system management available!",
+          "action": "show_admin_surveys",
+          "link": "/administrator/surveys"
+        }
+      }
+    },
+    "notifications": {
+      "examples": [
+        "Check notifications",
+        "Unread alerts",
+        "Notification settings",
+        "Mark as read",
+        "Clear notifications",
+        "Notification history",
+        "System alerts",
+        "Updates and announcements",
+        "Bell notifications",
+        "Recent notifications"
+      ],
+      "keywords": [
+        "notification", "notifications", "alert", "alerts", "unread", "bell", "updates"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Here are your notifications and alerts!",
+          "action": "show_notifications",
+          "link": "/notifications"
+        },
+        "lecturer": {
+          "message": "Check your notifications and system updates!",
+          "action": "show_notifications",
+          "link": "/notifications"
+        },
+        "administrator": {
+          "message": "System notifications and administrative alerts!",
+          "action": "show_notifications",
+          "link": "/notifications"
+        }
+      }
+    },
+    "help": {
+      "examples": [
+        "Help",
+        "What can you do",
+        "How to use this system",
+        "I need assistance",
+        "Guide me",
+        "Tutorial",
+        "How does this work",
+        "System help",
+        "I'm confused",
+        "Show me around",
+        "What features are available",
+        "How do I navigate",
+        "Explain the system",
+        "Getting started"
+      ],
+      "keywords": [
+        "help", "assist", "guide", "tutorial", "how", "what", "explain", "confused", "features"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "I'm here to help! As a student, you can book appointments, join events, take surveys, and more!",
+          "action": "show_help_menu",
+          "suggestions": ["Book appointment", "View events", "Take survey", "Check messages"]
+        },
+        "lecturer": {
+          "message": "I can help you manage appointments, create events, conduct surveys, and more!",
+          "action": "show_lecturer_help",
+          "suggestions": ["Manage appointments", "Create event", "Set availability", "View dashboard"]
+        },
+        "administrator": {
+          "message": "I can assist with system administration, user management, and oversight functions!",
+          "action": "show_admin_help",
+          "suggestions": ["System dashboard", "User management", "View reports", "System settings"]
+        }
+      }
+    },
+    "greeting": {
+      "examples": [
+        "Hello",
+        "Hi",
+        "Hey",
+        "Good morning",
+        "Good afternoon",
+        "Good evening",
+        "Greetings",
+        "Hi there",
+        "Hello there",
+        "Hey there"
+      ],
+      "keywords": [
+        "hello", "hi", "hey", "good", "morning", "afternoon", "evening", "greetings"
+      ],
+      "roleResponses": {
+        "student": {
+          "message": "Hello! I'm your RP Community assistant. I can help you with appointments, events, surveys, and navigation!",
+          "suggestions": ["Book appointment", "View events", "Check messages", "What can you do?"]
+        },
+        "lecturer": {
+          "message": "Hello! I'm here to help you manage appointments, create events, and handle your lecturer duties!",
+          "suggestions": ["View appointments", "Create event", "Set availability", "Help"]
+        },
+        "administrator": {
+          "message": "Hello! I can assist you with system administration and management tasks!",
+          "suggestions": ["System dashboard", "User management", "View reports", "Help"]
+        }
+      }
+    }
+  },
+  "entities": {
+    "pages": [
+      "appointments", "events", "messages", "surveys", "profile", "notifications", "dashboard", "feed", "settings"
+    ],
+    "actions": [
+      "book", "create", "view", "check", "open", "edit", "delete", "update", "manage", "set"
+    ],
+    "time_expressions": [
+      "today", "tomorrow", "this week", "next week", "now", "later", "urgent", "asap"
+    ],
+    "notification_types": [
+      "appointment", "event", "message", "survey", "system", "reminder", "update", "alert"
+    ]
+  },
+  "responses": {
+    "fallback": [
+      "I'm not sure I understand that. Can you try rephrasing your question?",
+      "I didn't quite get that. Could you be more specific about what you need help with?",
+      "I'm here to help with appointments, events, surveys, messages, and navigation. What would you like to do?",
+      "Let me help you! Try asking about appointments, events, or other system features."
+    ],
+    "navigation_success": [
+      "Taking you there now!",
+      "Opening that page for you!",
+      "Navigating to your requested section!",
+      "Here we go!"
+    ],
+    "error_messages": [
+      "I encountered an issue. Please try again.",
+      "Something went wrong. Let me try a different approach.",
+      "I'm having trouble with that request. Can you try again?"
+    ]
+  }
+}

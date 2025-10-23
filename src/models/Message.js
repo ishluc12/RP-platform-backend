@@ -12,7 +12,22 @@ class Message {
             const offset = (page - 1) * limit;
             const { data, error, count } = await db
                 .from(TABLE_NAME)
-                .select('*', { count: 'exact' })
+                .select(`
+                    id,
+                    sender_id,
+                    receiver_id,
+                    group_id,
+                    is_group,
+                    message,
+                    message_type,
+                    file_name,
+                    file_type,
+                    file_size,
+                    file_url,
+                    sent_at,
+                    is_read,
+                    sender:users!messages_sender_id_fkey ( id, name, profile_picture, role )
+                `, { count: 'exact' })
                 .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
                 .order('sent_at', { ascending: false })
                 .range(offset, offset + limit - 1);
@@ -26,7 +41,7 @@ class Message {
 
             return {
                 success: true,
-                data: data.reverse(),
+                data: (data || []).reverse(),
                 pagination: {
                     currentPage: page,
                     limit,
@@ -64,7 +79,22 @@ class Message {
             const offset = (page - 1) * limit;
             const { data, error, count } = await db
                 .from(TABLE_NAME)
-                .select('*', { count: 'exact' })
+                .select(`
+                    id,
+                    sender_id,
+                    receiver_id,
+                    group_id,
+                    is_group,
+                    message,
+                    message_type,
+                    file_name,
+                    file_type,
+                    file_size,
+                    file_url,
+                    sent_at,
+                    is_read,
+                    sender:users!messages_sender_id_fkey ( id, name, profile_picture, role )
+                `, { count: 'exact' })
                 .eq('group_id', groupId)
                 .eq('is_group', true)
                 .order('sent_at', { ascending: false })
@@ -79,7 +109,7 @@ class Message {
 
             return {
                 success: true,
-                data: data.reverse(),
+                data: (data || []).reverse(),
                 pagination: {
                     currentPage: page,
                     limit,
@@ -260,7 +290,7 @@ class Message {
         try {
             const { data, error } = await db
                 .from(TABLE_NAME)
-                .update({ is_read: true, read_at: new Date().toISOString() })
+                .update({ is_read: true })
                 .in('id', messageIds)
                 .eq('receiver_id', userId)
                 .select();
@@ -275,6 +305,55 @@ class Message {
             logger.error('Exception in markAsRead:', error);
             return { success: false, error: error.message };
         }
+    }
+
+    static async getById(messageId) {
+        try {
+            const { data, error } = await db
+                .from(TABLE_NAME)
+                .select('*')
+                .eq('id', messageId)
+                .single();
+
+            if (error) {
+                logger.error('Error fetching message by ID from DB:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            logger.error('Exception in getById message:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    static async delete(messageId, userId) {
+        try {
+            const { data, error } = await db
+                .from(TABLE_NAME)
+                .delete()
+                .eq('id', messageId)
+                .eq('sender_id', userId)
+                .select('*')
+                .single();
+
+            if (error) {
+                logger.error('Error deleting message from DB:', error);
+                return { success: false, error: error.message };
+            }
+
+            if (!data) return { success: false, error: 'Message not found or unauthorized' };
+
+            return { success: true, data: { message: 'Message deleted' } };
+        } catch (error) {
+            logger.error('Exception in delete message:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Alias for backward compatibility
+    static async getDirectMessageThread(userId1, userId2, options) {
+        return this.getDirectThread(userId1, userId2, options);
     }
 }
 

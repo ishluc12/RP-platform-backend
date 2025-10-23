@@ -7,13 +7,14 @@ class ChatGroup {
      * @param {string} params.name
      * @param {string} params.created_by
      * @param {Array<string>} [params.initial_members]
+     * @param {string} [params.avatar]
      * @returns {Promise<Object>}
      */
-    static async create({ name, created_by, initial_members = [] }) {
+    static async create({ name, created_by, initial_members = [], avatar = null }) {
         try {
             const { data: group, error: groupError } = await supabase
                 .from('chat_groups')
-                .insert([{ name, created_by, avatar: params.avatar || null }])
+                .insert([{ name, created_by, avatar }])
                 .select('id, name, avatar')
                 .single();
 

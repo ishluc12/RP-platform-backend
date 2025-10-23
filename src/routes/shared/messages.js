@@ -28,6 +28,9 @@ router.get('/groups', MessageController.getUserGroupChats);
 // Download file from message
 router.get('/download/:messageId', MessageController.downloadFile);
 
+// Delete a message (only sender can delete)
+router.delete('/:messageId', MessageController.deleteMessage);
+
 // No chat group routes in this file, they belong in chatGroups.js
 
 module.exports = router;

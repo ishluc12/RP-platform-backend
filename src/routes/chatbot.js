@@ -28,6 +28,13 @@ router.post('/simple-query', ChatbotController.query);
 router.get('/suggestions', EnhancedChatbotController.getSuggestionsForRole);
 
 /**
+ * POST /api/chatbot/notification-click
+ * Handle notification click navigation
+ * Body: { notificationData: object, context?: object }
+ */
+router.post('/notification-click', EnhancedChatbotController.handleNotificationClick);
+
+/**
  * GET /api/chatbot/health
  * Check chatbot system health
  */

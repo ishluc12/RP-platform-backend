@@ -252,6 +252,45 @@ class ChatbotTrainer {
                     }
                 },
 
+                // Enhanced event information queries
+                event_info: {
+                    examples: [
+                        "What events are coming up?",
+                        "Show me upcoming events",
+                        "Are there any events this week?",
+                        "Tell me about campus events",
+                        "What activities are available?",
+                        "Any workshops or seminars?",
+                        "Show me today's events",
+                        "What's happening this month?",
+                        "List all upcoming events",
+                        "Are there any interesting events?",
+                        "What events can I join?",
+                        "Show me events for students",
+                        "Any networking events?",
+                        "What's new with events?",
+                        "Can you show me the event calendar?"
+                    ],
+                    keywords: ["event", "events", "workshop", "seminar", "activity", "calendar", "upcoming", "happening"],
+                    roleResponses: {
+                        student: {
+                            message: "I'll show you upcoming events you can join!",
+                            action: "show_upcoming_events",
+                            link: "/events"
+                        },
+                        lecturer: {
+                            message: "Here are the upcoming events, including ones you've created.",
+                            action: "show_lecturer_events",
+                            link: "/lecturer/events"
+                        },
+                        administrator: {
+                            message: "Here's an overview of all upcoming campus events.",
+                            action: "show_all_events",
+                            link: "/administrator/events"
+                        }
+                    }
+                },
+
                 // Conversational help and guidance
                 help: {
                     examples: [
@@ -445,6 +484,29 @@ class ChatbotTrainer {
                             "Survey system administration",
                             "Generate reports and analytics",
                             "System configuration and settings"
+                        ]
+                    },
+                    eventInformation: {
+                        crucialDetails: [
+                            "Event title and description",
+                            "Date and time",
+                            "Location or venue",
+                            "Target audience",
+                            "Registration requirements",
+                            "Contact information",
+                            "Agenda or schedule",
+                            "Materials needed",
+                            "Special instructions"
+                        ],
+                        types: [
+                            "Academic workshops",
+                            "Career seminars",
+                            "Social gatherings",
+                            "Sports activities",
+                            "Cultural events",
+                            "Guest lectures",
+                            "Club meetings",
+                            "Orientation sessions"
                         ]
                     }
                 },

@@ -343,7 +343,7 @@ class PostModel {
      * @param {Object} updates
      * @returns {Promise<Object>}
      */
-    static async update(postId, updates) {
+    static async updateById(postId, updates) {
         try {
             const { data, error } = await supabase
                 .from('posts')
@@ -529,6 +529,48 @@ class PostModel {
                     totalPages: Math.ceil(count / limit)
                 }
             };
+        } catch (error) {
+            return { success: false, error: error.message || 'Unknown error' };
+        }
+    }
+
+    /**
+     * Get list of users who liked a post
+     * @param {string} postId
+     * @returns {Promise<Object>}
+     */
+    static async getLikes(postId) {
+        try {
+            const { data: likes, error } = await supabase
+                .from('post_likes')
+                .select('id, user_id, created_at')
+                .eq('post_id', postId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            if (!likes || likes.length === 0) {
+                return { success: true, data: [] };
+            }
+
+            const userIds = Array.from(new Set(likes.map(l => l.user_id)));
+            const { data: users, error: usersError } = await supabase
+                .from('users')
+                .select('id, name, profile_picture, role')
+                .in('id', userIds);
+
+            if (usersError) throw usersError;
+
+            const userMap = new Map(users.map(u => [u.id, u]));
+
+            const result = likes.map(like => ({
+                id: like.id,
+                user_id: like.user_id,
+                created_at: like.created_at,
+                user: userMap.get(like.user_id) || null,
+            }));
+
+            return { success: true, data: result };
         } catch (error) {
             return { success: false, error: error.message || 'Unknown error' };
         }

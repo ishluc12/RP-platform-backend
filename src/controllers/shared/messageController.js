@@ -212,8 +212,26 @@ const getGroupMessages = async (req, res) => {
             return errorResponse(res, 400, result.error);
         }
 
+        // Ensure sender user details are present
+        let messages = result.data || [];
+        try {
+            if (messages.length > 0 && !messages[0].sender) {
+                const { supabase, supabaseAdmin } = require('../../config/database');
+                const db = supabaseAdmin || supabase;
+                const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
+                if (senderIds.length > 0) {
+                    const { data: users } = await db
+                        .from('users')
+                        .select('id, name, profile_picture, role')
+                        .in('id', senderIds);
+                    const userMap = new Map((users || []).map(u => [u.id, u]));
+                    messages = messages.map(m => ({ ...m, sender: userMap.get(m.sender_id) || null }));
+                }
+            }
+        } catch (e) { /* ignore enrichment errors */ }
+
         response(res, 200, 'Group messages fetched successfully', {
-            messages: result.data || [],
+            messages,
             pagination: result.pagination || {}
         });
     } catch (error) {
@@ -237,11 +255,7 @@ const getDirectMessageThread = async (req, res) => {
             return errorResponse(res, 400, 'Other user ID is required');
         }
 
-        if (otherUserId === currentUserId) {
-            return errorResponse(res, 400, 'Cannot get thread with yourself');
-        }
-
-        const result = await Message.getDirectThread(currentUserId, otherUserId, {
+        const result = await Message.getDirectMessageThread(currentUserId, otherUserId, {
             page: parseInt(page),
             limit: parseInt(limit)
         });
@@ -251,8 +265,26 @@ const getDirectMessageThread = async (req, res) => {
             return errorResponse(res, 400, result.error);
         }
 
+        // Ensure sender user details are present
+        let messages = result.data || [];
+        try {
+            if (messages.length > 0 && !messages[0].sender) {
+                const { supabase, supabaseAdmin } = require('../../config/database');
+                const db = supabaseAdmin || supabase;
+                const senderIds = Array.from(new Set(messages.map(m => m.sender_id).filter(Boolean)));
+                if (senderIds.length > 0) {
+                    const { data: users } = await db
+                        .from('users')
+                        .select('id, name, profile_picture, role')
+                        .in('id', senderIds);
+                    const userMap = new Map((users || []).map(u => [u.id, u]));
+                    messages = messages.map(m => ({ ...m, sender: userMap.get(m.sender_id) || null }));
+                }
+            }
+        } catch (e) { /* ignore enrichment errors */ }
+
         response(res, 200, 'Direct message thread fetched successfully', {
-            messages: result.data || [],
+            messages,
             pagination: result.pagination || {}
         });
     } catch (error) {
@@ -477,5 +509,20 @@ module.exports = {
     getUserConversations,
     getUserGroupChats,
     markAsRead,
-    downloadFile
+    downloadFile,
+    deleteMessage: async (req, res) => {
+        try {
+            const { messageId } = req.params;
+            const userId = req.user.id;
+            if (!messageId) {
+                return errorResponse(res, 400, 'Message ID is required');
+            }
+            const result = await Message.delete(messageId, userId);
+            if (!result.success) return errorResponse(res, 400, result.error);
+            response(res, 200, 'Message deleted', result.data);
+        } catch (error) {
+            logger.error('Error deleting message:', error.message);
+            errorResponse(res, 500, 'Internal server error', error.message);
+        }
+    }
 };

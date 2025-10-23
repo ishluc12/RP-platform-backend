@@ -13,6 +13,7 @@ const surveyFileUploadRoutes = require('./surveyFileUpload');
 const eventRoutes = require('./events');
 const lecturerAvailabilityRoutes = require('./lecturerAvailability');
 const feedbackRoutes = require('./feedback');
+const configRoutes = require('./config');
 
 // Mount shared routes
 router.use('/users', userRoutes);
@@ -27,5 +28,6 @@ router.use('/surveys', surveyFileUploadRoutes);
 router.use('/events', eventRoutes);
 router.use('/lecturer-availability', lecturerAvailabilityRoutes);
 router.use('/feedback', feedbackRoutes);
+router.use('/config', configRoutes);
 
 module.exports = router;

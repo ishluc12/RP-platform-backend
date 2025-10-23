@@ -92,7 +92,7 @@ const moderatePost = async (req, res) => {
                 break;
         }
 
-        const result = await Post.update(postId, updateData);
+        const result = await Post.updateById(postId, updateData);
         if (!result.success) {
             return errorResponse(res, 500, 'Failed to moderate post');
         }
@@ -231,7 +231,7 @@ const bulkModerate = async (req, res) => {
                         break;
                 }
 
-                const result = await Post.update(postId, updateData);
+                const result = await Post.updateById(postId, updateData);
                 if (result.success) {
                     successCount++;
 

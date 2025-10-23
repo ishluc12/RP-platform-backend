@@ -63,11 +63,11 @@ const getPostById = async (req, res) => {
  */
 const updatePost = async (req, res) => {
     const { id } = req.params;
-    const { content, image_url } = req.body;
+    const { content, description, image_url } = req.body;
     const userId = req.user.id;
 
     try {
-        const result = await Post.update(id, userId, { content, image_url });
+        const result = await Post.update(id, userId, { content, description, image_url });
         if (!result.success) return errorResponse(res, 400, result.error);
         response(res, 200, 'Post updated successfully', result.data);
     } catch (error) {
@@ -127,6 +127,20 @@ const unlikePost = async (req, res) => {
     }
 };
 
+/**
+ * Get list of likes for a post.
+ */
+const getLikes = async (req, res) => {
+    const { postId } = req.params;
+    try {
+        const result = await Post.getLikes(postId);
+        if (!result.success) return errorResponse(res, 400, result.error);
+        response(res, 200, 'Post likes fetched successfully', result.data);
+    } catch (error) {
+        errorResponse(res, 500, error.message);
+    }
+};
+
 module.exports = {
     createPost,
     getFeed,
@@ -134,5 +148,6 @@ module.exports = {
     updatePost,
     deletePost,
     likePost,
-    unlikePost
+    unlikePost,
+    getLikes
 };
