@@ -25,6 +25,12 @@ router.get('/:id', adminAppointmentController.getAppointmentById);
 // PUT /api/admin/appointments/:id/status - Update appointment status
 router.put('/:id/status', adminAppointmentController.updateAppointmentStatus);
 
+// PUT /api/admin/appointments/:id/cancel - Cancel appointment
+router.put('/:id/cancel', adminAppointmentController.cancelAppointment);
+
+// PUT /api/admin/appointments/:id/complete - Complete appointment
+router.put('/:id/complete', adminAppointmentController.completeAppointment);
+
 // DELETE /api/admin/appointments/:id - Delete appointment
 router.delete('/:id', adminAppointmentController.deleteAppointment);
 

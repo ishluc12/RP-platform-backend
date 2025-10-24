@@ -148,14 +148,168 @@ class User {
         }
     }
 
-    /** Delete user by ID */
+    /** Delete user by ID - with cascading deletion of related records */
     static async delete(id) {
         try {
-            const { error } = await db.from('users').delete().eq('id', id);
-            if (error) throw error;
-            return { success: true, message: 'User deleted successfully' };
+            const { supabase, supabaseAdmin } = require('../config/database');
+            const db = supabaseAdmin || supabase;
+            
+            // Start a transaction-like approach by deleting related records first
+            // Delete related appointments where user is requester or appointee
+            const { error: appointmentError } = await db
+                .from('appointments')
+                .delete()
+                .or(`requester_id.eq.${id},appointee_id.eq.${id}`);
+            
+            if (appointmentError) {
+                console.error('Error deleting user appointments:', appointmentError);
+                // Continue with user deletion even if appointments deletion fails
+            }
+            
+            // Delete related availability records
+            const { error: availabilityError } = await db
+                .from('staff_availability')
+                .delete()
+                .eq('staff_id', id);
+            
+            if (availabilityError) {
+                console.error('Error deleting user availability:', availabilityError);
+                // Continue with user deletion even if availability deletion fails
+            }
+            
+            // Delete related appointment exceptions
+            const { error: exceptionError } = await db
+                .from('appointment_exceptions')
+                .delete()
+                .eq('staff_id', id);
+            
+            if (exceptionError) {
+                console.error('Error deleting user exceptions:', exceptionError);
+                // Continue with user deletion even if exceptions deletion fails
+            }
+            
+            // Delete related posts
+            const { error: postError } = await db
+                .from('posts')
+                .delete()
+                .eq('user_id', id);
+            
+            if (postError) {
+                console.error('Error deleting user posts:', postError);
+                // Continue with user deletion even if posts deletion fails
+            }
+            
+            // Delete related comments
+            const { error: commentError } = await db
+                .from('comments')
+                .delete()
+                .eq('user_id', id);
+            
+            if (commentError) {
+                console.error('Error deleting user comments:', commentError);
+                // Continue with user deletion even if comments deletion fails
+            }
+            
+            // Delete related events
+            const { error: eventError } = await db
+                .from('events')
+                .delete()
+                .eq('created_by', id);
+            
+            if (eventError) {
+                console.error('Error deleting user events:', eventError);
+                // Continue with user deletion even if events deletion fails
+            }
+            
+            // Delete related notifications
+            const { error: notificationError } = await db
+                .from('notifications')
+                .delete()
+                .or(`user_id.eq.${id},sender_id.eq.${id}`);
+            
+            if (notificationError) {
+                console.error('Error deleting user notifications:', notificationError);
+                // Continue with user deletion even if notifications deletion fails
+            }
+            
+            // Delete related messages
+            const { error: messageError } = await db
+                .from('messages')
+                .delete()
+                .or(`sender_id.eq.${id},recipient_id.eq.${id}`);
+            
+            if (messageError) {
+                console.error('Error deleting user messages:', messageError);
+                // Continue with user deletion even if messages deletion fails
+            }
+            
+            // Delete related chat group memberships
+            const { error: chatGroupError } = await db
+                .from('chat_group_members')
+                .delete()
+                .eq('user_id', id);
+            
+            if (chatGroupError) {
+                console.error('Error deleting user chat group memberships:', chatGroupError);
+                // Continue with user deletion even if chat group memberships deletion fails
+            }
+            
+            // Delete related forum posts
+            const { error: forumPostError } = await db
+                .from('forum_posts')
+                .delete()
+                .eq('author_id', id);
+            
+            if (forumPostError) {
+                console.error('Error deleting user forum posts:', forumPostError);
+                // Continue with user deletion even if forum posts deletion fails
+            }
+            
+            // Delete related surveys
+            const { error: surveyError } = await db
+                .from('surveys')
+                .delete()
+                .eq('created_by', id);
+            
+            if (surveyError) {
+                console.error('Error deleting user surveys:', surveyError);
+                // Continue with user deletion even if surveys deletion fails
+            }
+            
+            // Delete related survey responses
+            const { error: surveyResponseError } = await db
+                .from('survey_responses')
+                .delete()
+                .eq('user_id', id);
+            
+            if (surveyResponseError) {
+                console.error('Error deleting user survey responses:', surveyResponseError);
+                // Continue with user deletion even if survey responses deletion fails
+            }
+            
+            // Delete related poll votes
+            const { error: pollVoteError } = await db
+                .from('poll_votes')
+                .delete()
+                .eq('user_id', id);
+            
+            if (pollVoteError) {
+                console.error('Error deleting user poll votes:', pollVoteError);
+                // Continue with user deletion even if poll votes deletion fails
+            }
+            
+            // Finally, delete the user
+            const { error: userError } = await db
+                .from('users')
+                .delete()
+                .eq('id', id);
+                
+            if (userError) throw userError;
+            
+            return { success: true, message: 'User and all related records deleted successfully' };
         } catch (error) {
-            return { success: false, error: error.message || 'Unknown error' };
+            console.error('Error deleting user:', error);
+            return { success: false, error: error.message || 'Failed to delete user and related records' };
         }
     }
 

@@ -407,18 +407,50 @@ const getSurveyReport = async (req, res) => {
 // Admin: Get responses (optionally include answers)
 const adminGetResponses = async (req, res) => {
     const { id } = req.params; // template id
-    const includeAnswers = String(req.query.includeAnswers || 'false').toLowerCase() === 'true';
+    const includeAnswers = String(req.query.includeAnswers || 'true').toLowerCase() === 'true'; // Default to true
     try {
-        const responses = await Survey.getResponsesByTemplate(id, false);
+        // Get all responses for this survey template with user information
+        const responses = await Survey.getResponsesByTemplate(id, true); // Include user details
+        
         if (!includeAnswers) {
             return response(res, 200, 'Survey responses fetched', responses);
         }
-        const ids = responses.map(r => r.id);
-        const answers = await Survey.getAnswersByResponseIds(ids);
+        
+        // Get detailed answers for all responses
+        const responseIds = responses.map(r => r.id);
+        
+        if (responseIds.length === 0) {
+            return response(res, 200, 'Survey responses with answers fetched', { 
+                responses: [], 
+                answers: [], 
+                answerOptions: [],
+                totalResponses: 0 
+            });
+        }
+        
+        const answers = await Survey.getAnswersByResponseIds(responseIds);
         const answerIds = answers.map(a => a.id);
-        const answerOptions = await Survey.getAnswerOptionsByAnswerIds(answerIds);
-        response(res, 200, 'Survey responses with answers fetched', { responses, answers, answerOptions });
+        const answerOptions = answerIds.length > 0 ? await Survey.getAnswerOptionsByAnswerIds(answerIds) : [];
+        
+        // Organize data for frontend
+        const responseData = {
+            responses,
+            answers,
+            answerOptions,
+            totalResponses: responses.length,
+            responsesByUser: responses.map(r => ({
+                responseId: r.id,
+                userId: r.user_id,
+                userName: r.user_name || 'Anonymous',
+                userEmail: r.user_email,
+                submittedAt: r.submitted_at,
+                answers: answers.filter(a => a.response_id === r.id)
+            }))
+        };
+        
+        response(res, 200, 'Survey responses with answers fetched', responseData);
     } catch (error) {
+        console.error('Error fetching survey responses:', error);
         errorResponse(res, 500, error.message);
     }
 };

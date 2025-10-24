@@ -15,6 +15,8 @@ router.delete('/bulk/delete', authenticateToken, requireAdmin, AdminUserControll
 router.get('/analytics/overview', authenticateToken, requireAdmin, AdminUserController.getUserAnalytics);
 router.get('/export/data', authenticateToken, requireAdmin, AdminUserController.exportUsers);
 router.put('/:id/status', authenticateToken, requireAdmin, AdminUserController.toggleUserStatus);
+router.put('/:id/ban', authenticateToken, requireAdmin, AdminUserController.banUser);
+router.put('/:id/unban', authenticateToken, requireAdmin, AdminUserController.unbanUser);
 router.get('/:id/logs', authenticateToken, requireAdmin, AdminUserController.getUserActivityLogs);
 
 module.exports = router;

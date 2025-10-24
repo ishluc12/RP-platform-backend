@@ -21,8 +21,8 @@ router.use(requireAdmin);
 // GET /api/admin/surveys/statistics/:templateId - get survey statistics
 router.get('/statistics/:templateId', adminAggregateRatings);
 
-// GET /api/admin/surveys/responses/:id - list responses (optionally includeAnswers=true)
-router.get('/responses/:id', adminGetResponses);
+// GET /api/admin/surveys/:id/responses - list responses (optionally includeAnswers=true)
+router.get('/:id/responses', adminGetResponses);
 
 // POST /api/admin/surveys/templates/:templateId/questions - create question
 router.post('/templates/:templateId/questions', adminCreateQuestion);

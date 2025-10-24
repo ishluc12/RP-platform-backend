@@ -325,3 +325,71 @@ exports.searchAppointments = async (req, res) => {
     });
   }
 };
+
+// Cancel appointment with reason
+exports.cancelAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const result = await Appointment.update(id, { 
+      status: 'cancelled',
+      notes: reason ? `Cancelled: ${reason}` : 'Cancelled by admin'
+    });
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found or update failed',
+        error: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Appointment cancelled successfully',
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Error cancelling appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cancel appointment',
+      error: error.message
+    });
+  }
+};
+
+// Complete appointment with notes
+exports.completeAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    const result = await Appointment.update(id, { 
+      status: 'completed',
+      notes: notes || 'Completed by admin'
+    });
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found or update failed',
+        error: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Appointment marked as completed',
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Error completing appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to complete appointment',
+      error: error.message
+    });
+  }
+};

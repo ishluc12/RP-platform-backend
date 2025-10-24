@@ -7,15 +7,24 @@ class Poll {
      * @param {string} params.question
      * @param {string} params.created_by
      * @param {Array<string>} params.options - Array of poll option texts
-     * @param {string} [params.expires_at]
+     * @param {Date} [params.expires_at]
+     * @param {string} [params.target_audience='all']
+     * @param {boolean} [params.is_active=true]
      * @returns {Promise<Object>}
      */
-    static async create({ question, created_by, options, expires_at = null }) {
+    static async create({ question, created_by, options, expires_at, target_audience = 'all', is_active = true }) {
         try {
             const { data: poll, error: pollError } = await supabase
                 .from('polls')
-                .insert([{ question, created_by, expires_at }])
-                .select('id')
+                .insert([{ 
+                    question, 
+                    created_by, 
+                    expires_at, 
+                    target_audience,
+                    is_active,
+                    created_at: new Date().toISOString()
+                }])
+                .select('*')
                 .single();
 
             if (pollError) throw pollError;
@@ -110,31 +119,66 @@ class Poll {
      * Get all polls, optionally filtered by creator or active status
      * @param {Object} [filters={}]
      * @param {string} [filters.created_by]
-     * @param {boolean} [filters.active=true] - Only return polls that have not expired
+     * @param {boolean} [filters.active] - Only return polls that have not expired
+     * @param {string} [filters.target_audience] - Filter by target audience (department)
+     * @param {string} [filters.user_department] - User's department for filtering
      * @param {number} [options.page=1]
      * @param {number} [options.limit=10]
      * @returns {Promise<Object>}
      */
-    static async getAll({ created_by, active = true, page = 1, limit = 10 } = {}) {
+    static async getAll({ created_by, active, target_audience, user_department, user_role, page = 1, limit = 10 } = {}) {
         try {
             let query = supabase
                 .from('polls')
                 .select(`
                     *,
-                    poll_options (id, option_text, poll_votes(count))
+                    poll_options (id, option_text, poll_votes(count)),
+                    users!polls_created_by_fkey(name, role, department)
                 `);
 
             if (created_by) {
                 query = query.eq('created_by', created_by);
             }
 
-            if (active) {
-                query = query.gte('expires_at', new Date().toISOString());
+            // Filter by target audience if provided
+            if (target_audience) {
+                query = query.eq('target_audience', target_audience);
             }
+
+            // Only apply department filtering for students
+            // Admins/lecturers should see all polls
+            const isStudent = user_role === 'student';
+            
+            if (isStudent && user_department) {
+                // Students only see polls for 'all' or their specific department
+                query = query.or(`target_audience.eq.all,target_audience.eq.${user_department}`);
+            }
+
+            // Only filter by is_active for students
+            // Admins/lecturers should see all polls including inactive ones
+            if (isStudent) {
+                query = query.eq('is_active', true);
+            }
+
+            // Only filter by active status if explicitly requested
+            if (active === true) {
+                // Return polls that either have no expiration OR haven't expired yet
+                query = query.or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`);
+            } else if (active === false) {
+                // Return only expired polls
+                query = query.lt('expires_at', new Date().toISOString());
+            }
+            // If active is undefined, return all polls regardless of expiration
 
             const from = (page - 1) * limit;
             const to = from + limit - 1;
-            query = query.range(from, to);
+            
+            // Get total count for pagination
+            const { count: totalCount } = await supabase
+                .from('polls')
+                .select('*', { count: 'exact', head: true });
+            
+            query = query.order('created_at', { ascending: false }).range(from, to);
 
             const { data: polls, error } = await query;
 
@@ -148,7 +192,16 @@ class Poll {
                 }))
             }));
 
-            return { success: true, data: formattedPolls };
+            return { 
+                success: true, 
+                data: formattedPolls,
+                pagination: {
+                    page,
+                    limit,
+                    total: totalCount || 0,
+                    totalPages: Math.ceil((totalCount || 0) / limit)
+                }
+            };
         } catch (error) {
             return { success: false, error: error.message };
         }
